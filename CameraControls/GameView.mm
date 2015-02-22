@@ -55,6 +55,8 @@ enum class CameraMode {
     SKScene *HUD;
     CameraMode cameraMode;
     
+    SKSpriteNode* indicator;
+    
     Imath::Quatf directionToClickPoint;
 }
 
@@ -71,27 +73,36 @@ enum class CameraMode {
     label.fontSize = 20.f;
     label.color = [SKColor yellowColor];
     label.position = CGPointMake(startX + 0, startY);
+    label.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft;
     [HUD addChild:label];
     label = [SKLabelNode labelNodeWithFontNamed:@"Avenir"];
     label.text = @"Crane";
     label.name = @"crane";
     label.fontSize = 20.f;
     label.color = [SKColor yellowColor];
-    label.position = CGPointMake(startX + 66, startY);
+    label.position = CGPointMake(startX + 82, startY);
+    label.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft;
     [HUD addChild:label];
+
     label = [SKLabelNode labelNodeWithFontNamed:@"Avenir"];
     label.text = @"Orbit";
     label.name = @"turntable-orbit";
     label.fontSize = 20.f;
     label.color = [SKColor yellowColor];
-    label.position = CGPointMake(startX + 126, startY);
+    label.position = CGPointMake(startX + 155, startY);
+    label.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft;
     [HUD addChild:label];
+    indicator = [SKSpriteNode spriteNodeWithColor:[SKColor yellowColor] size:CGSizeMake(8,8)];
+    indicator.position = CGPointMake(label.position.x - 5, label.position.y + 5);
+    [HUD addChild:indicator];
+    
     label = [SKLabelNode labelNodeWithFontNamed:@"Avenir"];
     label.text = @"Dolly";
     label.name = @"dolly";
     label.fontSize = 20.f;
     label.color = [SKColor yellowColor];
-    label.position = CGPointMake(startX + 180, startY);
+    label.position = CGPointMake(startX + 220, startY);
+    label.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft;
     [HUD addChild:label];
     
     self.overlaySKScene = HUD;
@@ -122,12 +133,18 @@ enum class CameraMode {
     if (clickedSprite != nil) {
         if ([clickedSprite.name isEqualTo:@"dolly"]) {
             self->cameraMode = CameraMode::Dolly;
+            indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
+            self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"turntable-orbit"]) {
             self->cameraMode = CameraMode::TurnTableOrbit;
+            indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
+            self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"crane"]) {
             self->cameraMode = CameraMode::Crane;
+            indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
+            self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"look-at"]) {
             self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, self->focus3dPosition, (vector_float3){0,1,0})));
@@ -161,7 +178,7 @@ enum class CameraMode {
         clickPoint.hidden = NO;
     }
     else {
-        clickPoint.hidden = YES;
+       // clickPoint.hidden = YES;
     }
     
     initialCameraPosition = SCNVector3ToFloat3(self.pointOfView.position);
@@ -209,11 +226,17 @@ enum class CameraMode {
     float scale = std::max(0.01f, logf(distanceToFocus) * 5.f);
     
     if (cameraMode == CameraMode::Dolly) {
-        cameraPos += distanceY * fwdVector * scale - distanceX * rightVector * scale;
+        v3f dP = distanceY * fwdVector * scale - distanceX * rightVector * scale;
+        cameraPos += dP;
+        self->focus3dPosition += dP;
+        clickPoint.position = SCNVector3FromFloat3(self->focus3dPosition);
         self.pointOfView.position = SCNVector3FromFloat3(cameraPos);
     }
     if (cameraMode == CameraMode::Crane) {
-        cameraPos += -distanceY * upVector * scale - distanceX * rightVector * scale;
+        v3f dP = -distanceY * upVector * scale - distanceX * rightVector * scale;
+        cameraPos += dP;
+        self->focus3dPosition += dP;
+        clickPoint.position = SCNVector3FromFloat3(self->focus3dPosition);
         self.pointOfView.position = SCNVector3FromFloat3(cameraPos);
     }
     else if (cameraMode == CameraMode::TurnTableOrbit) {
