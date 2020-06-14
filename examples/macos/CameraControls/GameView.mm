@@ -149,7 +149,7 @@ enum class CameraMode {
         else if ([clickedSprite.name isEqualTo:@"look-at"]) {
             self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, self->focus3dPosition, (vector_float3){0,1,0})));
         }
-        NSLog(@"%@", clickedSprite.name);
+        NSLog(@"%@", clickedSprite.name? clickedSprite.name : @"Unnamed sprite clicked");
     }
     
     if (!clickPoint) {

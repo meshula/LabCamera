@@ -378,6 +378,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 				Base,
 			);
@@ -469,7 +470,7 @@
 		E289F03E1A978C01002D4C90 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
+				ALWAYS_SEARCH_USER_PATHS = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
@@ -511,7 +512,7 @@
 		E289F03F1A978C01002D4C90 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
+				ALWAYS_SEARCH_USER_PATHS = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
@@ -551,7 +552,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = CameraControls/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = "";
+				"LIBRARY_SEARCH_PATHS[arch=*]" = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath";
 			};
 			name = Debug;
 		};
@@ -563,7 +567,9 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = CameraControls/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath";
 			};
 			name = Release;
 		};
@@ -622,6 +628,7 @@
 				E289F0421A978C01002D4C90 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		E289F0431A978C01002D4C90 /* Build configuration list for PBXNativeTarget "CameraControlsTests" */ = {
 			isa = XCConfigurationList;
@@ -630,6 +637,7 @@
 				E289F0451A978C01002D4C90 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
