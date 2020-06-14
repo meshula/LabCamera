@@ -16,18 +16,6 @@
 		E289F0311A978C00002D4C90 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = E289F02F1A978C00002D4C90 /* MainMenu.xib */; };
 		E289F03D1A978C01002D4C90 /* CameraControlsTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E289F03C1A978C01002D4C90 /* CameraControlsTests.m */; };
 		E289F0471A982098002D4C90 /* SpriteKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E289F0461A982098002D4C90 /* SpriteKit.framework */; };
-		E289F0581A9916D1002D4C90 /* IexBaseExc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F04E1A9916D1002D4C90 /* IexBaseExc.cpp */; };
-		E289F0591A9916D1002D4C90 /* IexThrowErrnoExc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0561A9916D1002D4C90 /* IexThrowErrnoExc.cpp */; };
-		E289F05F1A9916E0002D4C90 /* IexMathFloatExc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F05A1A9916E0002D4C90 /* IexMathFloatExc.cpp */; };
-		E289F0601A9916E0002D4C90 /* IexMathFpu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F05C1A9916E0002D4C90 /* IexMathFpu.cpp */; };
-		E289F0661A9916FF002D4C90 /* half.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0611A9916FF002D4C90 /* half.cpp */; };
-		E289F08F1A991710002D4C90 /* ImathBox.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0671A991710002D4C90 /* ImathBox.cpp */; };
-		E289F0901A991710002D4C90 /* ImathColorAlgo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F06B1A991710002D4C90 /* ImathColorAlgo.cpp */; };
-		E289F0911A991710002D4C90 /* ImathFun.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0741A991710002D4C90 /* ImathFun.cpp */; };
-		E289F0921A991710002D4C90 /* ImathMatrixAlgo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0801A991710002D4C90 /* ImathMatrixAlgo.cpp */; };
-		E289F0931A991710002D4C90 /* ImathRandom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0861A991710002D4C90 /* ImathRandom.cpp */; };
-		E289F0941A991710002D4C90 /* ImathShear.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F0891A991710002D4C90 /* ImathShear.cpp */; };
-		E289F0951A991710002D4C90 /* ImathVec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E289F08C1A991710002D4C90 /* ImathVec.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,70 +45,7 @@
 		E289F03B1A978C01002D4C90 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E289F03C1A978C01002D4C90 /* CameraControlsTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CameraControlsTests.m; sourceTree = "<group>"; };
 		E289F0461A982098002D4C90 /* SpriteKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SpriteKit.framework; path = System/Library/Frameworks/SpriteKit.framework; sourceTree = SDKROOT; };
-		E289F04D1A9916D1002D4C90 /* Iex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Iex.h; path = CameraControls/Ilmbase/Iex/Iex.h; sourceTree = "<group>"; };
-		E289F04E1A9916D1002D4C90 /* IexBaseExc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IexBaseExc.cpp; path = CameraControls/Ilmbase/Iex/IexBaseExc.cpp; sourceTree = "<group>"; };
-		E289F04F1A9916D1002D4C90 /* IexBaseExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexBaseExc.h; path = CameraControls/Ilmbase/Iex/IexBaseExc.h; sourceTree = "<group>"; };
-		E289F0501A9916D1002D4C90 /* IexErrnoExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexErrnoExc.h; path = CameraControls/Ilmbase/Iex/IexErrnoExc.h; sourceTree = "<group>"; };
-		E289F0511A9916D1002D4C90 /* IexExport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexExport.h; path = CameraControls/Ilmbase/Iex/IexExport.h; sourceTree = "<group>"; };
-		E289F0521A9916D1002D4C90 /* IexForward.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexForward.h; path = CameraControls/Ilmbase/Iex/IexForward.h; sourceTree = "<group>"; };
-		E289F0531A9916D1002D4C90 /* IexMacros.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexMacros.h; path = CameraControls/Ilmbase/Iex/IexMacros.h; sourceTree = "<group>"; };
-		E289F0541A9916D1002D4C90 /* IexMathExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexMathExc.h; path = CameraControls/Ilmbase/Iex/IexMathExc.h; sourceTree = "<group>"; };
-		E289F0551A9916D1002D4C90 /* IexNamespace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexNamespace.h; path = CameraControls/Ilmbase/Iex/IexNamespace.h; sourceTree = "<group>"; };
-		E289F0561A9916D1002D4C90 /* IexThrowErrnoExc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IexThrowErrnoExc.cpp; path = CameraControls/Ilmbase/Iex/IexThrowErrnoExc.cpp; sourceTree = "<group>"; };
-		E289F0571A9916D1002D4C90 /* IexThrowErrnoExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexThrowErrnoExc.h; path = CameraControls/Ilmbase/Iex/IexThrowErrnoExc.h; sourceTree = "<group>"; };
-		E289F05A1A9916E0002D4C90 /* IexMathFloatExc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IexMathFloatExc.cpp; path = CameraControls/Ilmbase/IexMath/IexMathFloatExc.cpp; sourceTree = "<group>"; };
-		E289F05B1A9916E0002D4C90 /* IexMathFloatExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexMathFloatExc.h; path = CameraControls/Ilmbase/IexMath/IexMathFloatExc.h; sourceTree = "<group>"; };
-		E289F05C1A9916E0002D4C90 /* IexMathFpu.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IexMathFpu.cpp; path = CameraControls/Ilmbase/IexMath/IexMathFpu.cpp; sourceTree = "<group>"; };
-		E289F05D1A9916E0002D4C90 /* IexMathFpu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexMathFpu.h; path = CameraControls/Ilmbase/IexMath/IexMathFpu.h; sourceTree = "<group>"; };
-		E289F05E1A9916E0002D4C90 /* IexMathIeeeExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IexMathIeeeExc.h; path = CameraControls/Ilmbase/IexMath/IexMathIeeeExc.h; sourceTree = "<group>"; };
-		E289F0611A9916FF002D4C90 /* half.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = half.cpp; path = CameraControls/Ilmbase/Half/half.cpp; sourceTree = "<group>"; };
-		E289F0621A9916FF002D4C90 /* half.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = half.h; path = CameraControls/Ilmbase/Half/half.h; sourceTree = "<group>"; };
-		E289F0631A9916FF002D4C90 /* halfExport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = halfExport.h; path = CameraControls/Ilmbase/Half/halfExport.h; sourceTree = "<group>"; };
-		E289F0641A9916FF002D4C90 /* halfFunction.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = halfFunction.h; path = CameraControls/Ilmbase/Half/halfFunction.h; sourceTree = "<group>"; };
-		E289F0651A9916FF002D4C90 /* halfLimits.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = halfLimits.h; path = CameraControls/Ilmbase/Half/halfLimits.h; sourceTree = "<group>"; };
-		E289F0671A991710002D4C90 /* ImathBox.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathBox.cpp; path = CameraControls/Ilmbase/Imath/ImathBox.cpp; sourceTree = "<group>"; };
-		E289F0681A991710002D4C90 /* ImathBox.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathBox.h; path = CameraControls/Ilmbase/Imath/ImathBox.h; sourceTree = "<group>"; };
-		E289F0691A991710002D4C90 /* ImathBoxAlgo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathBoxAlgo.h; path = CameraControls/Ilmbase/Imath/ImathBoxAlgo.h; sourceTree = "<group>"; };
-		E289F06A1A991710002D4C90 /* ImathColor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathColor.h; path = CameraControls/Ilmbase/Imath/ImathColor.h; sourceTree = "<group>"; };
-		E289F06B1A991710002D4C90 /* ImathColorAlgo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathColorAlgo.cpp; path = CameraControls/Ilmbase/Imath/ImathColorAlgo.cpp; sourceTree = "<group>"; };
-		E289F06C1A991710002D4C90 /* ImathColorAlgo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathColorAlgo.h; path = CameraControls/Ilmbase/Imath/ImathColorAlgo.h; sourceTree = "<group>"; };
-		E289F06D1A991710002D4C90 /* ImathEuler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathEuler.h; path = CameraControls/Ilmbase/Imath/ImathEuler.h; sourceTree = "<group>"; };
-		E289F06E1A991710002D4C90 /* ImathExc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathExc.h; path = CameraControls/Ilmbase/Imath/ImathExc.h; sourceTree = "<group>"; };
-		E289F06F1A991710002D4C90 /* ImathExport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathExport.h; path = CameraControls/Ilmbase/Imath/ImathExport.h; sourceTree = "<group>"; };
-		E289F0701A991710002D4C90 /* ImathForward.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathForward.h; path = CameraControls/Ilmbase/Imath/ImathForward.h; sourceTree = "<group>"; };
-		E289F0711A991710002D4C90 /* ImathFrame.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathFrame.h; path = CameraControls/Ilmbase/Imath/ImathFrame.h; sourceTree = "<group>"; };
-		E289F0721A991710002D4C90 /* ImathFrustum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathFrustum.h; path = CameraControls/Ilmbase/Imath/ImathFrustum.h; sourceTree = "<group>"; };
-		E289F0731A991710002D4C90 /* ImathFrustumTest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathFrustumTest.h; path = CameraControls/Ilmbase/Imath/ImathFrustumTest.h; sourceTree = "<group>"; };
-		E289F0741A991710002D4C90 /* ImathFun.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathFun.cpp; path = CameraControls/Ilmbase/Imath/ImathFun.cpp; sourceTree = "<group>"; };
-		E289F0751A991710002D4C90 /* ImathFun.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathFun.h; path = CameraControls/Ilmbase/Imath/ImathFun.h; sourceTree = "<group>"; };
-		E289F0761A991710002D4C90 /* ImathGL.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathGL.h; path = CameraControls/Ilmbase/Imath/ImathGL.h; sourceTree = "<group>"; };
-		E289F0771A991710002D4C90 /* ImathGLU.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathGLU.h; path = CameraControls/Ilmbase/Imath/ImathGLU.h; sourceTree = "<group>"; };
-		E289F0781A991710002D4C90 /* ImathHalfLimits.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathHalfLimits.h; path = CameraControls/Ilmbase/Imath/ImathHalfLimits.h; sourceTree = "<group>"; };
-		E289F0791A991710002D4C90 /* ImathInt64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathInt64.h; path = CameraControls/Ilmbase/Imath/ImathInt64.h; sourceTree = "<group>"; };
-		E289F07A1A991710002D4C90 /* ImathInterval.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathInterval.h; path = CameraControls/Ilmbase/Imath/ImathInterval.h; sourceTree = "<group>"; };
-		E289F07B1A991710002D4C90 /* ImathLimits.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathLimits.h; path = CameraControls/Ilmbase/Imath/ImathLimits.h; sourceTree = "<group>"; };
-		E289F07C1A991710002D4C90 /* ImathLine.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathLine.h; path = CameraControls/Ilmbase/Imath/ImathLine.h; sourceTree = "<group>"; };
-		E289F07D1A991710002D4C90 /* ImathLineAlgo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathLineAlgo.h; path = CameraControls/Ilmbase/Imath/ImathLineAlgo.h; sourceTree = "<group>"; };
-		E289F07E1A991710002D4C90 /* ImathMath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathMath.h; path = CameraControls/Ilmbase/Imath/ImathMath.h; sourceTree = "<group>"; };
-		E289F07F1A991710002D4C90 /* ImathMatrix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathMatrix.h; path = CameraControls/Ilmbase/Imath/ImathMatrix.h; sourceTree = "<group>"; };
-		E289F0801A991710002D4C90 /* ImathMatrixAlgo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathMatrixAlgo.cpp; path = CameraControls/Ilmbase/Imath/ImathMatrixAlgo.cpp; sourceTree = "<group>"; };
-		E289F0811A991710002D4C90 /* ImathMatrixAlgo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathMatrixAlgo.h; path = CameraControls/Ilmbase/Imath/ImathMatrixAlgo.h; sourceTree = "<group>"; };
-		E289F0821A991710002D4C90 /* ImathNamespace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathNamespace.h; path = CameraControls/Ilmbase/Imath/ImathNamespace.h; sourceTree = "<group>"; };
-		E289F0831A991710002D4C90 /* ImathPlane.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathPlane.h; path = CameraControls/Ilmbase/Imath/ImathPlane.h; sourceTree = "<group>"; };
-		E289F0841A991710002D4C90 /* ImathPlatform.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathPlatform.h; path = CameraControls/Ilmbase/Imath/ImathPlatform.h; sourceTree = "<group>"; };
-		E289F0851A991710002D4C90 /* ImathQuat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathQuat.h; path = CameraControls/Ilmbase/Imath/ImathQuat.h; sourceTree = "<group>"; };
-		E289F0861A991710002D4C90 /* ImathRandom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathRandom.cpp; path = CameraControls/Ilmbase/Imath/ImathRandom.cpp; sourceTree = "<group>"; };
-		E289F0871A991710002D4C90 /* ImathRandom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathRandom.h; path = CameraControls/Ilmbase/Imath/ImathRandom.h; sourceTree = "<group>"; };
-		E289F0881A991710002D4C90 /* ImathRoots.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathRoots.h; path = CameraControls/Ilmbase/Imath/ImathRoots.h; sourceTree = "<group>"; };
-		E289F0891A991710002D4C90 /* ImathShear.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathShear.cpp; path = CameraControls/Ilmbase/Imath/ImathShear.cpp; sourceTree = "<group>"; };
-		E289F08A1A991710002D4C90 /* ImathShear.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathShear.h; path = CameraControls/Ilmbase/Imath/ImathShear.h; sourceTree = "<group>"; };
-		E289F08B1A991710002D4C90 /* ImathSphere.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathSphere.h; path = CameraControls/Ilmbase/Imath/ImathSphere.h; sourceTree = "<group>"; };
-		E289F08C1A991710002D4C90 /* ImathVec.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ImathVec.cpp; path = CameraControls/Ilmbase/Imath/ImathVec.cpp; sourceTree = "<group>"; };
-		E289F08D1A991710002D4C90 /* ImathVec.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathVec.h; path = CameraControls/Ilmbase/Imath/ImathVec.h; sourceTree = "<group>"; };
-		E289F08E1A991710002D4C90 /* ImathVecAlgo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ImathVecAlgo.h; path = CameraControls/Ilmbase/Imath/ImathVecAlgo.h; sourceTree = "<group>"; };
-		E289F0971A9917EA002D4C90 /* IlmBaseConfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IlmBaseConfig.h; sourceTree = "<group>"; };
-		E289F0981A99184E002D4C90 /* eLut.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = eLut.h; sourceTree = "<group>"; };
-		E289F0991A99184E002D4C90 /* toFloat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = toFloat.h; sourceTree = "<group>"; };
+		E2F28699249606C000371C0A /* LabCamera.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = LabCamera.h; path = ../../../LabCamera.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,7 +70,6 @@
 		E289F0121A978C00002D4C90 = {
 			isa = PBXGroup;
 			children = (
-				E289F0481A99168E002D4C90 /* IlmBase */,
 				E289F0461A982098002D4C90 /* SpriteKit.framework */,
 				E289F01D1A978C00002D4C90 /* CameraControls */,
 				E289F0391A978C01002D4C90 /* CameraControlsTests */,
@@ -165,6 +89,7 @@
 		E289F01D1A978C00002D4C90 /* CameraControls */ = {
 			isa = PBXGroup;
 			children = (
+				E2F28699249606C000371C0A /* LabCamera.h */,
 				E289F0201A978C00002D4C90 /* AppDelegate.h */,
 				E289F0211A978C00002D4C90 /* AppDelegate.m */,
 				E289F0251A978C00002D4C90 /* GameView.h */,
@@ -203,118 +128,6 @@
 				E289F03B1A978C01002D4C90 /* Info.plist */,
 			);
 			name = "Supporting Files";
-			sourceTree = "<group>";
-		};
-		E289F0481A99168E002D4C90 /* IlmBase */ = {
-			isa = PBXGroup;
-			children = (
-				E289F0961A9917EA002D4C90 /* include */,
-				E289F04C1A9916A8002D4C90 /* Imath */,
-				E289F04B1A9916A2002D4C90 /* IexMath */,
-				E289F04A1A99169B002D4C90 /* Iex */,
-				E289F0491A991695002D4C90 /* Half */,
-			);
-			name = IlmBase;
-			sourceTree = "<group>";
-		};
-		E289F0491A991695002D4C90 /* Half */ = {
-			isa = PBXGroup;
-			children = (
-				E289F0611A9916FF002D4C90 /* half.cpp */,
-				E289F0621A9916FF002D4C90 /* half.h */,
-				E289F0631A9916FF002D4C90 /* halfExport.h */,
-				E289F0641A9916FF002D4C90 /* halfFunction.h */,
-				E289F0651A9916FF002D4C90 /* halfLimits.h */,
-			);
-			name = Half;
-			sourceTree = "<group>";
-		};
-		E289F04A1A99169B002D4C90 /* Iex */ = {
-			isa = PBXGroup;
-			children = (
-				E289F04D1A9916D1002D4C90 /* Iex.h */,
-				E289F04E1A9916D1002D4C90 /* IexBaseExc.cpp */,
-				E289F04F1A9916D1002D4C90 /* IexBaseExc.h */,
-				E289F0501A9916D1002D4C90 /* IexErrnoExc.h */,
-				E289F0511A9916D1002D4C90 /* IexExport.h */,
-				E289F0521A9916D1002D4C90 /* IexForward.h */,
-				E289F0531A9916D1002D4C90 /* IexMacros.h */,
-				E289F0541A9916D1002D4C90 /* IexMathExc.h */,
-				E289F0551A9916D1002D4C90 /* IexNamespace.h */,
-				E289F0561A9916D1002D4C90 /* IexThrowErrnoExc.cpp */,
-				E289F0571A9916D1002D4C90 /* IexThrowErrnoExc.h */,
-			);
-			name = Iex;
-			sourceTree = "<group>";
-		};
-		E289F04B1A9916A2002D4C90 /* IexMath */ = {
-			isa = PBXGroup;
-			children = (
-				E289F05A1A9916E0002D4C90 /* IexMathFloatExc.cpp */,
-				E289F05B1A9916E0002D4C90 /* IexMathFloatExc.h */,
-				E289F05C1A9916E0002D4C90 /* IexMathFpu.cpp */,
-				E289F05D1A9916E0002D4C90 /* IexMathFpu.h */,
-				E289F05E1A9916E0002D4C90 /* IexMathIeeeExc.h */,
-			);
-			name = IexMath;
-			sourceTree = "<group>";
-		};
-		E289F04C1A9916A8002D4C90 /* Imath */ = {
-			isa = PBXGroup;
-			children = (
-				E289F0671A991710002D4C90 /* ImathBox.cpp */,
-				E289F0681A991710002D4C90 /* ImathBox.h */,
-				E289F0691A991710002D4C90 /* ImathBoxAlgo.h */,
-				E289F06A1A991710002D4C90 /* ImathColor.h */,
-				E289F06B1A991710002D4C90 /* ImathColorAlgo.cpp */,
-				E289F06C1A991710002D4C90 /* ImathColorAlgo.h */,
-				E289F06D1A991710002D4C90 /* ImathEuler.h */,
-				E289F06E1A991710002D4C90 /* ImathExc.h */,
-				E289F06F1A991710002D4C90 /* ImathExport.h */,
-				E289F0701A991710002D4C90 /* ImathForward.h */,
-				E289F0711A991710002D4C90 /* ImathFrame.h */,
-				E289F0721A991710002D4C90 /* ImathFrustum.h */,
-				E289F0731A991710002D4C90 /* ImathFrustumTest.h */,
-				E289F0741A991710002D4C90 /* ImathFun.cpp */,
-				E289F0751A991710002D4C90 /* ImathFun.h */,
-				E289F0761A991710002D4C90 /* ImathGL.h */,
-				E289F0771A991710002D4C90 /* ImathGLU.h */,
-				E289F0781A991710002D4C90 /* ImathHalfLimits.h */,
-				E289F0791A991710002D4C90 /* ImathInt64.h */,
-				E289F07A1A991710002D4C90 /* ImathInterval.h */,
-				E289F07B1A991710002D4C90 /* ImathLimits.h */,
-				E289F07C1A991710002D4C90 /* ImathLine.h */,
-				E289F07D1A991710002D4C90 /* ImathLineAlgo.h */,
-				E289F07E1A991710002D4C90 /* ImathMath.h */,
-				E289F07F1A991710002D4C90 /* ImathMatrix.h */,
-				E289F0801A991710002D4C90 /* ImathMatrixAlgo.cpp */,
-				E289F0811A991710002D4C90 /* ImathMatrixAlgo.h */,
-				E289F0821A991710002D4C90 /* ImathNamespace.h */,
-				E289F0831A991710002D4C90 /* ImathPlane.h */,
-				E289F0841A991710002D4C90 /* ImathPlatform.h */,
-				E289F0851A991710002D4C90 /* ImathQuat.h */,
-				E289F0861A991710002D4C90 /* ImathRandom.cpp */,
-				E289F0871A991710002D4C90 /* ImathRandom.h */,
-				E289F0881A991710002D4C90 /* ImathRoots.h */,
-				E289F0891A991710002D4C90 /* ImathShear.cpp */,
-				E289F08A1A991710002D4C90 /* ImathShear.h */,
-				E289F08B1A991710002D4C90 /* ImathSphere.h */,
-				E289F08C1A991710002D4C90 /* ImathVec.cpp */,
-				E289F08D1A991710002D4C90 /* ImathVec.h */,
-				E289F08E1A991710002D4C90 /* ImathVecAlgo.h */,
-			);
-			name = Imath;
-			sourceTree = "<group>";
-		};
-		E289F0961A9917EA002D4C90 /* include */ = {
-			isa = PBXGroup;
-			children = (
-				E289F0981A99184E002D4C90 /* eLut.h */,
-				E289F0991A99184E002D4C90 /* toFloat.h */,
-				E289F0971A9917EA002D4C90 /* IlmBaseConfig.h */,
-			);
-			name = include;
-			path = CameraControls/Ilmbase/include;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -418,22 +231,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E289F0941A991710002D4C90 /* ImathShear.cpp in Sources */,
-				E289F0581A9916D1002D4C90 /* IexBaseExc.cpp in Sources */,
-				E289F0591A9916D1002D4C90 /* IexThrowErrnoExc.cpp in Sources */,
-				E289F0921A991710002D4C90 /* ImathMatrixAlgo.cpp in Sources */,
-				E289F0661A9916FF002D4C90 /* half.cpp in Sources */,
-				E289F0901A991710002D4C90 /* ImathColorAlgo.cpp in Sources */,
-				E289F0601A9916E0002D4C90 /* IexMathFpu.cpp in Sources */,
-				E289F05F1A9916E0002D4C90 /* IexMathFloatExc.cpp in Sources */,
 				E289F02A1A978C00002D4C90 /* GameViewController.m in Sources */,
-				E289F0931A991710002D4C90 /* ImathRandom.cpp in Sources */,
 				E289F0271A978C00002D4C90 /* GameView.mm in Sources */,
 				E289F0241A978C00002D4C90 /* main.m in Sources */,
-				E289F0911A991710002D4C90 /* ImathFun.cpp in Sources */,
 				E289F0221A978C00002D4C90 /* AppDelegate.m in Sources */,
-				E289F0951A991710002D4C90 /* ImathVec.cpp in Sources */,
-				E289F08F1A991710002D4C90 /* ImathBox.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -471,7 +272,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -488,7 +289,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_C_LANGUAGE_STANDARD = c11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -513,7 +314,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -531,7 +332,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_C_LANGUAGE_STANDARD = c11;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -554,8 +355,10 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "";
 				"LIBRARY_SEARCH_PATHS[arch=*]" = "";
+				PRODUCT_BUNDLE_IDENTIFIER = PlanetIx.CameraControls;
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=*]" = PlanetIx.CameraControls;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath";
+				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath ../..";
 			};
 			name = Debug;
 		};
@@ -568,8 +371,9 @@
 				INFOPLIST_FILE = CameraControls/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = PlanetIx.CameraControls;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath";
+				SYSTEM_HEADER_SEARCH_PATHS = "CameraControls/Ilmbase/Imath CameraControls/Ilmbase/Iex CameraControls/Ilmbase/Half CameraControls/Ilmbase/include CameraControls/Ilmbase/IexMath ../..";
 			};
 			name = Release;
 		};

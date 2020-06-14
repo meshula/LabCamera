@@ -384,7 +384,7 @@ namespace lab {
 
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
-        //
+        // delta is considered to range from -1 to 1, typically normalized against screensize
         void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta)
         {
             v3f cameraToFocus = camera.position - camera.focusPoint;

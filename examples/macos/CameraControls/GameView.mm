@@ -9,9 +9,15 @@
 #import "GameView.h"
 #import <SpriteKit/SpriteKit.h>
 #include <algorithm>
+
+/*
 #include "ImathEuler.h"
 #include "ImathMatrixAlgo.h"
 #include "ImathQuat.h"
+*/
+
+#define LAB_CAMERA_DRY
+#include "LabCamera.h"
 
 typedef vector_float3 v3f;
 typedef vector_float4 v4f;
@@ -39,9 +45,6 @@ static matrix_float4x4 lookat(v3f eye, v3f target, v3f up) {
     return ret;
 }
 
-enum class CameraMode {
-    Dolly, Crane, TurnTableOrbit
-};
 
 @implementation GameView {
     SCNNode* clickPoint;
@@ -49,15 +52,14 @@ enum class CameraMode {
     v3f initialCameraPosition;
     vector_float2 initial2dClickPosition;
     vector_float2 previousMousePosition;
-    v3f focus3dPosition;
     
     float constrainedCameraDistanceFromPlane;
     SKScene *HUD;
-    CameraMode cameraMode;
     
     SKSpriteNode* indicator;
     
-    Imath::Quatf directionToClickPoint;
+    lab::camera::CameraRigMode cameraMode;
+    lab::camera::Camera camera;
 }
 
 -(void) createHUD {
@@ -106,9 +108,11 @@ enum class CameraMode {
     [HUD addChild:label];
     
     self.overlaySKScene = HUD;
-    cameraMode = CameraMode::TurnTableOrbit;
-    self->focus3dPosition = {0,0,0};
+    cameraMode = lab::camera::CameraRigMode::TurnTableOrbit;
     self->previousMousePosition = {0,0};
+
+    camera.position = { (float) self.pointOfView.position.x, (float) self.pointOfView.position.y, (float) self.pointOfView.position.z };
+    camera.focusPoint = { 0, 0, 0 };
 }
 
 -(v3f) viewRay:(NSPoint*)pointInWindow {
@@ -127,27 +131,40 @@ enum class CameraMode {
     self->initial2dClickPosition = {(float)click2d.x, (float)click2d.y};
     self->previousMousePosition = self->initial2dClickPosition;
     
-    v3f cameraPos = SCNVector3ToFloat3(self.pointOfView.position);
+    
+    
+    
+    
+    
+/////////////////    2. eliminate planeIntersect with camera.planeIntersect.
+
+    
+    
+    
+    
+    
+    v3f cameraPos = { camera.position.x, camera.position.y, camera.position.z };
     
     SKNode* clickedSprite = [HUD nodeAtPoint:p];
     if (clickedSprite != nil) {
         if ([clickedSprite.name isEqualTo:@"dolly"]) {
-            self->cameraMode = CameraMode::Dolly;
+            self->cameraMode = lab::camera::CameraRigMode::Dolly;
             indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
             self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"turntable-orbit"]) {
-            self->cameraMode = CameraMode::TurnTableOrbit;
+            self->cameraMode = lab::camera::CameraRigMode::TurnTableOrbit;
             indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
             self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"crane"]) {
-            self->cameraMode = CameraMode::Crane;
+            self->cameraMode = lab::camera::CameraRigMode::Crane;
             indicator.position = CGPointMake(clickedSprite.position.x - 5, clickedSprite.position.y + 5);
             self.needsDisplay = YES;
         }
         else if ([clickedSprite.name isEqualTo:@"look-at"]) {
-            self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, self->focus3dPosition, (vector_float3){0,1,0})));
+            simd_float3 pnt = { self->camera.focusPoint.x, self->camera.focusPoint.y, self->camera.focusPoint.z };
+            self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, pnt, (vector_float3){0,1,0})));
         }
         NSLog(@"%@", clickedSprite.name? clickedSprite.name : @"Unnamed sprite clicked");
     }
@@ -171,9 +188,10 @@ enum class CameraMode {
             SCNHitTestResult *result = [hitResults objectAtIndex:0];
             
             SCNVector3 worldPos = result.worldCoordinates;
-            self->focus3dPosition = SCNVector3ToFloat3(worldPos);
+            simd_float3 pnt = SCNVector3ToFloat3(worldPos);
+            self->camera.focusPoint = {pnt.x, pnt.y, pnt.z};
             clickPoint.position = worldPos;
-            self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, self->focus3dPosition, (vector_float3){0,1,0})));
+            self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, pnt, (vector_float3){0,1,0})));
         }
         clickPoint.hidden = NO;
     }
@@ -181,18 +199,14 @@ enum class CameraMode {
        // clickPoint.hidden = YES;
     }
     
-    initialCameraPosition = SCNVector3ToFloat3(self.pointOfView.position);
+    initialCameraPosition = { camera.position.x, camera.position.y, camera.position.z };
 
     NSPoint zero = {0,0};
     v3f forwardRay = [self viewRay:&zero];
     v3f planePoint = SCNVector3ToFloat3(clickPoint.position);
-    v3f viewOrigin = SCNVector3ToFloat3(self.pointOfView.position);
+    v3f viewOrigin = initialCameraPosition;
     constrainedCameraDistanceFromPlane = planeIntersect(forwardRay, viewOrigin, planePoint, forwardRay);
-    
-    v3f rayToClick = planePoint - viewOrigin;
-    self->directionToClickPoint.setRotation(Imath::V3f(forwardRay.x, forwardRay.y, forwardRay.z),
-                                            Imath::V3f(rayToClick.x, rayToClick.y, rayToClick.z));
-    
+        
     [super mouseDown:theEvent];
 }
 
@@ -217,36 +231,61 @@ enum class CameraMode {
         (float)self.pointOfView.transform.m13};
     rightVector = vector_normalize(rightVector);
 
-    v3f cameraPos = SCNVector3ToFloat3(self.pointOfView.position);
+    //v3f cameraPos = { camera.position.x, camera.position.y, camera.position.z };
     vector_float2 delta = currentClickPosition - self->previousMousePosition;
-    float distanceY = 2.f * delta.y / self.frame.size.height;
-    float distanceX = 2.f * delta.x / self.frame.size.width;
+    //float distanceY = 2.f * delta.y / self.frame.size.height;
+    //float distanceX = 2.f * delta.x / self.frame.size.width;
 
-    float distanceToFocus = vector_length(cameraPos - self->focus3dPosition);
-    float scale = std::max(0.01f, logf(distanceToFocus) * 5.f);
+    //v3f focusPnt = {self->camera.focusPoint.x, self->camera.focusPoint.y, self->camera.focusPoint.z};
+    //float distanceToFocus = vector_length(cameraPos - focusPnt);
+    //float scale = std::max(0.01f, logf(distanceToFocus) * 5.f);
     
-    if (cameraMode == CameraMode::Dolly) {
+    if (cameraMode == lab::camera::CameraRigMode::Dolly) {
+#if 1
+        lab::camera::cameraRig_interact(camera, cameraMode, {delta.x, delta.y});
+        lab::camera::m44f t = camera.mount.viewTransform();
+        simd_float4x4 m_inv = matrix_invert(*((simd_float4x4*)&t));
+        self.pointOfView.transform = SCNMatrix4FromMat4(m_inv);
+#else
         v3f dP = distanceY * fwdVector * scale - distanceX * rightVector * scale;
         cameraPos += dP;
-        self->focus3dPosition += dP;
-        clickPoint.position = SCNVector3FromFloat3(self->focus3dPosition);
+        focusPnt += dP;
+        self->camera.focusPoint = { focusPnt.x, focusPnt.y, focusPnt.z };
+        clickPoint.position = SCNVector3FromFloat3(focusPnt);
         self.pointOfView.position = SCNVector3FromFloat3(cameraPos);
+        camera.position = { cameraPos.x, cameraPos.y, cameraPos.z };
+#endif
     }
-    if (cameraMode == CameraMode::Crane) {
+    if (cameraMode == lab::camera::CameraRigMode::Crane) {
+#if 1
+        lab::camera::cameraRig_interact(camera, cameraMode, {delta.x, delta.y});
+        lab::camera::m44f t = camera.mount.viewTransform();
+        simd_float4x4 m_inv = matrix_invert(*((simd_float4x4*)&t));
+        self.pointOfView.transform = SCNMatrix4FromMat4(m_inv);
+#else
         v3f dP = -distanceY * upVector * scale - distanceX * rightVector * scale;
         cameraPos += dP;
-        self->focus3dPosition += dP;
-        clickPoint.position = SCNVector3FromFloat3(self->focus3dPosition);
+        focusPnt += dP;
+        self->camera.focusPoint = { focusPnt.x, focusPnt.y, focusPnt.z };
+        clickPoint.position = SCNVector3FromFloat3(focusPnt);
         self.pointOfView.position = SCNVector3FromFloat3(cameraPos);
+        camera.position = { cameraPos.x, cameraPos.y, cameraPos.z };
+#endif
     }
-    else if (cameraMode == CameraMode::TurnTableOrbit) {
+    else if (cameraMode == lab::camera::CameraRigMode::TurnTableOrbit) {
+#if 1
+        lab::camera::cameraRig_interact(camera, cameraMode, {delta.x, delta.y});
+        lab::camera::m44f t = camera.mount.viewTransform();
+        simd_float4x4 m_inv = matrix_invert(*((simd_float4x4*)&t));
+        self.pointOfView.transform = SCNMatrix4FromMat4(m_inv);
+#else
         v3f turntable_up = {0,1,0};
         v3f mUv = vector_normalize(vector_cross(turntable_up, fwdVector));
         Imath::V3f mU(mUv.x, mUv.y, mUv.z);
         
         distanceX *= -1;
         
-        v3f delta = cameraPos - self->focus3dPosition;
+        v3f delta = cameraPos - focusPnt;
 
         Imath::Quatf yaw;
         yaw.setAxisAngle(Imath::V3f(0,1,0), distanceX);
@@ -254,9 +293,11 @@ enum class CameraMode {
         pitch.setAxisAngle(mU, distanceY);
 
         Imath::V3f rotatedVec = yaw.rotateVector(pitch.rotateVector(Imath::V3f(delta.x, delta.y, delta.z)));
-        cameraPos = self->focus3dPosition + (vector_float3){rotatedVec.x, rotatedVec.y, rotatedVec.z};
+        cameraPos = focusPnt + (vector_float3){rotatedVec.x, rotatedVec.y, rotatedVec.z};
 
-        self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, self->focus3dPosition, turntable_up)));
+        self.pointOfView.transform = SCNMatrix4FromMat4(matrix_invert(lookat(cameraPos, focusPnt, turntable_up)));
+        camera.position = { cameraPos.x, cameraPos.y, cameraPos.z };
+#endif
     }
     
     self->previousMousePosition = currentClickPosition;
