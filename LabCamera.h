@@ -51,10 +51,10 @@ namespace camera {
         const m44f& viewTransform() const { return _viewTransform; }
         m44f rotationTransform() const { m44f j = _viewTransform; j[3] = { 0,0,0,1 }; return j; }
 
-        constexpr v3f right() const;
-        constexpr v3f up() const;
-        constexpr v3f forward() const;
-        constexpr v3f position() const;
+        v3f right() const;
+        v3f up() const;
+        v3f forward() const;
+        v3f position() const;
 
         void lookat(v3f eye, v3f target, v3f up);
     };
@@ -158,6 +158,8 @@ namespace camera {
 
         void frame(v3f bound1, v3f bound2);
         void autoSetClippingPlanes(v3f bound1, v3f bound2);
+
+        float planeIntersect(v3f planePoint, v3f planeNormal);
     };
 
     enum class CameraRigMode
@@ -198,9 +200,9 @@ namespace lab {
         constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
         constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
         constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-        constexpr float dot(const v3f& a, const v3f& b) { return { a.x * b.x + a.y * b.y + a.z * b.z }; }
+        constexpr float dot(const v3f& a, const v3f& b) { return a.x * b.x + a.y * b.y + a.z * b.z ; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
-        constexpr v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
+        v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
         inline quatf quat_fromAxisAngle(v3f v, float a)
@@ -255,25 +257,25 @@ namespace lab {
         }
 
 
-        constexpr v3f Mount::right() const {
+        v3f Mount::right() const {
             return normalize(
                 v3f{ _viewTransform[0].x,
                      _viewTransform[1].x,
                      _viewTransform[2].x });
         }
-        constexpr v3f Mount::up() const {
+        v3f Mount::up() const {
             return normalize(
                 v3f{ _viewTransform[0].y,
                      _viewTransform[1].y,
                      _viewTransform[2].y });
         }
-        constexpr v3f Mount::forward() const {
+        v3f Mount::forward() const {
             return normalize(
                 v3f{ _viewTransform[0].z,
                      _viewTransform[1].z,
                      _viewTransform[2].z });
         }
-        constexpr v3f Mount::position() const {
+        v3f Mount::position() const {
             return v3f{ _viewTransform[0].w,
                         _viewTransform[1].w,
                         _viewTransform[2].w };
@@ -369,7 +371,16 @@ namespace lab {
             optics.znear = clipNear;
             optics.zfar = clipFar;
         }
-
+    
+        float Camera::planeIntersect(v3f planePoint, v3f planeNormal)
+        {
+            float denom = dot(planeNormal, mount.forward());
+            if (denom > 1.e-6f) {
+                v3f p0 = planePoint - mount.position();
+                return dot(p0, planeNormal) / denom;
+            }
+            return FLT_MAX; // ray and plane are parallel
+        }
 
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
@@ -416,6 +427,9 @@ namespace lab {
                     camera.position = camera.focusPoint + rotatedVec;
                 break;
             }
+            case CameraRigMode::Fly:
+                /// @TODO
+                break;
             }
             camera.updateViewTransform();
         }
