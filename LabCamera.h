@@ -43,6 +43,10 @@ namespace camera {
             , w(m03, m13, m23, m33)
         {
         }
+        m44f(const m44f& rh)
+        {
+            memcpy(&x, &rh.x, sizeof(m44f));
+        }
         v4f x, y, z, w;
         constexpr const v4f& operator[] (int j) const { return (&x)[j]; }
         v4f& operator[] (int j) { return (&x)[j]; }
@@ -491,7 +495,7 @@ namespace lab {
         {
             v3f cameraToFocus = camera.position - camera.focusPoint;
             float distanceToFocus = length(cameraToFocus);
-            const float feel = 0.02f;
+            const float feel = 1.f;// 0.02f;
             float scale = std::max(0.01f, logf(distanceToFocus) * feel);
 
             switch (mode)
@@ -525,6 +529,9 @@ namespace lab {
                 v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, cameraToFocus));
                 v3f test = normalize(rotatedVec);
                 // disallow going over the poles
+
+                printf("%f, %f\n", delta.x, delta.y);
+
                 if (std::abs(dot(worldUp, test)) < 0.99f)
                     camera.position = camera.focusPoint + rotatedVec;
                 break;
