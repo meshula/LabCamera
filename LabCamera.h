@@ -19,18 +19,40 @@ namespace camera {
     //
     struct v2f { float x, y; };
     struct v3f { float x, y, z; };
-    struct v4f { float x, y, z, w; };
+    struct v4f {
+        v4f() = default;
+        v4f(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
+        float x, y, z, w; 
+
+        float operator[] (int j) const { return (&x)[j]; }
+    };
     typedef v4f quatf;
 
     struct m44f {
+        m44f() = default;
+        m44f(v4f x, v4f y, v4f z, v4f w) : x(x), y(y), z(z), w(w) {}
+        m44f(
+            float m00, float m01, float m02, float m03,     // row-major
+            float m10, float m11, float m12, float m13,
+            float m20, float m21, float m22, float m23,
+            float m30 = 0, float m31 = 0, float m32 = 0, float m33 = 1
+        )
+            : x(m00, m10, m20, m30)
+            , y(m01, m11, m21, m31)
+            , z(m02, m12, m22, m32)
+            , w(m03, m13, m23, m33)
+        {
+        }
         v4f x, y, z, w;
         constexpr const v4f& operator[] (int j) const { return (&x)[j]; }
         v4f& operator[] (int j) { return (&x)[j]; }
     };
 
+    quatf quat_from_matrix(const m44f& mat);
+
 
     // MM and Radians are provided as simple reminders as to what the
-    // intended units are. There is no template trickery to provide
+    // intended units are. There is no language trickery to provide
     // magic conversions to other measures.
     //
     typedef float MM;      // millimeters
@@ -50,6 +72,7 @@ namespace camera {
         void setViewTransform(quatf const& q, float r);
         const m44f& viewTransform() const { return _viewTransform; }
         m44f rotationTransform() const { m44f j = _viewTransform; j[3] = { 0,0,0,1 }; return j; }
+        quatf rotation() const { return quat_from_matrix(_viewTransform); }
 
         v3f right() const;
         v3f up() const;
@@ -89,16 +112,14 @@ namespace camera {
 
     There is a point at infinity, O, on the axis of the lens, whose parallel rays
     converge on B.
-
                                     a
         ---------------------------+---------------+ A
-                                    b| |              |
+                                 b| |              |
         O--------------------------+---------------+ B
-                                    c| |              |
+                                 c| |              |
         ---------------------------+---------------+
         infinity                 lens           sensor plane
         C
-
 
     A-B is half the sensor plane aperture.
     b-B is the focal length
@@ -115,8 +136,7 @@ namespace camera {
 
         f = tan(fov/2) / (h/2)
 
-        */
-
+     */
 
     struct Optics
     {
@@ -128,9 +148,7 @@ namespace camera {
 
     m44f    perspective(const Sensor& sensor, const Optics& optics);
     Radians verticalFOV(const Sensor& sensor, const Optics& optics);
-    MM focal_length_from_FOV(MM sensor_aperture, Radians fov);
-
-    m44f perspective(const Sensor& sensor, const Optics& optics);
+    MM      focal_length_from_FOV(MM sensor_aperture, Radians fov);
 
     // Camera
 
@@ -172,6 +190,10 @@ namespace camera {
 //
     void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta);
 
+    // Returns a world-space ray through the given pixel, originating at the camera
+    struct Ray { v3f pos; v3f dir; };
+    Ray get_ray_from_pixel(const Camera& cam, v2f pixel, v2f viewport_origin, v2f viewport_size);
+
 }
 } // lab::camera
 
@@ -188,22 +210,23 @@ namespace lab {
         m44f m44f_identity = { 1.f,0.f,0.f,0.f, 0.f,1.f,0.f,0.f, 0.f,0.f,1.f,0.f, 0.f,0.f,0.f,1.f };
 
         // Support for 3D spatial rotations using quaternions, via qmul(qmul(q, v), qconj(q))
-        constexpr v3f qxdir(const quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
-        constexpr v3f qydir(const quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
-        constexpr v3f qzdir(const quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
+        v3f qxdir(const quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
+        v3f qydir(const quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
+        v3f qzdir(const quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
 
-        constexpr v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
-        constexpr v3f operator - (const v3f& a, const v3f& b) { return v3f{ a.x - b.x, a.y - b.y, a.z - b.z }; }
-        constexpr v3f operator * (const v3f& a, float b) { return v3f{ a.x * b, a.y * b, a.z * b }; }
-        constexpr v4f operator + (const v4f& a, const v4f& b) { return v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
-        constexpr v4f operator * (const v4f& a, float b) { return v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
-        constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
-        constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
-        constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-        constexpr float dot(const v3f& a, const v3f& b) { return a.x * b.x + a.y * b.y + a.z * b.z ; }
+        v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
+        v3f operator - (const v3f& a, const v3f& b) { return v3f{ a.x - b.x, a.y - b.y, a.z - b.z }; }
+        v3f operator * (const v3f& a, float b) { return v3f{ a.x * b, a.y * b, a.z * b }; }
+        v4f operator + (const v4f& a, const v4f& b) { return v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
+        v4f operator * (const v4f& a, float b) { return v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
+        v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
+        v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+        m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
+        v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+        float dot(const v3f& a, const v3f& b) { return a.x * b.x + a.y * b.y + a.z * b.z ; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
-        constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
+        v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
         inline quatf quat_fromAxisAngle(v3f v, float a)
         {
@@ -232,11 +255,90 @@ namespace lab {
             v3f zaxis = normalize(eye - target);
             v3f xaxis = normalize(cross(up, zaxis));
             v3f yaxis = cross(zaxis, xaxis);
-            return { { xaxis.x, yaxis.x, zaxis.x, 0.f },
-                     { xaxis.y, yaxis.y, zaxis.y, 0.f },
-                     { xaxis.z, yaxis.z, zaxis.z, 0.f },
-                     { -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+            return {  xaxis.x, yaxis.x, zaxis.x, 0.f,
+                      xaxis.y, yaxis.y, zaxis.y, 0.f,
+                      xaxis.z, yaxis.z, zaxis.z, 0.f,
+                      -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f };
         }
+
+        quatf quat_from_matrix(const m44f& mat)
+        {
+            float s;
+            float q[4];
+            int i, j, k;
+            quatf quat;
+
+            int nxt[3] = { 1, 2, 0 };
+            float tr = mat[0].x + mat[1].y + mat[2].z;
+
+            // check the diagonal
+            if (tr > 0.0) {
+                s = sqrtf(tr + 1.f);
+                quat.w = s / 2.f;
+                s = 0.5f / s;
+
+                quat.x = (mat[1].z - mat[2].y) * s;
+                quat.y = (mat[2].x - mat[0].z) * s;
+                quat.z = (mat[0].y - mat[1].x) * s;
+            }
+            else {
+                // diagonal is negative
+                i = 0;
+                if (mat[1].y > mat[0].x)
+                    i = 1;
+                if (mat[2].z > mat[i][i])
+                    i = 2;
+
+                j = nxt[i];
+                k = nxt[j];
+                s = sqrtf((mat[i][i] - (mat[j][j] + mat[k][k])) + 1.f);
+
+                q[i] = s * 0.5f;
+                if (s != 0.f)
+                    s = 0.5f / s;
+
+                q[3] = (mat[j][k] - mat[k][j]) * s;
+                q[j] = (mat[i][j] + mat[j][i]) * s;
+                q[k] = (mat[i][k] + mat[k][i]) * s;
+
+                quat.x = q[0];
+                quat.y = q[1];
+                quat.z = q[2];
+                quat.w = q[3];
+            }
+
+            return quat;
+        }
+
+        void invert(m44f& mat) {
+            float t00 = mat[0].x, t01 = mat[0].y, t02 = mat[0].z, t03 = mat[0].w;
+            mat = m44f(
+                 mat[1].y * mat[2].z * mat[3].w - mat[1].y * mat[3].z * mat[2].w - mat[1].z * mat[2].y * mat[3].w + mat[1].z * mat[3].y * mat[2].w + mat[1].w * mat[2].y * mat[3].z - mat[1].w * mat[3].y * mat[2].z,
+                -mat[0].y * mat[2].z * mat[3].w + mat[0].y * mat[3].z * mat[2].w + mat[0].z * mat[2].y * mat[3].w - mat[0].z * mat[3].y * mat[2].w - mat[0].w * mat[2].y * mat[3].z + mat[0].w * mat[3].y * mat[2].z,
+                 mat[0].y * mat[1].z * mat[3].w - mat[0].y * mat[3].z * mat[1].w - mat[0].z * mat[1].y * mat[3].w + mat[0].z * mat[3].y * mat[1].w + mat[0].w * mat[1].y * mat[3].z - mat[0].w * mat[3].y * mat[1].z,
+                -mat[0].y * mat[1].z * mat[2].w + mat[0].y * mat[2].z * mat[1].w + mat[0].z * mat[1].y * mat[2].w - mat[0].z * mat[2].y * mat[1].w - mat[0].w * mat[1].y * mat[2].z + mat[0].w * mat[2].y * mat[1].z,
+
+                -mat[1].x * mat[2].z * mat[3].w + mat[1].x * mat[3].z * mat[2].w + mat[1].z * mat[2].x * mat[3].w - mat[1].z * mat[3].x * mat[2].w - mat[1].w * mat[2].x * mat[3].z + mat[1].w * mat[3].x * mat[2].z,
+                 mat[0].x * mat[2].z * mat[3].w - mat[0].x * mat[3].z * mat[2].w - mat[0].z * mat[2].x * mat[3].w + mat[0].z * mat[3].x * mat[2].w + mat[0].w * mat[2].x * mat[3].z - mat[0].w * mat[3].x * mat[2].z,
+                -mat[0].x * mat[1].z * mat[3].w + mat[0].x * mat[3].z * mat[1].w + mat[0].z * mat[1].x * mat[3].w - mat[0].z * mat[3].x * mat[1].w - mat[0].w * mat[1].x * mat[3].z + mat[0].w * mat[3].x * mat[1].z,
+                 mat[0].x * mat[1].z * mat[2].w - mat[0].x * mat[2].z * mat[1].w - mat[0].z * mat[1].x * mat[2].w + mat[0].z * mat[2].x * mat[1].w + mat[0].w * mat[1].x * mat[2].z - mat[0].w * mat[2].x * mat[1].z,
+
+                 mat[1].x * mat[2].y * mat[3].w - mat[1].x * mat[3].y * mat[2].w - mat[1].y * mat[2].x * mat[3].w + mat[1].y * mat[3].x * mat[2].w + mat[1].w * mat[2].x * mat[3].y - mat[1].w * mat[3].x * mat[2].y,
+                -mat[0].x * mat[2].y * mat[3].w + mat[0].x * mat[3].y * mat[2].w + mat[0].y * mat[2].x * mat[3].w - mat[0].y * mat[3].x * mat[2].w - mat[0].w * mat[2].x * mat[3].y + mat[0].w * mat[3].x * mat[2].y,
+                 mat[0].x * mat[1].y * mat[3].w - mat[0].x * mat[3].y * mat[1].w - mat[0].y * mat[1].x * mat[3].w + mat[0].y * mat[3].x * mat[1].w + mat[0].w * mat[1].x * mat[3].y - mat[0].w * mat[3].x * mat[1].y,
+                -mat[0].x * mat[1].y * mat[2].w + mat[0].x * mat[2].y * mat[1].w + mat[0].y * mat[1].x * mat[2].w - mat[0].y * mat[2].x * mat[1].w - mat[0].w * mat[1].x * mat[2].y + mat[0].w * mat[2].x * mat[1].y,
+
+                -mat[1].x * mat[2].y * mat[3].z + mat[1].x * mat[3].y * mat[2].z + mat[1].y * mat[2].x * mat[3].z - mat[1].y * mat[3].x * mat[2].z - mat[1].z * mat[2].x * mat[3].y + mat[1].z * mat[3].x * mat[2].y,
+                 mat[0].x * mat[2].y * mat[3].z - mat[0].x * mat[3].y * mat[2].z - mat[0].y * mat[2].x * mat[3].z + mat[0].y * mat[3].x * mat[2].z + mat[0].z * mat[2].x * mat[3].y - mat[0].z * mat[3].x * mat[2].y,
+                -mat[0].x * mat[1].y * mat[3].z + mat[0].x * mat[3].y * mat[1].z + mat[0].y * mat[1].x * mat[3].z - mat[0].y * mat[3].x * mat[1].z - mat[0].z * mat[1].x * mat[3].y + mat[0].z * mat[3].x * mat[1].y,
+                 mat[0].x * mat[1].y * mat[2].z - mat[0].x * mat[2].y * mat[1].z - mat[0].y * mat[1].x * mat[2].z + mat[0].y * mat[2].x * mat[1].z + mat[0].z * mat[1].x * mat[2].y - mat[0].z * mat[2].x * mat[1].y
+            );
+            float det = mat[0].x * t00 + mat[1].x * t01 + mat[2].x * t02 + mat[3].x * t03;
+            float* m = &mat[0].x;
+            for (int i = 0; i < 16; i++)
+                m[i] /= det;
+        }
+
 
         Mount::Mount()
             : _viewTransform(m44f_identity) {}
@@ -250,9 +352,9 @@ namespace lab {
             // nb m44f constructor takes rows, not columns
             // -r will land in the 14th spot as required.
             m44f rm{ qx.x, qy.x, qz.x, 0.f,
-                      qx.y, qy.y, qz.y, 0.f,
-                      qx.z, qy.z, qz.z, -r,
-                      0.f,  0.f,  0.f, 1.f };
+                     qx.y, qy.y, qz.y, 0.f,
+                     qx.z, qy.z, qz.z, -r,
+                     0.f,  0.f,  0.f, 1.f };
             setViewTransform(rm);
         }
 
@@ -434,7 +536,27 @@ namespace lab {
             camera.updateViewTransform();
         }
 
-    }
-} // lab::camera
+        Ray get_ray_from_pixel(const Camera& cam, v2f pixel, v2f viewport_origin, v2f viewport_size)
+        {
+            const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
+            const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
+            float aspect = viewport_size.x / viewport_size.y;
+            m44f projection = perspective(cam.sensor, cam.optics);
+            invert(projection);
+            v4f from(x, y, -1, 1);
+            v4f to(x, y, 1, 1);
+            v4f p0 = mul(projection, from);
+            v4f p1 = mul(projection, to);
+            //const linalg::aliases::float4x4 inv_view_proj = inverse(cam.get_viewproj_matrix(aspect));
+            //const linalg::aliases::float4 p0 = mul(inv_view_proj, linalg::aliases::float4(x, y, -1, 1));
+            //const linalg::aliases::float4 p1 = mul(inv_view_proj, linalg::aliases::float4(x, y, +1, 1));
+            p1 = mul(p1, p0.w);
+            p0 = mul(p0, p1.w);
+            return{ cam.position, { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z } };
+            //return{ cam.position, p1.xyz() * p0.w - p0.xyz() * p1.w };
+        }
+
+    } // camera
+} // lab
 
 #endif

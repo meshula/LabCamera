@@ -1,0 +1,21 @@
+[submodule "examples/Navigator/third/imgui"]
+	path = examples/Navigator/third/imgui
+	url = git@github.com:ocornut/imgui.git
+[submodule "examples/Navigator/third/sokol"]
+	path = examples/Navigator/third/sokol
+	url = git@github.com:floooh/sokol.git
+[submodule "examples/Navigator/third/LabMath"]
+	path = examples/Navigator/third/LabMath
+	url = git@github.com:meshula/LabMath.git
+[submodule "examples/Navigator/third/LabVfx"]
+	path = examples/Navigator/third/LabVfx
+	url = git@github.com:meshula/LabVfx.git
+[submodule "examples/Navigator/third/tinygizmo"]
+	path = examples/Navigator/third/tinygizmo
+	url = git@github.com:meshula/tinygizmo.git
+[submodule "examples/Navigator/third/sokol-samples"]
+	path = examples/Navigator/third/sokol-samples
+	url = git@github.com:floooh/sokol-samples.git
+[submodule "examples/Navigator/third/sokol-tools-bin"]
+	path = examples/Navigator/third/sokol-tools-bin
+	url = git@github.com:floooh/sokol-tools-bin.git
