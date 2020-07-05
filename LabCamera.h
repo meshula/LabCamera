@@ -55,6 +55,15 @@ namespace camera {
     struct millimeters { float value; };
     struct radians { float value; };
 
+    constexpr radians radians_from_degrees(float degrees)
+    {
+        return { degrees * 0.01745329251f };
+    }
+    constexpr float degrees_from_radians(radians r)
+    {
+        return { r.value * 57.2957795131f };
+    }
+
     //-------------------------------------------------------------------------
     // Mount is a nodal mount, centered on the camera's sensor
     // The mount's transform is left handed, y is up, -z is forward
@@ -160,7 +169,7 @@ namespace camera {
     // Utility function to derive focal length from a given vertical sensor aperture.
     // Useful for converting values from systems that deal directly with a field of view.
     //
-    millimeters focal_length_from_FOV(millimeters sensor_aperture, radians fov);
+    millimeters focal_length_from_FOV(const Sensor& sensor, radians fov);
 
     //-------------------------------------------------------------------------
     // Camera

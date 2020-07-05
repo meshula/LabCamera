@@ -264,13 +264,19 @@ namespace lab {
             return invert(perspective(sensor, optics, aspect));
         }
 
-
-        radians verticalFOV(const Sensor& sensor, const Optics& optics) {
-            return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * optics.focalLength.value) / optics.squeeze) };
+        radians verticalFOV(const Sensor& sensor, const Optics& optics) 
+        {
+            float cropped_f = optics.focalLength.value * sensor.enlarge.y;
+            return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
         }
 
-        millimeters focal_length_from_FOV(millimeters sensor_aperture, radians fov) {
-            return { tanf(fov.value * 0.5f) / (sensor_aperture.value * 0.5f) };
+        millimeters focal_length_from_FOV(const Sensor& sensor, radians fov)
+        {
+            if (fov.value < 0 || fov.value > 3.141592653589793238f)
+                return millimeters{ 0.f };
+
+            float f = (sensor.aperture_y.value / (2 * tanf(0.5f * fov.value)));
+            return { f / sensor.enlarge.y };
         }
 
         Camera::Camera() 
