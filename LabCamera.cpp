@@ -342,9 +342,9 @@ namespace lab {
             {
                 v3f camFwd = camera.mount.forward();
                 v3f worldUp = camera.worldUp;
-                v3f mUv = normalize(cross(worldUp, camFwd));
+                v3f right = normalize(cross(worldUp, camFwd));
                 quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, -feel * delta.x);
-                quatf pitch = quat_fromAxisAngle(mUv, feel * 0.25f * delta.y);
+                quatf pitch = quat_fromAxisAngle(right, feel * 0.25f * delta.y);
                 v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, cameraToFocus));
                 v3f test = normalize(rotatedVec);
 
@@ -354,8 +354,18 @@ namespace lab {
                 break;
             }
             case CameraRigMode::Gimbal:
-                /// @TODO
+            {
+                v3f camFwd = camera.mount.forward();
+                v3f worldUp = camera.worldUp;
+                v3f right = normalize(cross(worldUp, camFwd));
+
+                v3f rel = camera.focusPoint - camera.position;
+                quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, feel * delta.x);
+                quatf pitch = quat_fromAxisAngle(right, feel * -0.25f * delta.y);
+                v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, rel));
+                camera.focusPoint = camera.position + rotatedVec;
                 break;
+            }
             }
             camera.updateViewTransform();
         }
