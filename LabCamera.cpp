@@ -341,6 +341,21 @@ namespace lab {
         //
         void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta)
         {
+            const float buffer = 4.f;
+
+            if (fabsf(delta.x) < buffer)
+            {
+                float dx = fabsf(delta.x) / buffer;
+                dx *= dx;
+                delta.x = buffer * copysign(dx, delta.x);
+            }
+            if (fabsf(delta.y) < buffer)
+            {
+                float dy = fabsf(delta.y) / buffer;
+                dy *= dy;
+                delta.y = buffer * copysign(dy, delta.y);
+            }
+
             v3f cameraToFocus = camera.position - camera.focusPoint;
             float distanceToFocus = length(cameraToFocus);
             const float feel = 0.02f;
@@ -389,8 +404,8 @@ namespace lab {
                 v3f right = normalize(cross(worldUp, camFwd));
 
                 v3f rel = camera.focusPoint - camera.position;
-                quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, feel * delta.x);
-                quatf pitch = quat_fromAxisAngle(right, feel * -0.25f * delta.y);
+                quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
+                quatf pitch = quat_fromAxisAngle(right, feel * -0.125f * delta.y);
                 v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, rel));
                 camera.focusPoint = camera.position + rotatedVec;
                 break;
