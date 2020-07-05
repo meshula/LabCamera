@@ -3,31 +3,39 @@
  Copyright (c) 2013 Nick Porcino, All rights reserved.
  License is MIT: http://opensource.org/licenses/MIT
 
-    This is a single file library; define LAB_CAMERA_DRY in one and only
-    one source file to instantiate the library.
+ LabCamera has no external dependencies. Include LabCamera.cpp in your project.
 */
 
 
 // LabCamera models a physical camera.
 //
-// Mount describes a camera's location and orientation in space, centered on the Sensor
-// Sensor describes the image plane, both its size, and simple imaging characteristics
+// Mount describes a camera's location and orientation in space, with the origin of
+//  its coordinate system on the sensor plane
+//
+// Sensor describes the geometry of the sensor plane
+//
 // Optics is at the moment a simple pinhole lens.
+//
 // Camera is composed of a Mount, Sensor, and Optics.
 //
-// The camera interaction function is a free function, and currently implements
-// an orbit mode, a truck, and a dolly.
-
+// The camera interaction function is a stateless free function, implementing
+// an orbit mode, a crane, a dolly, and a gimbal.
+//
+// A future version of LabCamera will have a conversion from geometry coordinates
+// to millimeters to support calculation of depth effects, bokeh, and other
+// calculations where the physical size of a lens affects how it interacts with
+// the environment
+//
 
 #ifndef LAB_CAMERA_H
 #define LAB_CAMERA_H
 
 namespace lab {
 namespace camera {
+
     //-------------------------------------------------------------------------
-    // LabCamera doesn't provide a math library, providing only
-    // trivial types to give lab::camera opaque math types compatible with 
-    // just about any other math library via simple casting or copying.
+    // LabCamera doesn't provide a math library, just these trivial types
+    // compatible with almost any other library via static casting or copying.
     //
     struct v2f { float x, y; };
     struct v3f { float x, y, z; };
@@ -42,7 +50,7 @@ namespace camera {
 
     struct Ray { v3f pos; v3f dir; };
 
-    // simple wrapping of a float value to communicate the unit of the value
+    // wrapping of a float value to communicate the unit of the value
     //
     struct millimeters { float value; };
     struct radians { float value; };
@@ -58,81 +66,50 @@ namespace camera {
     public:
         Mount();
 
-        void setViewTransform(m44f const& t) { _viewTransform = t; }
-        void setViewTransform(quatf const& q, float r);
-        const m44f& viewTransform() const { return _viewTransform; }
+        // matrix
+        m44f const& viewTransform() const { return _viewTransform; }
+        m44f inv_viewTransform() const;
         m44f rotationTransform() const { m44f j = _viewTransform; j[3] = { 0,0,0,1 }; return j; }
-        quatf rotation() const;
+        m44f inv_rotationTransform() const;
 
+        // components
+        quatf rotation() const;
         constexpr v3f right() const;
         constexpr v3f up() const;
         constexpr v3f forward() const;
         constexpr v3f position() const;
 
+        // mutation
+        void setViewTransform(quatf const& q, v3f const& pos);
         void lookat(v3f eye, v3f target, v3f up);
     };
 
     //-------------------------------------------------------------------------
     // Sensor describes the plane where an image is to be resolved.
-    // The sensor's coordinate system (SCS) has its center at (0, 0) and 
+    // The sensor's coordinate system has its center at (0, 0) and 
     // its bounds are -1 to 1.
-    // enlarge is a multiplicative value; and shift is an additive value in the SCS
+    // enlarge is a multiplicative value; and shift is an additive value
+    // in the sensor's coordinate system.
     //
-    // lift, gain, knee, and gamma, apply individually to RGB.
+    // Shift and enlarge can be used to create projection matrices for 
+    // subregions of an image. For example, if the default Sensor is to be
+    // rendered as four tiles, a matrix for rendering the upper left quadrant
+    // can be computed by setting enlarge to { 2, 2 }, and
+    // shift to millimeters{-17.5f}, millimeters{-12.25f}.
     //
     struct Sensor
     {
+        struct Shift { millimeters x, y; };
+
         // spatial characteristics
         float handedness = -1.f; // left handed
         millimeters aperture_x = { 35.f };
         millimeters aperture_y = { 24.5f };
-        v2f enlarge = { 1, 1 };
-        v2f shift = { 0, 0 };
-
-        // sensing characteristics
-        v3f lift = { 0, 0, 0 };
-        v3f gain = { 1, 1, 1 };
-        v3f knee = { 1, 1, 1 };
-        v3f gamma = { 2.2f, 2.2f, 2.2f };
+        v2f enlarge = { 1, 1 };        
+        Shift shift = { millimeters{0}, millimeters{0} };
     };
 
-    /* struct Shutter
-    5. Lens exit aperture
 
-        @property apertureBladeCount
-
-        The shape of out of focus highlights in a scene is commonly known as "bokeh".
-        The aesthetic quality of a lens' bokeh is one of the characteristics that 
-        drives the choice of a lens for a particular scene.To a large degree, the
-        appearance of bokeh is governed by the shape of the lens aperture.Typical
-        lens apertures are controlled by a series of overlapping blades that can be
-        irised openand closed.A lens with a five blade aperture will yield a five
-        sided bokeh.The default is zero, which is to be interpreted as a perfectly
-        round aperture.
-
-        Note that the effect of a filter on the front of the lens can be modeled
-        equivalently at the exit aperture.The MIOCamera does not explicitly provide
-        specification of such effects, but a simulation could incorporate them at
-        this stage.
-
-        @property maximumCircleOfConfusion
-        Although the size of an out of focus bokeh highlight can be computed from
-        other camera properties, it is often necessary to limit the size of the
-        circle of confusion for aesthetic reasons.The circle of confusion is
-        specified in mm, and the default is 0.05mm.The units are mm on the sensor
-        plane.
-
-        @property shutterOpenInterval
-
-        The length of time in seconds the shutter is open, impacting the amount of
-        light that reaches the sensorand also the length of motion blur trails.The
-        shutter time is not the same thing as scene frame rate.The rule of thumb for
-        movies is that the shutter time should be half the frame rate, so to achieve
-        a "filmic" look, the shutter time choice might be 1 / 48 of a second, since
-        films are usually projected at 24 frames per second.Shutter time is
-        independent of simulation frame rate because motion blur trails and exposure
-        times should be held constant in order to avoid flicker artifacts.
-        */
 
     /*
     ---------------------------------------------------------------------------
@@ -173,65 +150,16 @@ namespace camera {
         millimeters focalLength = { 50.f };
         float zfar = 1e5f;
         float znear = 0.1f;
-        float squeeze = 1.f; // w/h
-
-        //float focusDistance = 10.f;
-        //float barrelDistortion = 0.f;
-        //float fisheyeDistortion = 0.f;
-        /*
-            Illuminated objects result in scene luminance, which passes through the lens.
-            All lenses impose some amount of radial distortion which can be computed from
-            focal length.However, some lenses introduce error, and radial distortion can
-            be used as an aesthetic control as well.Therefore radial distortion is
-            provided as a property.If r is the radial distance of a pixel from the center
-            of the projection, then radial distortion is computed as
-
-            r' = r * (1 + barrelDistorion * r^2 + fisheyeDistortion * r^4)
-            radialDistortion sufficiently describes the distortion characteristic of most
-            lenses.In order to simulate certain other lenses, such as those found in
-            security cameras, fisheye lenses, plastic toy lenses, sport cameras, or some
-            VR headsets, radialDistortion2 is introduced.
-
-            The default for the radial distortion parameters is zero, resulting in a
-            rectilinear projection.
-            */
-
-            // float opticalVignetting = 0;
-        /*
-
-            Optical vignetting occurs to some degree in all lenses.It results from light
-            at the edge of an image being blocked as it travels past the lens hoodand
-            the internal lens apertures.It is more prevalent with wide apertures.A
-            value of zero indicates no optical vignetting is occuring, and a value of one
-            indicates that vignetting affects all locations in the image according to
-            radial distance.Optical vignetting also occurs in head mounted displays, and
-            the value here can be used as an intended amount of vignetting to apply to an
-            image.
-            */
-
-            //float chromaticAberration = 0.f;
-/*
-            Chromatic aberration occurs to some degree in all lenses.It results from a
-            lens bringing different wavelengths of light to focus at different places on
-            the image plane.A value of zero indicates no chromatic aberration is
-            occurring, and one indicates maximum.Chromatic aberration affects all
-            locations in the image according to radial distance.Chromatic aberration
-            also occurs in head mounted displays, and the value here can be used as an
-            intended amount of chromatic aberration to apply to an image.
-            */
-
-        //float fStop = 5.6f;
-        /*
-    The f-stop is the ratio of the lens' focal length to the diameter of the 
-    entrance pupil. The default is 5.6. It controls the amount of light that 
-    reaches the sensor, as well as the size of out of focus parts of the image.
-    The diameter of the entrance pupil, is therefore obtained
-    by dividing the fStop by the focalLength.*/
+        float squeeze = 1.f; // w/h - squeeze can be used to describe anamorphic pixels
     };
 
     m44f        perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
     m44f        inv_perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
     radians     verticalFOV(const Sensor& sensor, const Optics& optics);
+
+    // Utility function to derive focal length from a given vertical sensor aperture.
+    // Useful for converting values from systems that deal directly with a field of view.
+    //
     millimeters focal_length_from_FOV(millimeters sensor_aperture, radians fov);
 
     //-------------------------------------------------------------------------
@@ -248,9 +176,7 @@ namespace camera {
         v3f worldUp{ 0, 1, 0 };
         v3f focusPoint{ 0, 0, -10 };
 
-        Camera() {
-            updateViewTransform();
-        }
+        Camera();
 
         // Creates a matrix suitable for an OpenGL style MVP matrix
         // Be sure to invert the view transform if your graphics engine pre-multiplies.
@@ -276,8 +202,13 @@ namespace camera {
         Dolly, Crane, TurnTableOrbit, Gimbal
     };
 
+    // cameraRig_interact
+    //
     // delta is the 2d motion of a mouse or gesture in the screen plane,
     // typically computed as scale * (currMousePos - prevMousePos);
+    //
+    // This interaction mode is intended for joystick like behavior, that have an
+    // explicit neutral zero point.
     //
     void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta);
 }

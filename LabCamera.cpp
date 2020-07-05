@@ -139,7 +139,7 @@ namespace lab {
                 a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
         }
 
-        float determinant(const m44f& a)
+        float determinant(m44f const& a)
         {
             return a.x.x * (a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w)
                 + a.x.y * (a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x)
@@ -147,7 +147,17 @@ namespace lab {
                 + a.x.w * (a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z);
         }
 
-        m44f invert(const m44f& mat)
+        m44f transpose(m44f const& a)
+        {
+            return {
+                a.x.x, a.y.x, a.z.x, a.w.x,
+                a.x.y, a.y.y, a.z.y, a.w.y,
+                a.x.z, a.y.z, a.z.z, a.w.z,
+                a.x.w, a.y.w, a.z.w, a.w.w
+            };
+        }
+
+        m44f invert(m44f const& mat)
         {
             m44f m = adjugate(mat);
             float oo_det = 1.f / determinant(mat);
@@ -160,19 +170,27 @@ namespace lab {
         Mount::Mount()
             : _viewTransform(m44f_identity) {}
 
-        void Mount::setViewTransform(quatf const& q, float r)
+        m44f Mount::inv_viewTransform() const
+        {
+            return invert(_viewTransform);
+        }
+
+        m44f Mount::inv_rotationTransform() const
+        {
+            return transpose(rotationTransform());
+        }
+
+
+        void Mount::setViewTransform(quatf const& q, v3f const& p)
         {
             v3f qx = qxdir(q);
             v3f qy = qydir(q);
             v3f qz = qzdir(q);
 
-            // nb m44f constructor takes rows, not columns
-            // -r will land in the 14th spot as required.
-            m44f rm{ qx.x, qy.x, qz.x, 0.f,
-                      qx.y, qy.y, qz.y, 0.f,
-                      qx.z, qy.z, qz.z, -r,
-                      0.f,  0.f,  0.f, 1.f };
-            setViewTransform(rm);
+            _viewTransform = { qx.x, qy.x, qz.x, p.x,
+                               qx.y, qy.y, qz.y, p.y,
+                               qx.z, qy.z, qz.z, p.z,
+                               0.f,  0.f,  0.f, 1.f };
         }
 
 
@@ -223,8 +241,8 @@ namespace lab {
             const float x = y / aspect / optics.squeeze;
             const float scalex = 2.f * sensor.enlarge.x;
             const float scaley = 2.f * sensor.enlarge.y;
-            const float dx = sensor.shift.x * 2.f * aspect / sensor.aperture_y.value; // 0.f is sensor shift x
-            const float dy = sensor.shift.y * 2.f / sensor.aperture_y.value;          // 0.f is sensor shift y
+            const float dx = sensor.shift.x.value * 2.f * aspect / sensor.aperture_y.value;
+            const float dy = sensor.shift.y.value * 2.f / sensor.aperture_y.value;
 
             const float znear = optics.znear;
             const float zfar = optics.zfar;
@@ -253,6 +271,11 @@ namespace lab {
 
         millimeters focal_length_from_FOV(millimeters sensor_aperture, radians fov) {
             return { tanf(fov.value * 0.5f) / (sensor_aperture.value * 0.5f) };
+        }
+
+        Camera::Camera() 
+        {
+            updateViewTransform();
         }
 
         void Camera::frame(v3f bound1, v3f bound2)
