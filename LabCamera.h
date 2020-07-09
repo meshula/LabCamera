@@ -16,7 +16,11 @@
 //
 // Optics is at the moment a simple pinhole lens.
 //
-// Camera is composed of a Mount, Sensor, and Optics.
+// Camera composes a Mount, Sensor, and Optics.
+//
+// Conceptually it adds the notion of a camera pose, which is the location and
+// orientation of the camera, and the notion of constraints. The camera can be
+// controlled via the pose, or by imposing constraints on the pose.
 //
 // The camera interaction function is a stateless free function, implementing
 // an orbit mode, a crane, a dolly, and a gimbal.
@@ -70,16 +74,16 @@ namespace camera {
     //
     class Mount
     {
-        m44f _viewTransform;
+        m44f _view_transform;
 
     public:
         Mount();
 
         // matrix
-        m44f const& viewTransform() const { return _viewTransform; }
-        m44f inv_viewTransform() const;
-        m44f rotationTransform() const { m44f j = _viewTransform; j[3] = { 0,0,0,1 }; return j; }
-        m44f inv_rotationTransform() const;
+        m44f const& view_transform() const { return _view_transform; }
+        m44f inv_view_transform() const;
+        m44f rotation_transform() const { m44f j = _view_transform; j[3] = { 0,0,0,1 }; return j; }
+        m44f inv_rotation_transform() const;
 
         // components
         quatf rotation() const;
@@ -89,8 +93,8 @@ namespace camera {
         constexpr v3f position() const;
 
         // mutation
-        void setViewTransform(quatf const& q, v3f const& pos);
-        void lookat(v3f eye, v3f target, v3f up);
+        void set_view_transform(quatf const& q, v3f const& pos);
+        void look_at(v3f const& eye, v3f const& target, v3f const& up);
     };
 
     //-------------------------------------------------------------------------
@@ -116,6 +120,11 @@ namespace camera {
         millimeters aperture_y = { 24.5f };
         v2f enlarge = { 1, 1 };        
         Shift shift = { millimeters{0}, millimeters{0} };
+
+        // Utility function to derive a focal length for this sensor
+        // corresponding to the sensor geometry.
+        //
+        millimeters focal_length_from_FOV(radians fov);
     };
 
 
@@ -156,7 +165,7 @@ namespace camera {
 
     struct Optics
     {
-        millimeters focalLength = { 50.f };
+        millimeters focal_length = { 50.f };
         float zfar = 1e5f;
         float znear = 0.1f;
         float squeeze = 1.f; // w/h - squeeze can be used to describe anamorphic pixels
@@ -164,62 +173,79 @@ namespace camera {
 
     m44f        perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
     m44f        inv_perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
-    radians     verticalFOV(const Sensor& sensor, const Optics& optics);
-
-    // Utility function to derive focal length from a given vertical sensor aperture.
-    // Useful for converting values from systems that deal directly with a field of view.
-    //
-    millimeters focal_length_from_FOV(const Sensor& sensor, radians fov);
+    radians     vertical_FOV(const Sensor& sensor, const Optics& optics);
 
     //-------------------------------------------------------------------------
     // Camera
-
-    class Camera
-    {
-    public:
-        Mount  mount;
-        Sensor sensor;
-        Optics optics;
-
-        v3f position{ 0, 0, 0 };
-        v3f worldUp{ 0, 1, 0 };
-        v3f focusPoint{ 0, 0, -10 };
-
-        Camera();
-
-        // Creates a matrix suitable for an OpenGL style MVP matrix
-        // Be sure to invert the view transform if your graphics engine pre-multiplies.
-        //
-        void updateViewTransform() {
-            mount.lookat(position, focusPoint, worldUp);
-        }
-
-        void frame(v3f bound1, v3f bound2);
-        void autoSetClippingPlanes(v3f bound1, v3f bound2);
-
-        float planeIntersect(v3f planePoint, v3f planeNormal);
-
-        // Returns a world-space ray through the given pixel, originating at the camera
-        Ray get_ray_from_pixel(v2f pixel, v2f viewport_origin, v2f viewport_size) const;
-
-        m44f viewProj(float aspect = 1.f) const;
-        m44f inv_viewProj(float aspect = 1.f) const;
-    };
 
     enum class CameraRigMode
     {
         Dolly, Crane, TurnTableOrbit, Gimbal
     };
 
-    // cameraRig_interact
-    //
-    // delta is the 2d motion of a mouse or gesture in the screen plane,
-    // typically computed as scale * (currMousePos - prevMousePos);
-    //
-    // This interaction mode is intended for joystick like behavior, that have an
-    // explicit neutral zero point.
-    //
-    void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta);
+    class Camera
+    {
+        float _declination = 0;
+        float _azimuth = 0;
+
+    public:
+        Mount  mount;
+        Sensor sensor;
+        Optics optics;
+
+        v3f position{ 0, 0, 0 };
+        v3f world_up{ 0, 1, 0 };
+        v3f focus_point{ 0, 0, -10 };
+
+        Camera();
+
+        // cameraRig_interact
+        //
+        // delta is the 2d motion of a mouse or gesture in the screen plane, or
+        // the absolute value of an analog joystick position.
+        //
+        // This interaction mode is intended for joystick like behaviors that have an
+        // explicit neutral zero point. For example, delta could be computed as
+        // delta = mousePos - mouseClickPos;
+        //
+        void rig_interact(CameraRigMode mode, v2f const& delta);
+
+        // This mode is intended for screen space manipulation. 
+        // Dolly: the camera will be moved in the view plane to keep initial under current
+        // in the horizontal direction, and forward and backward motion will be under a 
+        // heuristic
+        //
+        // Crane: the camera will be moved in the view plane to keep initial under current
+        // 
+        // TurnTableOrbit: The behavior will be roughly equivalent to traditional arcball
+        //
+        // Gimbal: The camera will be panned and tilted to keep initial under current
+
+        void rig_interact(CameraRigMode mode,
+            v2f const& viewport_size,
+            Camera const& initial_camera,
+            v2f const& initial, v2f const& current);
+
+        // Creates a matrix suitable for an OpenGL style MVP matrix
+        // Be sure to invert the view transform if your graphics engine pre-multiplies.
+        //
+        void update_view_transform() {
+            mount.look_at(position, focus_point, world_up);
+        }
+
+        void frame(v3f const& bound1, v3f const& bound2);
+        void set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2);
+
+        float distance_to_plane(v3f const& planePoint, v3f const& planeNormal);
+
+        // Returns a world-space ray through the given pixel, originating at the camera
+        Ray get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const;
+
+        m44f view_projection(float aspect = 1.f) const;
+        m44f inv_view_projection(float aspect = 1.f) const;
+    };
+
+
 }
 } // lab::camera
 

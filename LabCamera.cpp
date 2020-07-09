@@ -8,18 +8,24 @@ namespace lab {
 
         m44f m44f_identity = { 1.f,0.f,0.f,0.f, 0.f,1.f,0.f,0.f, 0.f,0.f,1.f,0.f, 0.f,0.f,0.f,1.f };
 
+        const float pi = 3.14159265359f;
+
         // Support for 3D spatial rotations using quaternions, via qmul(qmul(q, v), qconj(q))
         constexpr v3f qxdir(const quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
         constexpr v3f qydir(const quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
         constexpr v3f qzdir(const quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
 
+        constexpr v2f operator + (const v2f& a, const v2f& b) { return v2f{ a.x + b.x, a.y + b.y }; }
+        constexpr v2f operator - (const v2f& a, const v2f& b) { return v2f{ a.x - b.x, a.y - b.y }; }
         constexpr v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
         constexpr v3f operator - (const v3f& a, const v3f& b) { return v3f{ a.x - b.x, a.y - b.y, a.z - b.z }; }
         constexpr v3f operator * (const v3f& a, float b) { return v3f{ a.x * b, a.y * b, a.z * b }; }
+        constexpr v3f operator / (const v3f& a, float b) { return v3f{ a * (1.f / b) }; }
         constexpr v4f operator + (const v4f& a, const v4f& b) { return v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
         constexpr v4f operator * (const v4f& a, float b) { return v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
         constexpr v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
         constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+        constexpr quatf mul(const quatf& a, const quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
         constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
         constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
         constexpr float dot(const v3f& a, const v3f& b) { return { a.x * b.x + a.y * b.y + a.z * b.z }; }
@@ -27,7 +33,7 @@ namespace lab {
         constexpr v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
-        inline quatf quat_fromAxisAngle(v3f v, float a)
+        inline quatf quat_from_axis_angle(v3f v, float a)
         {
             quatf Result;
             float s = std::sin(a * 0.5f);
@@ -38,15 +44,88 @@ namespace lab {
             return Result;
         }
 
-        inline v3f quat_rotateVector(quatf q, const v3f& v)
+        // adapted from IMath
+
+
+        inline quatf quat_set_rotation_internal(v3f const& f0, v3f const& t0)
+        {
+            v3f h0 = normalize(f0 + t0);
+            v3f v = cross(f0, h0);
+            return { v.x, v.y, v.z, dot(f0, h0) };
+        }
+
+
+        inline quatf quat_from_vector_to_vector(v3f const& from, v3f const& to)
+        {
+            //
+            // Create a quaternion that rotates vector from into vector to,
+            // such that the rotation is around an axis that is the cross
+            // product of from and to.
+            //
+            // This function calls function setRotationInternal(), which is
+            // numerically accurate only for rotation angles that are not much
+            // greater than pi/2.  In order to achieve good accuracy for angles
+            // greater than pi/2, we split large angles in half, and rotate in
+            // two steps.
+            //
+
+            //
+            // Normalize from and to, yielding f0 and t0.
+            //
+            v3f f0 = normalize(from);
+            v3f t0 = normalize(to);
+            float d = dot(f0, t0);
+            if (d >= 1)
+            {
+                // vectors are the same, return an identity quaternion
+                return { 0,0,0,1 };
+            }
+            else if (d <= -1)
+            {
+                // f0 and t0 point in exactly opposite directions.
+                // Pick an arbitrary axis that is orthogonal to f0,
+                // and rotate by pi.
+
+                v3f f02 = { f0.x * f0.x, f0.y * f0.y, f0.z * f0.z };
+                v3f v;
+
+                if (f02.x <= f02.y && f02.x <= f02.z)
+                    v = normalize(cross(f0, { 1,0,0 }));
+                else if (f02.y <= f02.z)
+                    v = normalize(cross(f0, { 0,1,0 }));
+                else
+                    v = normalize(cross(f0, { 0,0,1 }));
+
+                return { v.x, v.y, v.z, 0 };
+            }
+
+            if (d >= 0)
+            {
+                // The rotation angle is less than or equal to pi/2.
+                return quat_set_rotation_internal(f0, t0);
+            }
+
+            //
+            // The angle is greater than pi/2.  After computing h0,
+            // which is halfway between f0 and t0, we rotate first
+            // from f0 to h0, then from h0 to t0.
+            //
+
+            v3f h0 = normalize(f0 + t0);
+            quatf q = quat_set_rotation_internal(f0, h0);
+            return mul(q, quat_set_rotation_internal(h0, t0));
+        }
+
+
+        inline v3f quat_rotate_vector(quatf q, const v3f& v)
         {
             // https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
             v3f u{ q.x, q.y, q.z };
             float s = q.w;
 
             return  u * 2.f * dot(u, v)
-                + v * (s * s - dot(u, u))
-                + cross(u, v) * 2.f * s;
+                  + v * (s * s - dot(u, u))
+                  + cross(u, v) * 2.f * s;
         }
 
         quatf quat_from_matrix(const m44f& mat)
@@ -168,65 +247,72 @@ namespace lab {
         }
 
         Mount::Mount()
-            : _viewTransform(m44f_identity) {}
+            : _view_transform(m44f_identity) {}
 
-        m44f Mount::inv_viewTransform() const
+        m44f Mount::inv_view_transform() const
         {
-            return invert(_viewTransform);
+            return invert(_view_transform);
         }
 
-        m44f Mount::inv_rotationTransform() const
+        m44f Mount::inv_rotation_transform() const
         {
-            return transpose(rotationTransform());
+            return transpose(rotation_transform());
         }
 
 
-        void Mount::setViewTransform(quatf const& q, v3f const& p)
+        void Mount::set_view_transform(quatf const& v, v3f const& p)
         {
-            v3f qx = qxdir(q);
-            v3f qy = qydir(q);
-            v3f qz = qzdir(q);
-
-            _viewTransform = { qx.x, qy.x, qz.x, p.x,
-                               qx.y, qy.y, qz.y, p.y,
-                               qx.z, qy.z, qz.z, p.z,
-                               0.f,  0.f,  0.f, 1.f };
+            _view_transform = {
+                1 - 2 * (v.y * v.y + v.z * v.z),
+                2 * (v.x * v.y + v.z * v.w),
+                2 * (v.z * v.x - v.y * v.w),
+                0,
+                2 * (v.x * v.y - v.z * v.w),
+                1 - 2 * (v.z * v.z + v.x * v.x),
+                2 * (v.y * v.z + v.x * v.w),
+                0,
+                2 * (v.z * v.x + v.y * v.w),
+                2 * (v.y * v.z - v.x * v.w),
+                1 - 2 * (v.y * v.y + v.x * v.x),
+                0,
+                p.x,  p.y,  p.z, 1.f };
+            _view_transform = invert(_view_transform);
         }
 
 
         constexpr v3f Mount::right() const {
             return normalize(
-                v3f{ _viewTransform[0].x,
-                     _viewTransform[1].x,
-                     _viewTransform[2].x });
+                v3f{ _view_transform[0].x,
+                     _view_transform[1].x,
+                     _view_transform[2].x });
         }
         constexpr v3f Mount::up() const {
             return normalize(
-                v3f{ _viewTransform[0].y,
-                     _viewTransform[1].y,
-                     _viewTransform[2].y });
+                v3f{ _view_transform[0].y,
+                     _view_transform[1].y,
+                     _view_transform[2].y });
         }
         constexpr v3f Mount::forward() const {
             return normalize(
-                v3f{ _viewTransform[0].z,
-                     _viewTransform[1].z,
-                     _viewTransform[2].z });
+                v3f{ _view_transform[0].z,
+                     _view_transform[1].z,
+                     _view_transform[2].z });
         }
         constexpr v3f Mount::position() const {
-            return v3f{ _viewTransform[3].x,
-                        _viewTransform[3].y,
-                        _viewTransform[3].z };
+            return v3f{ _view_transform[3].x,
+                        _view_transform[3].y,
+                        _view_transform[3].z };
         }
 
 
-        void Mount::lookat(v3f eye, v3f target, v3f up)
+        void Mount::look_at(v3f const& eye, v3f const& target, v3f const& up)
         {
-            _viewTransform = make_lookat_transform(eye, target, up);
+            _view_transform = make_lookat_transform(eye, target, up);
         }
 
         quatf Mount::rotation() const
         {
-            return quat_from_matrix(_viewTransform);
+            return quat_from_matrix(_view_transform);
         }
 
         m44f perspective(const Sensor& sensor, const Optics& optics, float aspect)
@@ -236,7 +322,7 @@ namespace lab {
 
             const float handedness = sensor.handedness; // -1 for left hand coordinates
             float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
-            const float halfFovy = verticalFOV(sensor, optics).value * 0.5f;
+            const float halfFovy = vertical_FOV(sensor, optics).value * 0.5f;
             const float y = 1.f / tanf(halfFovy);
             const float x = y / aspect / optics.squeeze;
             const float scalex = 2.f * sensor.enlarge.x;
@@ -264,39 +350,39 @@ namespace lab {
             return invert(perspective(sensor, optics, aspect));
         }
 
-        radians verticalFOV(const Sensor& sensor, const Optics& optics) 
+        radians vertical_FOV(const Sensor& sensor, const Optics& optics) 
         {
-            float cropped_f = optics.focalLength.value * sensor.enlarge.y;
+            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
             return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
         }
 
-        millimeters focal_length_from_FOV(const Sensor& sensor, radians fov)
+        millimeters Sensor::focal_length_from_FOV(radians fov)
         {
             if (fov.value < 0 || fov.value > 3.141592653589793238f)
                 return millimeters{ 0.f };
 
-            float f = (sensor.aperture_y.value / (2 * tanf(0.5f * fov.value)));
-            return { f / sensor.enlarge.y };
+            float f = (aperture_y.value / (2 * tanf(0.5f * fov.value)));
+            return { f / enlarge.y };
         }
 
         Camera::Camera() 
         {
-            updateViewTransform();
+            update_view_transform();
         }
 
-        void Camera::frame(v3f bound1, v3f bound2)
+        void Camera::frame(v3f const& bound1, v3f const& bound2)
         {
             float r = 0.5f * length(bound2 - bound1);
-            float g = (1.1f * r) / sinf(verticalFOV(sensor, optics).value * 0.5f);
-            focusPoint = (bound2 + bound1) * 0.5f;
-            position = normalize(position - focusPoint) * g;
-            updateViewTransform();
+            float g = (1.1f * r) / sinf(vertical_FOV(sensor, optics).value * 0.5f);
+            focus_point = (bound2 + bound1) * 0.5f;
+            position = normalize(position - focus_point) * g;
+            update_view_transform();
         }
 
-        void Camera::autoSetClippingPlanes(v3f bound1, v3f bound2)
+        void Camera::set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2)
         {
-            float clipNear = FLT_MAX;
-            float clipFar = FLT_MIN;
+            float clip_near = FLT_MAX;
+            float clip_far = FLT_MIN;
 
             v4f points[8] = {
                 {bound1.x, bound1.y, bound1.z, 1.f},
@@ -309,38 +395,69 @@ namespace lab {
                 {bound2.x, bound2.y, bound2.z, 1.f} };
 
             for (int p = 0; p < 8; ++p) {
-                v4f dp = mul(mount.viewTransform(), points[p]);
-                clipNear = std::min(dp.z, clipNear);
-                clipFar = std::max(dp.z, clipFar);
+                v4f dp = mul(mount.view_transform(), points[p]);
+                clip_near = std::min(dp.z, clip_near);
+                clip_far = std::max(dp.z, clip_far);
             }
 
-            clipNear -= 0.5f;
-            clipFar += 0.5f;
-            clipNear = std::max(0.1f, std::min(clipNear, 100000.f));
-            clipFar = std::max(clipNear, std::min(clipNear, 100000.f));
+            clip_near -= 0.5f;
+            clip_far += 0.5f;
+            clip_near = std::max(0.1f, std::min(clip_near, 100000.f));
+            clip_far = std::max(clip_near, std::min(clip_near, 100000.f));
 
-            if (clipFar <= clipNear)
-                clipFar = clipNear + 0.1f;
+            if (clip_far <= clip_near)
+                clip_far = clip_near + 0.1f;
 
-            optics.znear = clipNear;
-            optics.zfar = clipFar;
+            optics.znear = clip_near;
+            optics.zfar = clip_far;
         }
 
-        float Camera::planeIntersect(v3f planePoint, v3f planeNormal)
+        float Camera::distance_to_plane(v3f const& plane_point, v3f const& plane_normal)
         {
-            float denom = dot(planeNormal, mount.forward());
+            float denom = dot(plane_normal, mount.forward());
             if (denom > 1.e-6f) {
-                v3f p0 = planePoint - mount.position();
-                return dot(p0, planeNormal) / denom;
+                v3f p0 = plane_point - mount.position();
+                return dot(p0, plane_normal) / denom;
             }
             return FLT_MAX; // ray and plane are parallel
+        }
+
+        m44f Camera::view_projection(float aspect) const
+        {
+            m44f proj = perspective(sensor, optics, aspect);
+            m44f view = mount.view_transform();
+            return mul(proj, view);
+        }
+
+        m44f Camera::inv_view_projection(float aspect) const
+        {
+            m44f proj = perspective(sensor, optics, aspect);
+            m44f view = mount.view_transform();
+            return invert(mul(proj, view));
+        }
+
+        Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
+        {
+            const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
+            const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
+            float aspect = viewport_size.x / viewport_size.y;
+            m44f inv_projection = inv_view_projection(aspect);
+
+            v4f p0 = mul(inv_projection, v4f{ x, y, -1, 1 });
+            v4f p1 = mul(inv_projection, v4f{ x, y, +1, 1 });
+
+            p1 = mul(p1, 1.f / p1.w);
+            p0 = mul(p0, 1.f / p0.w);
+            return{ position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void cameraRig_interact(Camera& camera, CameraRigMode mode, v2f delta)
+        void Camera::rig_interact(CameraRigMode mode, v2f const& delta_in)
         {
+            v2f delta = delta_in;
+
             const float buffer = 4.f;
 
             if (fabsf(delta.x) < buffer)
@@ -356,91 +473,110 @@ namespace lab {
                 delta.y = buffer * copysign(dy, delta.y);
             }
 
-            v3f cameraToFocus = camera.position - camera.focusPoint;
-            float distanceToFocus = length(cameraToFocus);
+            v3f camera_to_focus = position - focus_point;
+            float distance_to_focus = length(camera_to_focus);
             const float feel = 0.02f;
-            float scale = std::max(0.01f, logf(distanceToFocus) * feel);
+            float scale = std::max(0.01f, logf(distance_to_focus) * feel);
 
             switch (mode)
             {
             case CameraRigMode::Dolly:
             {
-                v3f camFwd = camera.mount.forward();
-                v3f camRight = camera.mount.right();
+                v3f camFwd = mount.forward();
+                v3f camRight = mount.right();
                 v3f deltaX = camRight * delta.x * scale;
                 v3f dP = camFwd * delta.y * scale - deltaX;
-                camera.position += dP;
-                camera.focusPoint += dP;
+                position += dP;
+                focus_point += dP;
+                update_view_transform();
                 break;
             }
             case CameraRigMode::Crane:
             {
-                v3f camUp = camera.mount.up();
-                v3f camRight = camera.mount.right();
-                v3f dP = camUp * -delta.y * scale - camRight * delta.x * scale;
-                camera.position += dP;
-                camera.focusPoint += dP;
+                v3f camera_up = mount.up();
+                v3f camera_right = mount.right();
+                v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
+                position += dP;
+                focus_point += dP;
+                update_view_transform();
                 break;
             }
             case CameraRigMode::TurnTableOrbit:
             {
-                v3f camFwd = camera.mount.forward();
-                v3f worldUp = camera.worldUp;
-                v3f right = normalize(cross(worldUp, camFwd));
-                quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, -feel * delta.x);
-                quatf pitch = quat_fromAxisAngle(right, feel * 0.25f * delta.y);
-                v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, cameraToFocus));
-                v3f test = normalize(rotatedVec);
+                _azimuth += 0.005f * delta.x;
+                while (_azimuth > 2.f * pi)
+                    _azimuth -= 2.f * pi;
+                while (_azimuth < 0)
+                    _azimuth += 2.f * pi;
 
-                // disallow going over the poles
-                if (std::abs(dot(worldUp, test)) < 0.99f)
-                    camera.position = camera.focusPoint + rotatedVec;
+                _declination += 0.001f * delta.y;
+                while (_declination > pi * 0.5f)
+                    _declination = pi * 0.5f;
+                while (_declination < -pi * 0.5f)
+                    _declination = -pi * 0.5f;
+
+                quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, _azimuth);
+                quatf pitch = quat_from_axis_angle(v3f{ 1.f, 0.f, 0.f }, _declination);
+                quatf q = mul(yaw, pitch);
+
+                v3f forward = { 0, 0, length(camera_to_focus) };
+                v3f rotated_vec = quat_rotate_vector(q, forward);
+
+                position = focus_point + rotated_vec;
+                mount.set_view_transform(q, position);
                 break;
             }
             case CameraRigMode::Gimbal:
             {
-                v3f camFwd = camera.mount.forward();
-                v3f worldUp = camera.worldUp;
-                v3f right = normalize(cross(worldUp, camFwd));
+                v3f camera_forward = mount.forward();
+                v3f right = normalize(cross(world_up, camera_forward));
 
-                v3f rel = camera.focusPoint - camera.position;
-                quatf yaw = quat_fromAxisAngle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
-                quatf pitch = quat_fromAxisAngle(right, feel * -0.125f * delta.y);
-                v3f rotatedVec = quat_rotateVector(yaw, quat_rotateVector(pitch, rel));
-                camera.focusPoint = camera.position + rotatedVec;
+                v3f rel = focus_point - position;
+                quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
+                quatf pitch = quat_from_axis_angle(right, feel * -0.125f * delta.y);
+                v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
+                focus_point = position + rotatedVec;
+                update_view_transform();
                 break;
             }
             }
-            camera.updateViewTransform();
         }
 
-        m44f Camera::viewProj(float aspect) const
+        // Initial is the screen position of the beginning of the interaction, current is the
+        // current position
+        //
+        void Camera::rig_interact(CameraRigMode mode, 
+            v2f const& viewport_size,
+            Camera const& initial_camera, 
+            v2f const& initial, v2f const& current)
         {
-            m44f proj = perspective(sensor, optics, aspect);
-            m44f view = mount.viewTransform();
-            return mul(proj, view);
-        }
-
-        m44f Camera::inv_viewProj(float aspect) const
-        {
-            m44f proj = perspective(sensor, optics, aspect);
-            m44f view = mount.viewTransform();
-            return invert(mul(proj, view));
-        }
-
-        Ray Camera::get_ray_from_pixel(v2f pixel, v2f viewport_origin, v2f viewport_size) const
-        {
-            const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
-            const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
-            float aspect = viewport_size.x / viewport_size.y;
-            m44f inv_projection = inv_viewProj(aspect);
-
-            v4f p0 = mul(inv_projection, v4f{ x, y, -1, 1 });
-            v4f p1 = mul(inv_projection, v4f{ x, y, +1, 1 });
-
-            p1 = mul(p1, 1.f / p1.w);
-            p0 = mul(p0, 1.f / p0.w);
-            return{ position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+            switch (mode)
+            {
+            case CameraRigMode::Crane:
+            case CameraRigMode::Dolly:
+                // Crane and Dolly require a geometry raycast to work as TTL controllers
+                // @TODO...
+            case CameraRigMode::TurnTableOrbit:
+            {
+                v2f dp = current - initial;
+                dp.x *= 0.02f;
+                dp.y *= -0.02f;
+                rig_interact(mode, dp);
+                break;
+            }
+            case CameraRigMode::Gimbal:
+            {
+                // @TODO this calculation seems slightly off, as if a normalization is missing somewhere
+                lab::camera::Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
+                lab::camera::Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
+                quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
+                v3f rel = initial_camera.focus_point - initial_camera.position;
+                rel = quat_rotate_vector(rotation, rel);
+                focus_point = position + rel;
+                update_view_transform();
+                break;
+            }
+            }
         }
 
     } // camera
