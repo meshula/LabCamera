@@ -10,7 +10,7 @@ std::shared_ptr<lab::vfx::Zero> zero;
 std::shared_ptr<lab::vfx::Render> render;
 std::shared_ptr<lab::vfx::AgeRule> life;
 
-void SimpleEffect(const float* v_t, const float* mvp, float t, float dt)
+void simple_effect(const float* v_t, const float* mvp, float t, float dt)
 {
     static bool once = true;
     if (once)

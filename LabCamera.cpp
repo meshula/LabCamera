@@ -14,7 +14,9 @@ namespace lab {
         constexpr v3f qxdir(const quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
         constexpr v3f qydir(const quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
         constexpr v3f qzdir(const quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
-
+        constexpr v3f xyz(const v4f& a) { return { a.x, a.y, a.z }; }
+        constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+        constexpr float dot(const v3f& a, const v3f& b) { return { a.x * b.x + a.y * b.y + a.z * b.z }; }
         constexpr v2f operator + (const v2f& a, const v2f& b) { return v2f{ a.x + b.x, a.y + b.y }; }
         constexpr v2f operator - (const v2f& a, const v2f& b) { return v2f{ a.x - b.x, a.y - b.y }; }
         constexpr v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
@@ -23,12 +25,13 @@ namespace lab {
         constexpr v3f operator / (const v3f& a, float b) { return v3f{ a * (1.f / b) }; }
         constexpr v4f operator + (const v4f& a, const v4f& b) { return v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
         constexpr v4f operator * (const v4f& a, float b) { return v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
+        constexpr v2f mul(const v2f& a, float b) { return { a.x * b, a.y * b }; }
+        constexpr v3f mul(const v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
         constexpr v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
+        constexpr v3f mul(const m44f& a, const v3f& b) { return xyz(a.x) * b.x + xyz(a.y) * b.y + xyz(a.z) * b.z; }
         constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
         constexpr quatf mul(const quatf& a, const quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
         constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
-        constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-        constexpr float dot(const v3f& a, const v3f& b) { return { a.x * b.x + a.y * b.y + a.z * b.z }; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         constexpr v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
@@ -44,6 +47,16 @@ namespace lab {
             return Result;
         }
 
+        inline v3f euler_from_quat(quatf q)
+        {
+            v3f rpy;
+            const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
+            rpy.x = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
+            rpy.y = float(-asin(2. * q1 * q3 - 2. * q0 * q2));
+            rpy.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
+            return rpy;
+        }
+        
         // adapted from IMath
 
 
@@ -191,31 +204,32 @@ namespace lab {
             v3f zaxis = normalize(eye - target);
             v3f xaxis = normalize(cross(up, zaxis));
             v3f yaxis = cross(zaxis, xaxis);
-            return { { xaxis.x, yaxis.x, zaxis.x, 0.f },
-                     { xaxis.y, yaxis.y, zaxis.y, 0.f },
-                     { xaxis.z, yaxis.z, zaxis.z, 0.f },
-                     { -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+            return m44f{ v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
+                         v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
+                         v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
+                         v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
         }
 
         // from linalg
         m44f adjugate(const m44f& a)
         {
-            return{ { a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w,
-                a.x.y * a.w.z * a.z.w + a.z.y * a.x.z * a.w.w + a.w.y * a.z.z * a.x.w - a.w.y * a.x.z * a.z.w - a.z.y * a.w.z * a.x.w - a.x.y * a.z.z * a.w.w,
-                a.x.y * a.y.z * a.w.w + a.w.y * a.x.z * a.y.w + a.y.y * a.w.z * a.x.w - a.x.y * a.w.z * a.y.w - a.y.y * a.x.z * a.w.w - a.w.y * a.y.z * a.x.w,
-                a.x.y * a.z.z * a.y.w + a.y.y * a.x.z * a.z.w + a.z.y * a.y.z * a.x.w - a.x.y * a.y.z * a.z.w - a.z.y * a.x.z * a.y.w - a.y.y * a.z.z * a.x.w },
-                { a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x,
-                a.x.z * a.z.w * a.w.x + a.w.z * a.x.w * a.z.x + a.z.z * a.w.w * a.x.x - a.x.z * a.w.w * a.z.x - a.z.z * a.x.w * a.w.x - a.w.z * a.z.w * a.x.x,
-                a.x.z * a.w.w * a.y.x + a.y.z * a.x.w * a.w.x + a.w.z * a.y.w * a.x.x - a.x.z * a.y.w * a.w.x - a.w.z * a.x.w * a.y.x - a.y.z * a.w.w * a.x.x,
-                a.x.z * a.y.w * a.z.x + a.z.z * a.x.w * a.y.x + a.y.z * a.z.w * a.x.x - a.x.z * a.z.w * a.y.x - a.y.z * a.x.w * a.z.x - a.z.z * a.y.w * a.x.x },
-                { a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y,
-                a.x.w * a.w.x * a.z.y + a.z.w * a.x.x * a.w.y + a.w.w * a.z.x * a.x.y - a.x.w * a.z.x * a.w.y - a.w.w * a.x.x * a.z.y - a.z.w * a.w.x * a.x.y,
-                a.x.w * a.y.x * a.w.y + a.w.w * a.x.x * a.y.y + a.y.w * a.w.x * a.x.y - a.x.w * a.w.x * a.y.y - a.y.w * a.x.x * a.w.y - a.w.w * a.y.x * a.x.y,
-                a.x.w * a.z.x * a.y.y + a.y.w * a.x.x * a.z.y + a.z.w * a.y.x * a.x.y - a.x.w * a.y.x * a.z.y - a.z.w * a.x.x * a.y.y - a.y.w * a.z.x * a.x.y },
-                { a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z,
-                a.x.x * a.z.y * a.w.z + a.w.x * a.x.y * a.z.z + a.z.x * a.w.y * a.x.z - a.x.x * a.w.y * a.z.z - a.z.x * a.x.y * a.w.z - a.w.x * a.z.y * a.x.z,
-                a.x.x * a.w.y * a.y.z + a.y.x * a.x.y * a.w.z + a.w.x * a.y.y * a.x.z - a.x.x * a.y.y * a.w.z - a.w.x * a.x.y * a.y.z - a.y.x * a.w.y * a.x.z,
-                a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
+            return m44f{ 
+                v4f{ a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w,
+                     a.x.y * a.w.z * a.z.w + a.z.y * a.x.z * a.w.w + a.w.y * a.z.z * a.x.w - a.w.y * a.x.z * a.z.w - a.z.y * a.w.z * a.x.w - a.x.y * a.z.z * a.w.w,
+                     a.x.y * a.y.z * a.w.w + a.w.y * a.x.z * a.y.w + a.y.y * a.w.z * a.x.w - a.x.y * a.w.z * a.y.w - a.y.y * a.x.z * a.w.w - a.w.y * a.y.z * a.x.w,
+                     a.x.y * a.z.z * a.y.w + a.y.y * a.x.z * a.z.w + a.z.y * a.y.z * a.x.w - a.x.y * a.y.z * a.z.w - a.z.y * a.x.z * a.y.w - a.y.y * a.z.z * a.x.w },
+                v4f{ a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x,
+                     a.x.z * a.z.w * a.w.x + a.w.z * a.x.w * a.z.x + a.z.z * a.w.w * a.x.x - a.x.z * a.w.w * a.z.x - a.z.z * a.x.w * a.w.x - a.w.z * a.z.w * a.x.x,
+                     a.x.z * a.w.w * a.y.x + a.y.z * a.x.w * a.w.x + a.w.z * a.y.w * a.x.x - a.x.z * a.y.w * a.w.x - a.w.z * a.x.w * a.y.x - a.y.z * a.w.w * a.x.x,
+                     a.x.z * a.y.w * a.z.x + a.z.z * a.x.w * a.y.x + a.y.z * a.z.w * a.x.x - a.x.z * a.z.w * a.y.x - a.y.z * a.x.w * a.z.x - a.z.z * a.y.w * a.x.x },
+                v4f{ a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y,
+                     a.x.w * a.w.x * a.z.y + a.z.w * a.x.x * a.w.y + a.w.w * a.z.x * a.x.y - a.x.w * a.z.x * a.w.y - a.w.w * a.x.x * a.z.y - a.z.w * a.w.x * a.x.y,
+                     a.x.w * a.y.x * a.w.y + a.w.w * a.x.x * a.y.y + a.y.w * a.w.x * a.x.y - a.x.w * a.w.x * a.y.y - a.y.w * a.x.x * a.w.y - a.w.w * a.y.x * a.x.y,
+                     a.x.w * a.z.x * a.y.y + a.y.w * a.x.x * a.z.y + a.z.w * a.y.x * a.x.y - a.x.w * a.y.x * a.z.y - a.z.w * a.x.x * a.y.y - a.y.w * a.z.x * a.x.y },
+                v4f{ a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z,
+                     a.x.x * a.z.y * a.w.z + a.w.x * a.x.y * a.z.z + a.z.x * a.w.y * a.x.z - a.x.x * a.w.y * a.z.z - a.z.x * a.x.y * a.w.z - a.w.x * a.z.y * a.x.z,
+                     a.x.x * a.w.y * a.y.z + a.y.x * a.x.y * a.w.z + a.w.x * a.y.y * a.x.z - a.x.x * a.y.y * a.w.z - a.w.x * a.x.y * a.y.z - a.y.x * a.w.y * a.x.z,
+                     a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
         }
 
         float determinant(m44f const& a)
@@ -246,6 +260,37 @@ namespace lab {
             return m;
         }
 
+        m44f rotation(v3f e)
+        {
+            float cos_yaw = cosf(e.x);
+            float cos_pitch = cosf(e.y);
+            float cos_roll = cosf(e.z);
+
+            float sin_yaw = sinf(e.x);
+            float sin_pitch = sinf(e.y);
+            float sin_roll = sinf(e.z);
+
+            m44f m;
+            m[0].x = cos_roll * cos_yaw;
+            m[0].y = sin_roll * cos_yaw;
+            m[0].z = -sin_yaw;
+            m[0].w = 0;
+
+            m[1].x = -sin_roll * cos_pitch + cos_roll * sin_yaw * sin_pitch;
+            m[1].y = cos_roll * cos_pitch + sin_roll * sin_yaw * sin_pitch;
+            m[1].z = cos_yaw * sin_pitch;
+            m[1].w = 0;
+
+            m[2].x = sin_roll * sin_pitch + cos_roll * sin_yaw * cos_pitch;
+            m[2].y = -cos_roll * sin_pitch + sin_roll * sin_yaw * cos_pitch;
+            m[2].z = cos_yaw * cos_pitch;
+            m[2].w = 0;
+
+            m[3] = { 0,0,0,1 };
+            return m;
+        }
+
+
         Mount::Mount()
             : _view_transform(m44f_identity) {}
 
@@ -259,26 +304,39 @@ namespace lab {
             return transpose(rotation_transform());
         }
 
-
-        void Mount::set_view_transform(quatf const& v, v3f const& p)
+        void Mount::set_view_transform(quatf const& v, v3f const& eye)
         {
-            _view_transform = {
+            v3f xaxis = {
                 1 - 2 * (v.y * v.y + v.z * v.z),
                 2 * (v.x * v.y + v.z * v.w),
                 2 * (v.z * v.x - v.y * v.w),
-                0,
+            };
+            v3f yaxis = {
                 2 * (v.x * v.y - v.z * v.w),
                 1 - 2 * (v.z * v.z + v.x * v.x),
                 2 * (v.y * v.z + v.x * v.w),
-                0,
+            };
+            v3f zaxis = {
                 2 * (v.z * v.x + v.y * v.w),
                 2 * (v.y * v.z - v.x * v.w),
                 1 - 2 * (v.y * v.y + v.x * v.x),
-                0,
-                p.x,  p.y,  p.z, 1.f };
-            _view_transform = invert(_view_transform);
+            };
+
+            _view_transform = { 
+                v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
+                v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
+                v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
+                v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
         }
 
+        void Mount::set_view_transform(v3f const& ypr, v3f const& eye)
+        {
+            _view_transform = transpose(lab::camera::rotation(ypr));
+            m44f const& m = _view_transform;
+            _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
+            _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
+            _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
+        }
 
         constexpr v3f Mount::right() const {
             return normalize(
@@ -367,7 +425,7 @@ namespace lab {
 
         Camera::Camera() 
         {
-            update_view_transform();
+            mount.look_at(position, focus_point, world_up);
         }
 
         void Camera::frame(v3f const& bound1, v3f const& bound2)
@@ -376,7 +434,7 @@ namespace lab {
             float g = (1.1f * r) / sinf(vertical_FOV(sensor, optics).value * 0.5f);
             focus_point = (bound2 + bound1) * 0.5f;
             position = normalize(position - focus_point) * g;
-            update_view_transform();
+            mount.look_at(position, focus_point, world_up);
         }
 
         void Camera::set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2)
@@ -451,11 +509,46 @@ namespace lab {
             return{ position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
+        bool Camera::check_constraints(CameraRigMode mode)
+        {
+            m44f t = mount.rotation_transform();
+            float declination = atan2(t[2].y, t[2].z);
+            float azimuth = _azimuth;
+            if (fabsf(declination) < pi * 0.5f)
+            {
+                v3f forward = mount.forward();
+                forward.y = 0;
+                forward = normalize(forward);
+                float azimuth = atan2f(forward.x, forward.z);
+                if (azimuth < 0)
+                    azimuth += 2.f * pi;
+            }
+            return declination == _declination && azimuth == _azimuth;
+        }
+
+        void Camera::update_constraints(CameraRigMode mode)
+        {
+            m44f t = mount.rotation_transform();
+            _declination = atan2(t[2].y, t[2].z);
+
+            if (fabsf(_declination) < pi * 0.5f)
+            {
+                v3f forward = mount.forward();
+                forward.y = 0;
+                forward = normalize(forward);
+                _azimuth = atan2f(forward.x, forward.z);
+                if (_azimuth < 0)
+                    _azimuth += 2.f * pi;
+            }
+        }
+
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
         void Camera::rig_interact(CameraRigMode mode, v2f const& delta_in)
         {
+            _previous_rig_mode = mode;
+
             v2f delta = delta_in;
 
             const float buffer = 4.f;
@@ -488,7 +581,7 @@ namespace lab {
                 v3f dP = camFwd * delta.y * scale - deltaX;
                 position += dP;
                 focus_point += dP;
-                update_view_transform();
+                mount.look_at(position, focus_point, world_up);
                 break;
             }
             case CameraRigMode::Crane:
@@ -498,45 +591,55 @@ namespace lab {
                 v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
                 position += dP;
                 focus_point += dP;
-                update_view_transform();
+                mount.look_at(position, focus_point, world_up);
                 break;
             }
+            case CameraRigMode::Gimbal:
             case CameraRigMode::TurnTableOrbit:
             {
-                _azimuth += 0.005f * delta.x;
+                if (mode == CameraRigMode::Gimbal)
+                    delta.y *= -1.f;   // to feel like the camera is moving in the gesture direction
+                else
+                    delta.x *= -1.f;   // to feel like the object is moving in the gesture direction
+
+                _azimuth += 0.01f * delta.x;
                 while (_azimuth > 2.f * pi)
                     _azimuth -= 2.f * pi;
                 while (_azimuth < 0)
                     _azimuth += 2.f * pi;
 
-                _declination += 0.001f * delta.y;
+                _declination += 0.002f * delta.y;
                 while (_declination > pi * 0.5f)
                     _declination = pi * 0.5f;
                 while (_declination < -pi * 0.5f)
                     _declination = -pi * 0.5f;
 
-                quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, _azimuth);
-                quatf pitch = quat_from_axis_angle(v3f{ 1.f, 0.f, 0.f }, _declination);
-                quatf q = mul(yaw, pitch);
-
-                v3f forward = { 0, 0, length(camera_to_focus) };
-                v3f rotated_vec = quat_rotate_vector(q, forward);
-
-                position = focus_point + rotated_vec;
-                mount.set_view_transform(q, position);
+                v3f ypr{ _azimuth, _declination, 0 };
+                m44f rot = lab::camera::rotation(ypr);
+                if (mode == CameraRigMode::TurnTableOrbit)
+                {
+                    position = mul(rot, v3f{ 0, 0, distance_to_focus }) + focus_point;
+                }
+                else
+                {
+                    focus_point = position - mul(rot, v3f{ 0, 0, distance_to_focus });
+                }
+                mount.set_view_transform(ypr, position);
                 break;
             }
-            case CameraRigMode::Gimbal:
+            default:
             {
+                // a tumble that moves the focus_point
                 v3f camera_forward = mount.forward();
                 v3f right = normalize(cross(world_up, camera_forward));
 
-                v3f rel = focus_point - position;
+                v3f rel = mul(camera_to_focus, -1.f);
                 quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
                 quatf pitch = quat_from_axis_angle(right, feel * -0.125f * delta.y);
                 v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
                 focus_point = position + rotatedVec;
-                update_view_transform();
+                mount.look_at(position, focus_point, world_up);
+                update_constraints(mode);
                 break;
             }
             }
@@ -550,30 +653,33 @@ namespace lab {
             Camera const& initial_camera, 
             v2f const& initial, v2f const& current)
         {
+            _previous_rig_mode = mode;
+
             switch (mode)
             {
+            /// @TODO Crane and Dolly require a geometry raycast to work as TTL controllers
+            /// passing through for now.
             case CameraRigMode::Crane:
             case CameraRigMode::Dolly:
-                // Crane and Dolly require a geometry raycast to work as TTL controllers
-                // @TODO...
             case CameraRigMode::TurnTableOrbit:
             {
                 v2f dp = current - initial;
-                dp.x *= 0.02f;
-                dp.y *= -0.02f;
+                dp.x *= -10.f / viewport_size.x;
+                dp.y *= -10.f / viewport_size.y;
                 rig_interact(mode, dp);
                 break;
             }
             case CameraRigMode::Gimbal:
             {
-                // @TODO this calculation seems slightly off, as if a normalization is missing somewhere
+                /// @TODO this calculation doesn't exactly track the mouse. Needs investigation
                 lab::camera::Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
                 lab::camera::Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
                 v3f rel = initial_camera.focus_point - initial_camera.position;
                 rel = quat_rotate_vector(rotation, rel);
                 focus_point = position + rel;
-                update_view_transform();
+                mount.look_at(position, focus_point, world_up);
+                update_constraints(mode);
                 break;
             }
             }

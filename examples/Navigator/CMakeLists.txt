@@ -139,11 +139,13 @@ set(NAVIGATOR_SRC
     src/gizmo.c
     src/instancing.cpp
     ../../LabCamera.h
+    ../../LabCamera.cpp
     src/main.cpp
     src/simple_cube.c
     src/simple_effect.cpp
     src/LabVfxRender.cpp
     src/LabVfxRender.h
+    src/gizmo.glsl
     #Remotery.h
     #Remotery.cpp
 )

@@ -47,9 +47,12 @@ namespace camera {
     typedef v4f quatf;
 
     struct m44f {
-        v4f x, y, z, w;
-        constexpr const v4f& operator[] (int j) const { return (&x)[j]; }
-        v4f& operator[] (int j) { return (&x)[j]; }
+        union {
+            struct { v4f x; v4f y; v4f z; v4f w; };
+            v4f array[4];
+        };
+        constexpr const v4f& operator[] (int j) const { return array[j]; }
+        v4f& operator[] (int j) { return array[j]; }
     };
 
     struct Ray { v3f pos; v3f dir; };
@@ -94,6 +97,7 @@ namespace camera {
 
         // mutation
         void set_view_transform(quatf const& q, v3f const& pos);
+        void set_view_transform(v3f const& ypr, v3f const& pos);
         void look_at(v3f const& eye, v3f const& target, v3f const& up);
     };
 
@@ -146,8 +150,8 @@ namespace camera {
         infinity                 lens           sensor plane
         C
 
-    A-B is half the sensor plane aperture.
-    b-B is the focal length
+    h = A-B is half the sensor plane aperture.
+    f = b-B is the focal length
 
     There is a point C at infinity, whose parallel rays through a, b, and c,
     converge on the edge of the sensor plane, at A.
@@ -180,19 +184,23 @@ namespace camera {
 
     enum class CameraRigMode
     {
-        Dolly, Crane, TurnTableOrbit, Gimbal
+        Static, Dolly, Crane, TurnTableOrbit, Gimbal
     };
 
     class Camera
     {
         float _declination = 0;
         float _azimuth = 0;
+        CameraRigMode _previous_rig_mode = CameraRigMode::Static;
+        void update_constraints(CameraRigMode);
+        bool check_constraints(CameraRigMode);
 
     public:
         Mount  mount;
         Sensor sensor;
         Optics optics;
 
+        // constraints
         v3f position{ 0, 0, 0 };
         v3f world_up{ 0, 1, 0 };
         v3f focus_point{ 0, 0, -10 };
@@ -225,13 +233,6 @@ namespace camera {
             v2f const& viewport_size,
             Camera const& initial_camera,
             v2f const& initial, v2f const& current);
-
-        // Creates a matrix suitable for an OpenGL style MVP matrix
-        // Be sure to invert the view transform if your graphics engine pre-multiplies.
-        //
-        void update_view_transform() {
-            mount.look_at(position, focus_point, world_up);
-        }
 
         void frame(v3f const& bound1, v3f const& bound2);
         void set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2);
