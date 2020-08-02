@@ -477,26 +477,35 @@ void frame()
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Target")) {
-            static bool local_world = false;
-            static bool translate = false;
+            static bool local = true;
+            static bool world = false;
+            static bool translate = true;
             static bool rotate = false;
             static bool scale = false;
-            ImGui::MenuItem("Local/World", 0, &local_world);
-            ImGui::MenuItem("Translate", 0, &translate);
-            ImGui::MenuItem("Rotate", 0, &rotate);
-            ImGui::MenuItem("Scale", 0, &scale);
-            gizmo_ctx.set_reference_frame(local_world ? tinygizmo::reference_frame::local : tinygizmo::reference_frame::global);
-            if (translate) {
+            if (ImGui::MenuItem("Local", 0, &local))
+            {
+                gizmo_ctx.set_frame(tinygizmo::reference_frame::local);
+                world = false;
+            }
+            if (ImGui::MenuItem("World", 0, &world))
+            {
+                gizmo_ctx.set_frame(tinygizmo::reference_frame::global);
+                local = false;
+            }
+            if (ImGui::MenuItem("Translate", 0, &translate))
+            {
                 gizmo_ctx.set_mode(tinygizmo::transform_mode::translate);
                 rotate = false;
                 scale = false;
             }
-            else if (rotate) {
+            if (ImGui::MenuItem("Rotate", 0, &rotate))
+            {
                 gizmo_ctx.set_mode(tinygizmo::transform_mode::rotate);
                 translate = false;
                 scale = false;
             }
-            else if (scale) {
+            if (ImGui::MenuItem("Scale", 0, &scale))
+            {
                 gizmo_ctx.set_mode(tinygizmo::transform_mode::scale);
                 translate = false;
                 rotate = false;
