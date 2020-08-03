@@ -496,11 +496,12 @@ namespace lab {
 
         Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
         {
+            // 3d normalized device coordinates
             const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
             const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
-            float aspect = viewport_size.x / viewport_size.y;
-            m44f inv_projection = inv_view_projection(aspect);
 
+            // eye coordinates
+            m44f inv_projection = inv_view_projection(1.f);
             v4f p0 = mul(inv_projection, v4f{ x, y, -1, 1 });
             v4f p1 = mul(inv_projection, v4f{ x, y, +1, 1 });
 
@@ -671,7 +672,6 @@ namespace lab {
             }
             case CameraRigMode::Gimbal:
             {
-                /// @TODO this calculation doesn't exactly track the mouse. Needs investigation
                 lab::camera::Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
                 lab::camera::Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction

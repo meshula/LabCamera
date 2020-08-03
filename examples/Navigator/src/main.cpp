@@ -153,6 +153,32 @@ static void grid(float y, const lab::m44f& m)
     sgl_end();
 }
 
+static void jack(float s, const lab::m44f& m)
+{
+    sgl_matrix_mode_projection();
+
+    lab::camera::m44f proj = lab::camera::perspective(camera.sensor, camera.optics);
+    sgl_load_matrix(&proj.x.x);
+
+    lab::camera::m44f view = camera.mount.view_transform();
+    lab::m44f mv = *(lab::m44f*) & view.x.x * m;
+
+    sgl_matrix_mode_modelview();
+    sgl_load_matrix(&mv.x.x);
+
+    sgl_begin_lines();
+    sgl_c3f( 1,  0,  0);
+    sgl_v3f(-s,  0,  0);
+    sgl_v3f( s,  0,  0);
+    sgl_c3f( 0,  1,  0);
+    sgl_v3f( 0, -s,  0);
+    sgl_v3f( 0,  s,  0);
+    sgl_c3f( 0,  0,  1);
+    sgl_v3f( 0,  0, -s);
+    sgl_v3f( 0,  0,  s);
+    sgl_end();
+}
+
 
 void init()
 {
@@ -421,6 +447,39 @@ void run_navigator_panel()
     ImGui::End();
 }
 
+bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal, 
+            lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
+{
+    const float PLANE_EPSILON = 0.001f;
+    const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
+
+    // Make sure we're not parallel to the plane
+    if (std::abs(d) > PLANE_EPSILON)
+    {
+        float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
+        w = -w;
+
+        float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
+        float t = -distance / d;
+
+        if (t >= PLANE_EPSILON)
+        {
+            if (outT) *outT = t;
+            if (intersection)
+            {
+                lab::camera::v3f result = ray.pos;
+                result.x += t * ray.dir.x;
+                result.y += t * ray.dir.y;
+                result.z += t * ray.dir.z;
+                *intersection = result;
+            }
+            return true;
+        }
+    }
+    if (outT) *outT = std::numeric_limits<float>::max();
+    return false;
+}
+
 
 void frame()
 {
@@ -460,6 +519,21 @@ void frame()
 
     grid(0, lab::m44f_identity);
     grid(0, gizmo_transform);
+
+    {
+        lab::m44f m = lab::m44f_identity;
+        lab::camera::v3f lookat = camera.focus_point;
+        m.w = { lookat.x, lookat.y, lookat.z, 1.f };
+        jack(1, m);
+
+        lab::camera::v3f camera_pos = camera.mount.position();
+        lab::camera::v2f viewport = { (float)window_width, (float)window_height };
+        lab::camera::Ray ray = camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
+        lab::camera::v3f hit_point;
+        bool hit = intersect_ray_plane(ray, *(lab::camera::v3f*)(&gizmo_transform.w), *(lab::camera::v3f*)(&gizmo_transform.y), &hit_point);
+        m.w = { hit_point.x, hit_point.y, hit_point.z, 1.f };
+        jack(0.5f, m);
+    }
 
     end_gl_rendering();
 
@@ -575,10 +649,14 @@ void frame()
         }
 
         ImGui::CaptureMouseFromApp(true);
-        camera.rig_interact(navigator_panel.interaction_mode, 
+        camera.rig_interact(navigator_panel.interaction_mode,
             { (float)canvas_size.x, (float)canvas_size.y }, 
             navigator_panel.initial_camera,
             { navigator_panel.capture_x, navigator_panel.capture_y }, { mouse_pos.x, mouse_pos.y });
+    }
+    else
+    {
+        sapp_lock_mouse(false);
     }
 
     ImGui::PopFont();
