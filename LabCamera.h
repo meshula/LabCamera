@@ -187,6 +187,12 @@ namespace camera {
         Static, Dolly, Crane, TurnTableOrbit, Gimbal
     };
 
+    struct HitResult
+    {
+        bool hit;
+        v3f point;
+    };
+
     class Camera
     {
         float _declination = 0;
@@ -218,14 +224,14 @@ namespace camera {
         //
         void rig_interact(CameraRigMode mode, v2f const& delta);
 
-        // This mode is intended for screen space manipulation. 
+        // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current
         // in the horizontal direction, and forward and backward motion will be under a 
         // heuristic
         //
         // Crane: the camera will be moved in the view plane to keep initial under current
         // 
-        // TurnTableOrbit: The behavior will be roughly equivalent to traditional arcball
+        // TurnTableOrbit: roughly screen relative tumble motions
         //
         // Gimbal: The camera will be panned and tilted to keep initial under current
 
@@ -234,6 +240,18 @@ namespace camera {
             Camera const& initial_camera,
             v2f const& initial, v2f const& current);
 
+        // through the lens, with a point in world space to keep under the mouse.
+        // dolly: hit_point will be constrained to stay under the mouse
+        // crane: same
+        // gimbal: same
+        // turntable orbit, roughly screen relative tumble motions
+
+        void rig_interact(CameraRigMode mode,
+            v2f const& viewport_size,
+            Camera const& initial_camera,
+            v2f const& initial, v2f const& current,
+            v3f const& hit_point);
+
         void frame(v3f const& bound1, v3f const& bound2);
         void set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2);
 
@@ -241,6 +259,8 @@ namespace camera {
 
         // Returns a world-space ray through the given pixel, originating at the camera
         Ray get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const;
+
+        HitResult hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal);
 
         m44f view_projection(float aspect = 1.f) const;
         m44f inv_view_projection(float aspect = 1.f) const;

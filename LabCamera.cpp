@@ -290,6 +290,41 @@ namespace lab {
             return m;
         }
 
+        static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
+            lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
+        {
+            const float PLANE_EPSILON = 0.001f;
+            const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
+
+            // Make sure we're not parallel to the plane
+            if (std::abs(d) > PLANE_EPSILON)
+            {
+                float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
+                w = -w;
+
+                float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
+                float t = -distance / d;
+
+                if (t >= PLANE_EPSILON)
+                {
+                    if (outT) *outT = t;
+                    if (intersection)
+                    {
+                        lab::camera::v3f result = ray.pos;
+                        result.x += t * ray.dir.x;
+                        result.y += t * ray.dir.y;
+                        result.z += t * ray.dir.z;
+                        *intersection = result;
+                    }
+                    return true;
+                }
+            }
+            if (outT) *outT = std::numeric_limits<float>::max();
+            return false;
+        }
+
+
+//-----------------------------------------------------------------------------
 
         Mount::Mount()
             : _view_transform(m44f_identity) {}
@@ -510,6 +545,15 @@ namespace lab {
             return{ position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
+        HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal)
+        {
+            lab::camera::Ray ray = get_ray_from_pixel(mouse, { 0, 0 }, viewport);
+            HitResult r;
+            r.hit = intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
+            return r;
+        }
+
+
         bool Camera::check_constraints(CameraRigMode mode)
         {
             m44f t = mount.rotation_transform();
@@ -649,17 +693,15 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void Camera::rig_interact(CameraRigMode mode, 
+        void Camera::rig_interact(CameraRigMode mode,
             v2f const& viewport_size,
-            Camera const& initial_camera, 
+            Camera const& initial_camera,
             v2f const& initial, v2f const& current)
         {
             _previous_rig_mode = mode;
 
             switch (mode)
             {
-            /// @TODO Crane and Dolly require a geometry raycast to work as TTL controllers
-            /// passing through for now.
             case CameraRigMode::Crane:
             case CameraRigMode::Dolly:
             case CameraRigMode::TurnTableOrbit:
@@ -672,8 +714,8 @@ namespace lab {
             }
             case CameraRigMode::Gimbal:
             {
-                lab::camera::Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
-                lab::camera::Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
+                Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
+                Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
                 v3f rel = initial_camera.focus_point - initial_camera.position;
                 rel = quat_rotate_vector(rotation, rel);
@@ -684,6 +726,57 @@ namespace lab {
             }
             }
         }
+
+        void Camera::rig_interact(CameraRigMode mode,
+            v2f const& viewport_size,
+            Camera const& initial_camera,
+            v2f const& initial, v2f const& current,
+            v3f const& initial_hit_point)
+        {
+            _previous_rig_mode = mode;
+
+            switch (mode)
+            {
+            case CameraRigMode::Crane:
+            {
+                // calculate intersect at one unit distance view plane
+                lab::camera::Ray mouse_dir = get_ray_from_pixel(current, { 0, 0 }, viewport_size);
+                lab::camera::Ray forward = get_ray_from_pixel({ viewport_size.x * 0.5f, viewport_size.y * 0.5f }, { 0, 0 }, viewport_size);
+                lab::camera::v3f center_of_image_plane = mount.position();
+                lab::camera::v4f c2 = mount.rotation_transform().z;
+                center_of_image_plane.x += forward.dir.x;
+                center_of_image_plane.y += forward.dir.y;
+                center_of_image_plane.z += forward.dir.z;
+                lab::camera::v3f mouse_on_image_plane;
+                intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
+
+                v3f hit_to_mouse = normalize(initial_hit_point - mouse_on_image_plane);
+                v3f new_camera_pos;
+
+                if (intersect_ray_plane(Ray{ initial_hit_point, hit_to_mouse }, position, mount.forward(), &new_camera_pos))
+                {
+                    v3f delta = new_camera_pos - position;
+                    focus_point += delta;
+                    position = new_camera_pos;
+
+                    printf("%f %f %f/%f %f %f\n", position.x, position.y, position.z, new_camera_pos.x, new_camera_pos.y, new_camera_pos.z);
+
+                    mount.look_at(position, focus_point, world_up);
+                    update_constraints(mode);
+                }
+                else
+                {
+                    printf("miss %f\n", c2.x);
+                }
+                break;
+            }
+
+            default:
+                rig_interact(mode, viewport_size, initial_camera, initial, current);
+                break;
+            }
+        }
+
 
     } // camera
 } // lab
