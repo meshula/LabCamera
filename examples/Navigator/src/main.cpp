@@ -24,6 +24,7 @@
 #include "LabImGui/TimeTransport.h"
 #include <LabMath/LabMath.h>
 #include <tiny-gizmo.hpp>
+#include <mutex>
 
 #define LAB_CAMERA_DRY
 #include "LabCamera.h"
@@ -33,33 +34,41 @@ const lab::m44f& m44f_cast(const lab::camera::m44f& m) { return *(reinterpret_ca
 lab::v3f& v3f_cast(lab::camera::v3f& v) { return *(reinterpret_cast<lab::v3f*>(&v.x)); }
 const lab::v3f& v3f_cast(const lab::camera::v3f& v) { return *(reinterpret_cast<const lab::v3f*>(&v.x)); }
 
-static lab::m44f gizmo_transform;
-
-static uint64_t last_time = 0;
-static bool show_test_window = true;
-static bool show_another_window = true;
-static bool show_navigator = true;
-
-static sgl_pipeline gl_pipelne;
-
-static sg_pass_action pass_action;
-
-lab::ImGui::FontManager* g_fm = nullptr;
-std::string g_app_path;
-static bool quit = false;
-ImFont* g_roboto = nullptr;
-lab::TimeTransport* g_time_transport = nullptr;
-
-static sg_imgui_t sg_imgui;
-
-tinygizmo::gizmo_application_state gizmo_state;
-tinygizmo::gizmo_context gizmo_ctx;
-
 extern "C" void draw_cube();
-
 void simple_effect(const float* v_t, const float* mvp, float t, float dt);
-static lab::camera::Camera camera;
 
+struct AppState
+{
+    std::string g_app_path;
+
+    lab::camera::Camera camera;
+    lab::camera::Camera interaction_initial_camera;
+    lab::camera::v2f initial_mouse_position = { 0, 0 };
+    lab::camera::v3f initial_hit_point;
+
+    lab::m44f gizmo_transform;
+    tinygizmo::gizmo_application_state gizmo_state;
+    tinygizmo::gizmo_context gizmo_ctx;
+
+    lab::TimeTransport* g_time_transport = nullptr;
+
+    uint64_t last_time = 0;
+
+    bool show_test_window = true;
+    bool show_another_window = true;
+    bool show_navigator = true;
+    bool show_look_at = true;
+    bool show_view_plane_intersect = false;
+    bool show_manip_plane_intersect = false;
+    bool quit = false;
+
+    sgl_pipeline gl_pipelne;
+    sg_imgui_t sg_imgui;
+    sg_pass_action pass_action;
+
+    lab::ImGui::FontManager* g_fm = nullptr;
+    ImFont* g_roboto = nullptr;
+} gApp;
 
 struct GizmoTriangles
 {
@@ -108,14 +117,14 @@ static void start_gl_rendering()
         memset(&sg_p, 0, sizeof(sg_pipeline_desc));
         sg_p.depth_stencil.depth_write_enabled = true;
         sg_p.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
-        gl_pipelne = sgl_make_pipeline(&sg_p);
+        gApp.gl_pipelne = sgl_make_pipeline(&sg_p);
 
         once = false;
     }
 
     sgl_defaults();
     sgl_push_pipeline();
-    sgl_load_pipeline(gl_pipelne);
+    sgl_load_pipeline(gApp.gl_pipelne);
 }
 
 static void end_gl_rendering()
@@ -128,10 +137,10 @@ static void grid(float y, const lab::m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lab::camera::m44f proj = lab::camera::perspective(camera.sensor, camera.optics);
+    lab::camera::m44f proj = lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics);
     sgl_load_matrix(&proj.x.x);
 
-    lab::camera::m44f view = camera.mount.view_transform();
+    lab::camera::m44f view = gApp.camera.mount.view_transform();
     lab::m44f mv = *(lab::m44f*) &view.x.x * m;
 
     sgl_matrix_mode_modelview();
@@ -157,10 +166,10 @@ static void jack(float s, const lab::m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lab::camera::m44f proj = lab::camera::perspective(camera.sensor, camera.optics);
+    lab::camera::m44f proj = lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics);
     sgl_load_matrix(&proj.x.x);
 
-    lab::camera::m44f view = camera.mount.view_transform();
+    lab::camera::m44f view = gApp.camera.mount.view_transform();
     lab::m44f mv = *(lab::m44f*) & view.x.x * m;
 
     sgl_matrix_mode_modelview();
@@ -189,7 +198,7 @@ void init()
     stm_setup();
 
     // setup debug inspection header(s)
-    sg_imgui_init(&sg_imgui);
+    sg_imgui_init(&gApp.sg_imgui);
 
     // setup sokol-imgui, but provide our own font
     simgui_desc_t simgui_desc = { };
@@ -199,15 +208,15 @@ void init()
     simgui_setup(&simgui_desc);
 
     // initial clear color
-    pass_action.colors[0].action = SG_ACTION_CLEAR;
-    pass_action.colors[0].val[0] = 0.0f;
-    pass_action.colors[0].val[1] = 0.5f;
-    pass_action.colors[0].val[2] = 0.7f;
-    pass_action.colors[0].val[3] = 1.0f;
+    gApp.pass_action.colors[0].action = SG_ACTION_CLEAR;
+    gApp.pass_action.colors[0].val[0] = 0.0f;
+    gApp.pass_action.colors[0].val[1] = 0.5f;
+    gApp.pass_action.colors[0].val[2] = 0.7f;
+    gApp.pass_action.colors[0].val[3] = 1.0f;
 
-    std::string resource_path = g_app_path + "/Navigator_rsrc";
-    g_fm = new lab::ImGui::FontManager(resource_path.c_str());
-    g_roboto = g_fm->GetFont(lab::ImGui::FontName::Regular);
+    std::string resource_path = gApp.g_app_path + "/Navigator_rsrc";
+    gApp.g_fm = new lab::ImGui::FontManager(resource_path.c_str());
+    gApp.g_roboto = gApp.g_fm->GetFont(lab::ImGui::FontName::Regular);
 
     uint8_t* data = nullptr;
     int32_t width = 0;
@@ -232,10 +241,10 @@ void init()
     img_desc.content.subimage[0][0].size = font_width * font_height * 4;
     io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
 
-    g_time_transport = new lab::TimeTransport();
+    gApp.g_time_transport = new lab::TimeTransport();
 }
 
-void update_mouse_in_viewport(ImVec2 canvas_offset)
+void update_mouseStatus_in_viewport(ImVec2 canvas_offset)
 {
     // the 3d viewport should be the current window
     ImGuiWindow* win = ImGui::GetCurrentWindow();
@@ -296,60 +305,67 @@ bool run_gizmo(float width, float height)
 {
     //g_tt->ui(*g_fm);
 
-    lab::camera::v3f camera_pos = camera.mount.position();
-    lab::camera::Ray ray = camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, { width, height });
-    lab::camera::quatf camera_orientation = camera.mount.rotation();
+    lab::camera::v3f camera_pos = gApp.camera.mount.position();
+    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, { width, height });
+    lab::camera::quatf camera_orientation = gApp.camera.mount.rotation();
 
-    gizmo_state.mouse_left = mouse.click_initiated || mouse.dragging;
-    gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
-    gizmo_state.cam.near_clip = camera.optics.znear;
-    gizmo_state.cam.far_clip = camera.optics.zfar;
-    gizmo_state.cam.yfov = lab::camera::vertical_FOV(camera.sensor, camera.optics).value;
-    gizmo_state.cam.position = tinygizmo::v3f{ camera_pos.x, camera_pos.y, camera_pos.z };
-    gizmo_state.cam.orientation = tinygizmo::v4f{ camera_orientation.x, camera_orientation.y, camera_orientation.z, camera_orientation.w };
-    gizmo_state.ray_origin = tinygizmo::v3f{ ray.pos.x, ray.pos.y, ray.pos.z };
-    gizmo_state.ray_direction = tinygizmo::v3f{ ray.dir.x, ray.dir.y, ray.dir.z };
-    //gizmo_state.screenspace_scale = 80.f; // optional flag to draw the gizmos at a constant screen-space scale
+    gApp.gizmo_state.mouse_left = mouse.click_initiated || mouse.dragging;
+    gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
+    gApp.gizmo_state.cam.near_clip = gApp.camera.optics.znear;
+    gApp.gizmo_state.cam.far_clip = gApp.camera.optics.zfar;
+    gApp.gizmo_state.cam.yfov = lab::camera::vertical_FOV(gApp.camera.sensor, gApp.camera.optics).value;
+    gApp.gizmo_state.cam.position = tinygizmo::v3f{ camera_pos.x, camera_pos.y, camera_pos.z };
+    gApp.gizmo_state.cam.orientation = tinygizmo::v4f{ camera_orientation.x, camera_orientation.y, camera_orientation.z, camera_orientation.w };
+    gApp.gizmo_state.ray_origin = tinygizmo::v3f{ ray.pos.x, ray.pos.y, ray.pos.z };
+    gApp.gizmo_state.ray_direction = tinygizmo::v3f{ ray.dir.x, ray.dir.y, ray.dir.z };
+    //gApp.gizmo_state.screenspace_scale = 80.f; // optional flag to draw the gizmos at a constant screen-space scale
 
-    gizmo_ctx.begin(gizmo_state);
+    gApp.gizmo_ctx.begin(gApp.gizmo_state);
 
     static tinygizmo::rigid_transform xform_a;
     static tinygizmo::rigid_transform xform_a_last;
+    static std::once_flag once;
+    std::call_once(once, []() 
+    {
+        tinygizmo::m44f tx = xform_a.matrix();
+        memcpy(&gApp.gizmo_transform, &tx, sizeof(float) * 16);
+        xform_a_last = xform_a;
+    });
 
-    bool result = gizmo_ctx.transform_gizmo("first-example-gizmo", xform_a);
+    bool result = gApp.gizmo_ctx.transform_gizmo("first-example-gizmo", xform_a);
     if (result)
     {
         //std::cout << get_local_time_ns() << " - " << "First Gizmo Hovered..." << std::endl;
         //if (xform_a != xform_a_last) std::cout << get_local_time_ns() << " - " << "First Gizmo Changed..." << std::endl;
         xform_a_last = xform_a;
         tinygizmo::m44f tx = xform_a_last.matrix();
-        memcpy(&gizmo_transform, &tx, sizeof(float) * 16);
+        memcpy(&gApp.gizmo_transform, &tx, sizeof(float) * 16);
     }
 
     // update index buffer
-    gizmo_triangles.triangle_count = gizmo_ctx.triangles(nullptr, 0);
+    gizmo_triangles.triangle_count = gApp.gizmo_ctx.triangles(nullptr, 0);
     if (gizmo_triangles.triangle_count > gizmo_triangles.indices.size())
         gizmo_triangles.indices.resize((size_t)gizmo_triangles.triangle_count * 3);
 
-    gizmo_ctx.triangles(gizmo_triangles.indices.data(), gizmo_triangles.triangle_count);
+    gApp.gizmo_ctx.triangles(gizmo_triangles.indices.data(), gizmo_triangles.triangle_count);
 
     constexpr int vertex_float_count = 10;
     constexpr int vertex_byte_stride = sizeof(float) * vertex_float_count;
 
     // update vertex buffer
-    int vertex_count = gizmo_ctx.vertices(nullptr, vertex_byte_stride, 0, 0, 0);
+    int vertex_count = gApp.gizmo_ctx.vertices(nullptr, vertex_byte_stride, 0, 0, 0);
     int required_floats = vertex_float_count * vertex_count;
     if (required_floats > (int) gizmo_triangles.vertices.size())
         gizmo_triangles.vertices.resize((size_t)required_floats);
 
-    gizmo_ctx.vertices(gizmo_triangles.vertices.data(), 
+    gApp.gizmo_ctx.vertices(gizmo_triangles.vertices.data(),
         vertex_byte_stride,
         //0                 // position offset @TODO
         sizeof(float) * 3,  // normal offset
         sizeof(float) * 6,  // color offset
         vertex_count);
 
-    gizmo_ctx.end(gizmo_state);
+    gApp.gizmo_ctx.end(gApp.gizmo_state);
     return result;
 }
 
@@ -359,9 +375,6 @@ struct NavigatorPanel
     const float size_y = 160;
     const float trackball_width = size_x * 0.5f;
     ImVec2 trackball_size{ trackball_width, size_y };
-    float capture_x = 0;
-    float capture_y = 0;
-    lab::camera::Camera initial_camera;
     bool tumbling = false;
     float nav_radius = 6;
     lab::camera::CameraRigMode interaction_mode = lab::camera::CameraRigMode::TurnTableOrbit;
@@ -374,7 +387,7 @@ void run_navigator_panel()
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel.size_x, 10));
 
-    ImGui::Begin("Navigator", &show_navigator,
+    ImGui::Begin("Navigator", &gApp.show_navigator,
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse);
 
@@ -397,9 +410,9 @@ void run_navigator_panel()
         else
         {
             ImGui::TextUnformatted("CLICKED");
-            navigator_panel.capture_x = mouse_pos.x;
-            navigator_panel.capture_y = mouse_pos.y;
+            gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
             navigator_panel.tumbling = true;
+            gApp.interaction_initial_camera = gApp.camera;
         }
     }
     else if (ImGui::IsItemHovered()) {
@@ -416,9 +429,9 @@ void run_navigator_panel()
     ImGui::NextColumn();
 
     if (ImGui::Button("Home###NavHome")) {
-        camera.position = { 0.f, 0.f, navigator_panel.nav_radius };
-        camera.focus_point = { 0, 0, 0 };
-        camera.mount.look_at(camera.position, camera.focus_point, camera.world_up);
+        gApp.camera.position = { 0.f, 0.2f, navigator_panel.nav_radius };
+        gApp.camera.focus_point = { 0, 0, 0 };
+        gApp.camera.mount.look_at(gApp.camera.position, gApp.camera.focus_point, gApp.camera.world_up);
     }
     if (ImGui::Button(navigator_panel.interaction_mode == lab::camera::CameraRigMode::Crane ? "-Crane-" : " Crane ")) {
         navigator_panel.interaction_mode = lab::camera::CameraRigMode::Crane;
@@ -447,7 +460,7 @@ void run_navigator_panel()
     ImGui::End();
 }
 
-bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal, 
+static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal, 
             lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
 {
     const float PLANE_EPSILON = 0.001f;
@@ -487,28 +500,27 @@ void frame()
     const int window_height = sapp_height();
     const float w = (float)sapp_width();
     const float h = (float)sapp_height();
-    const double delta_time = std::max(stm_sec(stm_laptime(&last_time)), 1./60.);
+    const double delta_time = std::max(stm_sec(stm_laptime(&gApp.last_time)), 1./60.);
 
     static bool once = true;
     if (once) {
-        camera.position = { 0.f, 0.f, navigator_panel.nav_radius };
-        camera.focus_point = { 0, 0, 0 };
-        camera.mount.look_at(camera.position, camera.focus_point, camera.world_up);
+        gApp.camera.position = { 0.f, 0.2f, navigator_panel.nav_radius };
+        gApp.camera.focus_point = { 0, 0, 0 };
+        gApp.camera.mount.look_at(gApp.camera.position, gApp.camera.focus_point, gApp.camera.world_up);
         once = false;
     }
 
-    float fovy = lab::camera::degrees_from_radians(lab::camera::vertical_FOV(camera.sensor, camera.optics));
-    camera.optics.focal_length = camera.sensor.focal_length_from_FOV(lab::camera::radians_from_degrees(60));
-    camera.optics.squeeze = w / h;
-    lab::m44f proj = m44f_cast(lab::camera::perspective(camera.sensor, camera.optics));
-    lab::m44f view = m44f_cast(camera.mount.view_transform());
+    float fovy = lab::camera::degrees_from_radians(lab::camera::vertical_FOV(gApp.camera.sensor, gApp.camera.optics));
+    gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_FOV(lab::camera::radians_from_degrees(60));
+    gApp.camera.optics.squeeze = w / h;
+    lab::m44f proj = m44f_cast(lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics));
+    lab::m44f view = m44f_cast(gApp.camera.mount.view_transform());
     lab::m44f view_proj = lab::matrix_multiply(proj, view);
     lab::m44f view_t = lab::matrix_transpose(view);
 
-    lab::camera::v3f pos = camera.position;
+    lab::camera::v3f pos = gApp.camera.position;
 
-    sg_begin_default_pass(&pass_action, window_width, window_height);
-
+    sg_begin_default_pass(&gApp.pass_action, window_width, window_height);
 
     //draw_cube();
 
@@ -518,21 +530,51 @@ void frame()
     start_gl_rendering();
 
     grid(0, lab::m44f_identity);
-    grid(0, gizmo_transform);
+    grid(0, gApp.gizmo_transform);
 
     {
         lab::m44f m = lab::m44f_identity;
-        lab::camera::v3f lookat = camera.focus_point;
-        m.w = { lookat.x, lookat.y, lookat.z, 1.f };
-        jack(1, m);
 
-        lab::camera::v3f camera_pos = camera.mount.position();
-        lab::camera::v2f viewport = { (float)window_width, (float)window_height };
-        lab::camera::Ray ray = camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
-        lab::camera::v3f hit_point;
-        bool hit = intersect_ray_plane(ray, *(lab::camera::v3f*)(&gizmo_transform.w), *(lab::camera::v3f*)(&gizmo_transform.y), &hit_point);
-        m.w = { hit_point.x, hit_point.y, hit_point.z, 1.f };
-        jack(0.5f, m);
+        // display look at
+        if (gApp.show_look_at)
+        {
+            lab::camera::v3f lookat = gApp.camera.focus_point;
+            m.w = { lookat.x, lookat.y, lookat.z, 1.f };
+            jack(1, m);
+        }
+
+        // hit point on manipulator plane
+        if (gApp.show_manip_plane_intersect)
+        {
+            lab::camera::HitResult hit = gApp.camera.hit_test(
+                                                { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                                                { (float)window_width, (float)window_height },
+                                                *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
+                                                *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
+            if (hit.hit)
+            {
+                m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
+                jack(0.5f, m);
+            }
+        }
+
+        // intersection of mouse ray with image plane at 1 unit distance
+        if (gApp.show_view_plane_intersect)
+        {
+            lab::camera::v2f viewport = { (float)window_width, (float)window_height };
+            lab::camera::Ray mouse_dir = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
+            lab::camera::Ray forward = gApp.camera.get_ray_from_pixel({ viewport.x * 0.5f, viewport.y * 0.5f }, { 0, 0 }, viewport);
+            lab::camera::v3f center_of_image_plane = gApp.camera.mount.position();
+            lab::camera::v4f c2 = gApp.camera.mount.rotation_transform().z;
+            center_of_image_plane.x += forward.dir.x;
+            center_of_image_plane.y += forward.dir.y;
+            center_of_image_plane.z += forward.dir.z;
+            lab::camera::v3f mouse_on_image_plane;
+            intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
+
+            m.w = { mouse_on_image_plane.x, mouse_on_image_plane.y, mouse_on_image_plane.z, 1.f };
+            jack(0.5f, m);
+        }
     }
 
     end_gl_rendering();
@@ -541,12 +583,12 @@ void frame()
 
     ImVec2 canvas_offset = ImGui::GetCursorPos();
 
-    ImGui::PushFont(g_roboto);
+    ImGui::PushFont(gApp.g_roboto);
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Playground")) {
-            ImGui::MenuItem("Quit", 0, &quit);
-            if (quit)
+            ImGui::MenuItem("Quit", 0, &gApp.quit);
+            if (gApp.quit)
                 sapp_request_quit();
             ImGui::EndMenu();
         }
@@ -558,42 +600,50 @@ void frame()
             static bool scale = false;
             if (ImGui::MenuItem("Local", 0, &local))
             {
-                gizmo_ctx.set_frame(tinygizmo::reference_frame::local);
+                gApp.gizmo_ctx.set_frame(tinygizmo::reference_frame::local);
                 world = false;
             }
             if (ImGui::MenuItem("World", 0, &world))
             {
-                gizmo_ctx.set_frame(tinygizmo::reference_frame::global);
+                gApp.gizmo_ctx.set_frame(tinygizmo::reference_frame::global);
                 local = false;
             }
+            ImGui::Separator();
             if (ImGui::MenuItem("Translate", 0, &translate))
             {
-                gizmo_ctx.set_mode(tinygizmo::transform_mode::translate);
+                gApp.gizmo_ctx.set_mode(tinygizmo::transform_mode::translate);
                 rotate = false;
                 scale = false;
             }
             if (ImGui::MenuItem("Rotate", 0, &rotate))
             {
-                gizmo_ctx.set_mode(tinygizmo::transform_mode::rotate);
+                gApp.gizmo_ctx.set_mode(tinygizmo::transform_mode::rotate);
                 translate = false;
                 scale = false;
             }
             if (ImGui::MenuItem("Scale", 0, &scale))
             {
-                gizmo_ctx.set_mode(tinygizmo::transform_mode::scale);
+                gApp.gizmo_ctx.set_mode(tinygizmo::transform_mode::scale);
                 translate = false;
                 rotate = false;
             }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Show Look at point", 0, &gApp.show_look_at))
+            {}
+            if (ImGui::MenuItem("Show manip plane intersect", 0, &gApp.show_manip_plane_intersect))
+            {}
+            if (ImGui::MenuItem("Show view plane intersect", 0, &gApp.show_view_plane_intersect))
+            {}
 
             //if (key == GLFW_KEY_LEFT_CONTROL) gizmo_state.hotkey_ctrl = (action != GLFW_RELEASE);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Sokol")) {
-            ImGui::MenuItem("Buffers", 0, &sg_imgui.buffers.open);
-            ImGui::MenuItem("Images", 0, &sg_imgui.images.open);
-            ImGui::MenuItem("Shaders", 0, &sg_imgui.shaders.open);
-            ImGui::MenuItem("Pipelines", 0, &sg_imgui.pipelines.open);
-            ImGui::MenuItem("Calls", 0, &sg_imgui.capture.open);
+            ImGui::MenuItem("Buffers", 0, &gApp.sg_imgui.buffers.open);
+            ImGui::MenuItem("Images", 0, &gApp.sg_imgui.images.open);
+            ImGui::MenuItem("Shaders", 0, &gApp.sg_imgui.shaders.open);
+            ImGui::MenuItem("Pipelines", 0, &gApp.sg_imgui.pipelines.open);
+            ImGui::MenuItem("Calls", 0, &gApp.sg_imgui.capture.open);
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -609,6 +659,7 @@ void frame()
 
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
 
+    // draw a pixel ruler on the left side of the window
     for (float y = 0; y < window_height; y += 100)
     {
         char buff[32];
@@ -619,40 +670,79 @@ void frame()
 
     ImGui::SetCursorScreenPos(cursor_screen_pos);
 
-    update_mouse_in_viewport(canvas_offset);
+    update_mouseStatus_in_viewport(canvas_offset);
 
     bool gizmo_interacted = run_gizmo((float)window_width, (float)window_height);
 
-    if (show_navigator)
+    if (gApp.show_navigator)
         run_navigator_panel();
 
-    if (navigator_panel.tumbling) 
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+    if (navigator_panel.tumbling)
     {
         ImGui::CaptureMouseFromApp(true);
+        float dx = (mouse_pos.x - gApp.initial_mouse_position.x) * 0.1f;
+        float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -0.1f;
 
-        //float dx = (2.f * mouse.x - trackball_width) / (2.f * trackball_width);
-        //float dy = (2.f * mouse.y - trackball_width) / (2.f * trackball_width);
-        ImVec2 mouse_pos = ImGui::GetMousePos();
-        float dx = (mouse_pos.x - navigator_panel.capture_x) * 0.1f;
-        float dy = (mouse_pos.y - navigator_panel.capture_y) * -0.1f;
-
-        camera.rig_interact(navigator_panel.interaction_mode, { dx, dy });
+        gApp.camera.rig_interact(navigator_panel.interaction_mode, { dx, dy });
     }
     else if (!gizmo_interacted && (mouse.click_initiated || mouse.dragging))
     {
-        ImVec2 mouse_pos = ImGui::GetMousePos();
+        // hit test versus the gizmo's plane
+        lab::camera::HitResult hit = gApp.camera.hit_test(
+            { mouse.mouse_ws.x, mouse.mouse_ws.y },
+            { (float)window_width, (float)window_height },
+            *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
+            *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
+
         if (mouse.click_initiated)
         {
-            navigator_panel.capture_x = mouse_pos.x;
-            navigator_panel.capture_y = mouse_pos.y;
-            navigator_panel.initial_camera = camera;
+            gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
+            gApp.interaction_initial_camera = gApp.camera;
+
+            if (hit.hit)
+            {
+                gApp.initial_hit_point = hit.point;
+            }
+            else
+            {
+                // no hit on gizmo plane, there is by definition a hit on the view plane at distance 1
+                lab::camera::v2f viewport = { (float)window_width, (float)window_height };
+                lab::camera::Ray mouse_dir = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
+                lab::camera::Ray forward = gApp.camera.get_ray_from_pixel({ viewport.x * 0.5f, viewport.y * 0.5f }, { 0, 0 }, viewport);
+                lab::camera::v3f center_of_image_plane = gApp.camera.mount.position();
+                lab::camera::v4f c2 = gApp.camera.mount.rotation_transform().z;
+                center_of_image_plane.x += forward.dir.x;
+                center_of_image_plane.y += forward.dir.y;
+                center_of_image_plane.z += forward.dir.z;
+                lab::camera::v3f mouse_on_image_plane;
+                intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
+                gApp.initial_hit_point = mouse_on_image_plane;
+            }
         }
 
         ImGui::CaptureMouseFromApp(true);
-        camera.rig_interact(navigator_panel.interaction_mode,
-            { (float)canvas_size.x, (float)canvas_size.y }, 
-            navigator_panel.initial_camera,
-            { navigator_panel.capture_x, navigator_panel.capture_y }, { mouse_pos.x, mouse_pos.y });
+
+        lab::camera::v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
+        if (!hit.hit)
+        {
+            // virtual joystick mode
+            gApp.camera.rig_interact(navigator_panel.interaction_mode,
+                viewport,
+                gApp.interaction_initial_camera,
+                gApp.initial_mouse_position, 
+                { mouse_pos.x, mouse_pos.y });
+        }
+        else
+        {
+            // through the lens mode
+            gApp.camera.rig_interact(navigator_panel.interaction_mode,
+                viewport,
+                gApp.interaction_initial_camera,
+                gApp.initial_mouse_position,
+                { mouse_pos.x, mouse_pos.y },
+                gApp.initial_hit_point);
+        }
     }
     else
     {
@@ -663,7 +753,7 @@ void frame()
 
     ImGui::End(); // full screen
 
-    sg_imgui_draw(&sg_imgui);
+    sg_imgui_draw(&gApp.sg_imgui);
     simgui_render();
 
     // the sokol_gfx draw pass
@@ -673,7 +763,7 @@ void frame()
 
 void cleanup(void) {
     simgui_shutdown();
-    sg_imgui_discard(&sg_imgui);
+    sg_imgui_discard(&gApp.sg_imgui);
     sgl_shutdown();
     sg_shutdown();
 }
@@ -688,7 +778,7 @@ sapp_desc sokol_main(int argc, char* argv[])
     size_t index = app_path.rfind('/');
     if (index == std::string::npos)
         index = app_path.rfind('\\');
-    g_app_path = app_path.substr(0, index);
+    gApp.g_app_path = app_path.substr(0, index);
 
     sapp_desc desc = { };
     desc.init_cb = init;
