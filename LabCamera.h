@@ -262,6 +262,8 @@ namespace camera {
 
         HitResult hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal);
 
+        v2f project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point);
+
         m44f view_projection(float aspect = 1.f) const;
         m44f inv_view_projection(float aspect = 1.f) const;
     };

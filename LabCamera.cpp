@@ -709,6 +709,7 @@ namespace lab {
                 v2f dp = current - initial;
                 dp.x *= -10.f / viewport_size.x;
                 dp.y *= -10.f / viewport_size.y;
+                printf("default %f\n", dp.x);
                 rig_interact(mode, dp);
                 break;
             }
@@ -739,35 +740,21 @@ namespace lab {
             {
             case CameraRigMode::Crane:
             {
-                // calculate intersect at one unit distance view plane
-                lab::camera::Ray mouse_dir = get_ray_from_pixel(current, { 0, 0 }, viewport_size);
-                lab::camera::Ray forward = get_ray_from_pixel({ viewport_size.x * 0.5f, viewport_size.y * 0.5f }, { 0, 0 }, viewport_size);
-                lab::camera::v3f center_of_image_plane = mount.position();
-                lab::camera::v4f c2 = mount.rotation_transform().z;
-                center_of_image_plane.x += forward.dir.x;
-                center_of_image_plane.y += forward.dir.y;
-                center_of_image_plane.z += forward.dir.z;
-                lab::camera::v3f mouse_on_image_plane;
-                intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
+                v3f camera_up = mount.up();
+                v3f camera_right = mount.right();
+                float aspect = viewport_size.x / viewport_size.y;
+                v2f target_xy = project_to_viewport(v2f{ 1.f, 1.f }, { aspect * 2.f, 2.f }, initial_hit_point);
+                v3f delta = mul(camera_right, target_xy.x);
+                delta += mul(camera_up, target_xy.y);
 
-                v3f hit_to_mouse = normalize(initial_hit_point - mouse_on_image_plane);
-                v3f new_camera_pos;
+                v3f target = initial_hit_point - position;
+                float distance_to_target = length(target);
 
-                if (intersect_ray_plane(Ray{ initial_hit_point, hit_to_mouse }, position, mount.forward(), &new_camera_pos))
-                {
-                    v3f delta = new_camera_pos - position;
-                    focus_point += delta;
-                    position = new_camera_pos;
-
-                    printf("%f %f %f/%f %f %f\n", position.x, position.y, position.z, new_camera_pos.x, new_camera_pos.y, new_camera_pos.z);
-
-                    mount.look_at(position, focus_point, world_up);
-                    update_constraints(mode);
-                }
-                else
-                {
-                    printf("miss %f\n", c2.x);
-                }
+                delta = mul(delta, distance_to_target * 0.1f);
+                focus_point += delta;
+                position += delta;
+                v3f ypr{ _azimuth, _declination, 0 };
+                mount.set_view_transform(ypr, position);
                 break;
             }
 
@@ -776,6 +763,19 @@ namespace lab {
                 break;
             }
         }
+
+        v2f Camera::project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point)
+        {
+            m44f m = view_projection(1.f);
+            v4f p = mul(m, v4f{ point.x, point.y, point.z, 1.f });
+            v3f pnt = xyz(mul(p, 1.f / p.w));
+            pnt.x = pnt.x * viewport_size.x *  0.5f + viewport_size.x * 0.5f;
+            pnt.y = pnt.y * viewport_size.y * -0.5f + viewport_size.y * 0.5f;
+            pnt.x -= viewport_origin.x;
+            pnt.y -= viewport_origin.y;
+            return { pnt.x, pnt.y };
+        }
+
 
 
     } // camera

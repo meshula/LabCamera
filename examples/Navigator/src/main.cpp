@@ -37,6 +37,11 @@ const lab::v3f& v3f_cast(const lab::camera::v3f& v) { return *(reinterpret_cast<
 extern "C" void draw_cube();
 void simple_effect(const float* v_t, const float* mvp, float t, float dt);
 
+enum InteractionMode
+{
+    UI, Gizmo, DeltaCamera, TTLCamera
+};
+
 struct AppState
 {
     std::string g_app_path;
@@ -45,6 +50,7 @@ struct AppState
     lab::camera::Camera interaction_initial_camera;
     lab::camera::v2f initial_mouse_position = { 0, 0 };
     lab::camera::v3f initial_hit_point;
+    InteractionMode interaction_mode = InteractionMode::UI;
 
     lab::m44f gizmo_transform;
     tinygizmo::gizmo_application_state gizmo_state;
@@ -543,6 +549,9 @@ void frame()
             jack(1, m);
         }
 
+        m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y, gApp.initial_hit_point.z, 1.f };
+        jack(0.25, m);
+
         // hit point on manipulator plane
         if (gApp.show_manip_plane_intersect)
         {
@@ -561,19 +570,25 @@ void frame()
         // intersection of mouse ray with image plane at 1 unit distance
         if (gApp.show_view_plane_intersect)
         {
-            lab::camera::v2f viewport = { (float)window_width, (float)window_height };
-            lab::camera::Ray mouse_dir = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
-            lab::camera::Ray forward = gApp.camera.get_ray_from_pixel({ viewport.x * 0.5f, viewport.y * 0.5f }, { 0, 0 }, viewport);
-            lab::camera::v3f center_of_image_plane = gApp.camera.mount.position();
-            lab::camera::v4f c2 = gApp.camera.mount.rotation_transform().z;
-            center_of_image_plane.x += forward.dir.x;
-            center_of_image_plane.y += forward.dir.y;
-            center_of_image_plane.z += forward.dir.z;
-            lab::camera::v3f mouse_on_image_plane;
-            intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
+            lab::camera::v3f cam_pos = gApp.camera.position;
+            lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+            cam_nrm.x *= -1.f;
+            cam_nrm.y *= -1.f;
+            cam_nrm.z *= -1.f;
+            cam_pos.x += cam_nrm.x;
+            cam_pos.y += cam_nrm.y;
+            cam_pos.z += cam_nrm.z;
 
-            m.w = { mouse_on_image_plane.x, mouse_on_image_plane.y, mouse_on_image_plane.z, 1.f };
-            jack(0.5f, m);
+            lab::camera::HitResult hit = gApp.camera.hit_test(
+                { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                { (float)window_width, (float)window_height },
+                cam_pos, cam_nrm);
+
+            if (hit.hit)
+            {
+                m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
+                jack(0.1f, m);
+            }
         }
     }
 
@@ -668,14 +683,45 @@ void frame()
         ImGui::TextUnformatted(buff);
     }
 
+    // show where the 2d projected 3d projected 2d hit point is
+    {
+        lab::camera::v3f cam_pos = gApp.camera.position;
+        lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+        cam_nrm.x *= -1.f;
+        cam_nrm.y *= -1.f;
+        cam_nrm.z *= -1.f;
+        cam_pos.x += cam_nrm.x;
+        cam_pos.y += cam_nrm.y;
+        cam_pos.z += cam_nrm.z;
+
+        lab::camera::HitResult hit = gApp.camera.hit_test(
+            { mouse.mouse_ws.x, mouse.mouse_ws.y },
+            { (float)window_width, (float)window_height },
+            cam_pos, cam_nrm);
+        if (hit.hit)
+        {
+            lab::camera::v2f vp_sz { (float)window_width, (float)window_height };
+            lab::camera::v2f vp_or = { 0, 0 };
+            lab::camera::v2f xy = gApp.camera.project_to_viewport(vp_or, vp_sz, hit.point);
+            ImGui::SetCursorScreenPos(ImVec2{ xy.x, xy.y } + canvas_offset);
+            ImGui::TextUnformatted("O");
+        }
+    }
+
     ImGui::SetCursorScreenPos(cursor_screen_pos);
 
     update_mouseStatus_in_viewport(canvas_offset);
 
-    bool gizmo_interacted = run_gizmo((float)window_width, (float)window_height);
+    // don't run the gizmo if the camera is interacting
+    bool gizmo_interacted = (gApp.interaction_mode == InteractionMode::UI || gApp.interaction_mode == InteractionMode::Gizmo) && 
+                                run_gizmo((float)window_width, (float)window_height);
 
-    if (gApp.show_navigator)
-        run_navigator_panel();
+    if (mouse.dragging && gizmo_interacted)
+        gApp.interaction_mode = InteractionMode::Gizmo;
+    else
+        gApp.interaction_mode = InteractionMode::UI;
+
+    run_navigator_panel();
 
     ImVec2 mouse_pos = ImGui::GetMousePos();
     if (navigator_panel.tumbling)
@@ -686,7 +732,7 @@ void frame()
 
         gApp.camera.rig_interact(navigator_panel.interaction_mode, { dx, dy });
     }
-    else if (!gizmo_interacted && (mouse.click_initiated || mouse.dragging))
+    else if (gApp.interaction_mode != InteractionMode::Gizmo && mouse.dragging)
     {
         // hit test versus the gizmo's plane
         lab::camera::HitResult hit = gApp.camera.hit_test(
@@ -695,45 +741,44 @@ void frame()
             *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
             *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
 
-        if (mouse.click_initiated)
+        if (mouse.click_initiated && gApp.interaction_mode == InteractionMode::UI)
         {
             gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
             gApp.interaction_initial_camera = gApp.camera;
 
-            if (hit.hit)
+            if (false && hit.hit)
             {
                 gApp.initial_hit_point = hit.point;
+                gApp.interaction_mode = InteractionMode::TTLCamera;
             }
             else
             {
-                // no hit on gizmo plane, there is by definition a hit on the view plane at distance 1
-                lab::camera::v2f viewport = { (float)window_width, (float)window_height };
-                lab::camera::Ray mouse_dir = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, viewport);
-                lab::camera::Ray forward = gApp.camera.get_ray_from_pixel({ viewport.x * 0.5f, viewport.y * 0.5f }, { 0, 0 }, viewport);
-                lab::camera::v3f center_of_image_plane = gApp.camera.mount.position();
-                lab::camera::v4f c2 = gApp.camera.mount.rotation_transform().z;
-                center_of_image_plane.x += forward.dir.x;
-                center_of_image_plane.y += forward.dir.y;
-                center_of_image_plane.z += forward.dir.z;
-                lab::camera::v3f mouse_on_image_plane;
-                intersect_ray_plane(mouse_dir, center_of_image_plane, forward.dir, &mouse_on_image_plane);
-                gApp.initial_hit_point = mouse_on_image_plane;
+                lab::camera::v3f cam_pos = gApp.camera.position;
+                lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+                cam_nrm.x *= -1.f;
+                cam_nrm.y *= -1.f;
+                cam_nrm.z *= -1.f;
+                cam_pos.x += cam_nrm.x;
+                cam_pos.y += cam_nrm.y;
+                cam_pos.z += cam_nrm.z;
+
+                hit = gApp.camera.hit_test(
+                    { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                    { (float)window_width, (float)window_height },
+                    cam_pos, cam_nrm);
+
+                if (hit.hit)
+                {
+                    gApp.initial_hit_point = hit.point;
+                    gApp.interaction_mode = InteractionMode::DeltaCamera;
+                }
             }
         }
 
         ImGui::CaptureMouseFromApp(true);
 
         lab::camera::v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
-        if (!hit.hit)
-        {
-            // virtual joystick mode
-            gApp.camera.rig_interact(navigator_panel.interaction_mode,
-                viewport,
-                gApp.interaction_initial_camera,
-                gApp.initial_mouse_position, 
-                { mouse_pos.x, mouse_pos.y });
-        }
-        else
+        if (true || gApp.interaction_mode == InteractionMode::TTLCamera)
         {
             // through the lens mode
             gApp.camera.rig_interact(navigator_panel.interaction_mode,
@@ -742,6 +787,15 @@ void frame()
                 gApp.initial_mouse_position,
                 { mouse_pos.x, mouse_pos.y },
                 gApp.initial_hit_point);
+        }
+        else
+        {
+            // virtual joystick mode
+            gApp.camera.rig_interact(navigator_panel.interaction_mode,
+                viewport,
+                gApp.interaction_initial_camera,
+                gApp.initial_mouse_position,
+                { mouse_pos.x, mouse_pos.y });
         }
     }
     else
