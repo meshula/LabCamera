@@ -592,6 +592,8 @@ namespace lab {
         //
         void Camera::rig_interact(CameraRigMode mode, v2f const& delta_in)
         {
+            // joystick mode controls
+
             _previous_rig_mode = mode;
 
             v2f delta = delta_in;
@@ -706,15 +708,16 @@ namespace lab {
             case CameraRigMode::Dolly:
             case CameraRigMode::TurnTableOrbit:
             {
+                // Joystick mode
                 v2f dp = current - initial;
                 dp.x *= -10.f / viewport_size.x;
                 dp.y *= -10.f / viewport_size.y;
-                printf("default %f\n", dp.x);
                 rig_interact(mode, dp);
                 break;
             }
             case CameraRigMode::Gimbal:
             {
+                // Through the lens gimbal
                 Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
                 Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
@@ -740,19 +743,26 @@ namespace lab {
             {
             case CameraRigMode::Crane:
             {
-                v3f camera_up = mount.up();
-                v3f camera_right = mount.right();
-                float aspect = viewport_size.x / viewport_size.y;
-                v2f target_xy = project_to_viewport(v2f{ 1.f, 1.f }, { aspect * 2.f, 2.f }, initial_hit_point);
-                v3f delta = mul(camera_right, target_xy.x);
-                delta += mul(camera_up, target_xy.y);
-
-                v3f target = initial_hit_point - position;
-                float distance_to_target = length(target);
-
-                delta = mul(delta, distance_to_target * 0.1f);
-                focus_point += delta;
+                // Through the lens crane
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, viewport_size, initial_hit_point) - current;
+                target_xy = mul(target_xy, 1.f / viewport_size.x);
+                v3f delta = mul(mount.right(), target_xy.x * 1.f);
+                delta += mul(mount.up(), target_xy.y * -1.f);
                 position += delta;
+                focus_point += delta;
+                v3f ypr{ _azimuth, _declination, 0 };
+                mount.set_view_transform(ypr, position);
+                break;
+            }
+            case CameraRigMode::Dolly:
+            {
+                // Through the lens crane
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, viewport_size, initial_hit_point) - current;
+                target_xy = mul(target_xy, 1.f / viewport_size.x);
+                v3f delta = mul(mount.right(), target_xy.x * 1.f);
+                //delta += mul(mount.forward(), target_xy.y * -1.f);
+                position += delta;
+                focus_point += delta;
                 v3f ypr{ _azimuth, _declination, 0 };
                 mount.set_view_transform(ypr, position);
                 break;
