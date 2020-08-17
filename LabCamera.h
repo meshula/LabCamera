@@ -197,7 +197,6 @@ namespace camera {
     {
         float _declination = 0;
         float _azimuth = 0;
-        CameraRigMode _previous_rig_mode = CameraRigMode::Static;
         void update_constraints(CameraRigMode);
         bool check_constraints(CameraRigMode);
 
@@ -247,6 +246,7 @@ namespace camera {
         // turntable orbit, roughly screen relative tumble motions
 
         void rig_interact(CameraRigMode mode,
+            bool restart_interaction,
             v2f const& viewport_size,
             Camera const& initial_camera,
             v2f const& initial, v2f const& current,
