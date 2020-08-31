@@ -449,7 +449,13 @@ namespace lab {
             return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
         }
 
-        millimeters Sensor::focal_length_from_FOV(radians fov)
+        radians horizontal_FOV(const Sensor& sensor, const Optics& optics)
+        {
+            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
+            return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.value / (2.f * cropped_f)) };
+        }
+
+        millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
         {
             if (fov.value < 0 || fov.value > 3.141592653589793238f)
                 return millimeters{ 0.f };
@@ -458,21 +464,95 @@ namespace lab {
             return { f / enlarge.y };
         }
 
-        Camera::Camera() 
+        struct TransientState
         {
-            mount.look_at(position, focus_point, world_up);
+            // constraints
+            v3f position{ 0, 0, 0 };
+            v3f world_up{ 0, 1, 0 };
+            v3f focus_point{ 0, 0, -10 };
+            float declination = 0;
+            float azimuth = 0;
+
+            // working state
+            v2f init_mouse{ 0,0 };
+            v2f prev_mouse{ 0,0 };
+            float initial_focus_distance = 10.f;
+            v2f viewport_size;
+            InteractionPhase phase;
+
+            v3f initial_position_constraint;
+            v3f initial_focus_point;
+            Camera initial_camera;
+        };
+
+        Camera::Camera() : _ts(new TransientState())
+        {
+            mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
+        }
+
+        Camera::~Camera()
+        {
+            delete _ts;
+        }
+
+        InteractionToken Camera::begin_interaction(InteractionPhase phase, v2f const& viewport_size)
+        {
+            // The camera is copied for the mount, sensor, and optics, so that get_ray_from_pixel
+            // can be called during interaction on the initial camera. get_ray_from_pixel does
+            // not access transient state. so the transient state does not need to be copied into
+            // the initial_camera. The pointer in the initial_camera will be pointing to this -ts,
+            // which is fine.
+
+            _ts->initial_camera = *this;
+
+            _ts->initial_position_constraint = _ts->position;
+            _ts->initial_focus_point = _ts->focus_point;
+
+            _ts->viewport_size = viewport_size;
+            _ts->phase = phase;
+
+            // nb: in the future the InteractionToken will be used to manage
+            // multitouch and multidevice interactions.
+            return 0;
+        }
+
+        void Camera::end_interaction(InteractionToken)
+        {
+
+        }
+
+        void Camera::set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up)
+        {
+            _ts->position = pos;
+            _ts->focus_point = at;
+            _ts->world_up = up;
+            mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
+            update_constraints();
+        }
+
+        v3f Camera::world_up_constraint() const
+        {
+            return _ts->world_up;
+        }
+        v3f Camera::position_constraint() const
+        {
+            return _ts->position;
+        }
+        v3f Camera::focus_constraint() const
+        {
+            return _ts->focus_point;
         }
 
         void Camera::frame(v3f const& bound1, v3f const& bound2)
         {
             float r = 0.5f * length(bound2 - bound1);
             float g = (1.1f * r) / sinf(vertical_FOV(sensor, optics).value * 0.5f);
-            focus_point = (bound2 + bound1) * 0.5f;
-            position = normalize(position - focus_point) * g;
-            mount.look_at(position, focus_point, world_up);
+            _ts->focus_point = (bound2 + bound1) * 0.5f;
+            _ts->position = normalize(_ts->position - _ts->focus_point) * g;
+            mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
         }
 
-        void Camera::set_clipping_planes_within_bounds(v3f const& bound1, v3f const& bound2)
+        void Camera::set_clipping_planes_within_bounds(float min_near, float max_far, v3f const& bound1, v3f const& bound2)
         {
             float clip_near = FLT_MAX;
             float clip_far = FLT_MIN;
@@ -493,19 +573,21 @@ namespace lab {
                 clip_far = std::max(dp.z, clip_far);
             }
 
-            clip_near -= 0.5f;
-            clip_far += 0.5f;
-            clip_near = std::max(0.1f, std::min(clip_near, 100000.f));
-            clip_far = std::max(clip_near, std::min(clip_near, 100000.f));
+            clip_near = std::max(min_near, std::min(clip_near, max_far));
+            clip_far = std::max(clip_near, std::min(clip_near, max_far));
 
-            if (clip_far <= clip_near)
-                clip_far = clip_near + 0.1f;
+            if (clip_far < clip_near)
+            {
+                float temp = clip_far;
+                clip_far = clip_near;
+                clip_near = clip_far;
+            }
 
             optics.znear = clip_near;
             optics.zfar = clip_far;
         }
 
-        float Camera::distance_to_plane(v3f const& plane_point, v3f const& plane_normal)
+        float Camera::distance_to_plane(v3f const& plane_point, v3f const& plane_normal) const
         {
             float denom = dot(plane_normal, mount.forward());
             if (denom > 1.e-6f) {
@@ -542,10 +624,10 @@ namespace lab {
 
             p1 = mul(p1, 1.f / p1.w);
             p0 = mul(p0, 1.f / p0.w);
-            return{ position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+            return{ _ts->position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
-        HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal)
+        HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const
         {
             lab::camera::Ray ray = get_ray_from_pixel(mouse, { 0, 0 }, viewport);
             HitResult r;
@@ -554,11 +636,11 @@ namespace lab {
         }
 
 
-        bool Camera::check_constraints(CameraRigMode mode)
+        bool Camera::check_constraints(InteractionMode mode)
         {
             m44f t = mount.rotation_transform();
             float declination = atan2(t[2].y, t[2].z);
-            float azimuth = _azimuth;
+            float azimuth = _ts->azimuth;
             if (fabsf(declination) < pi * 0.5f)
             {
                 v3f forward = mount.forward();
@@ -568,35 +650,41 @@ namespace lab {
                 if (azimuth < 0)
                     azimuth += 2.f * pi;
             }
-            return declination == _declination && azimuth == _azimuth;
+            return declination == _ts->declination && azimuth == _ts->azimuth;
         }
 
-        void Camera::update_constraints(CameraRigMode mode)
+        void Camera::update_constraints()
         {
             m44f t = mount.rotation_transform();
-            _declination = atan2(t[2].y, t[2].z);
+            _ts->declination = atan2(t[2].y, t[2].z);
 
-            if (fabsf(_declination) < pi * 0.5f)
+            if (fabsf(_ts->declination) < pi * 0.5f)
             {
                 v3f forward = mount.forward();
                 forward.y = 0;
                 forward = normalize(forward);
-                _azimuth = atan2f(forward.x, forward.z);
-                if (_azimuth < 0)
-                    _azimuth += 2.f * pi;
+                _ts->azimuth = atan2f(forward.x, forward.z);
+                if (_ts->azimuth < 0)
+                    _ts->azimuth += 2.f * pi;
             }
         }
 
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void Camera::rig_interact(CameraRigMode mode, v2f const& delta_in)
+        void Camera::joystick_interaction(InteractionToken, InteractionMode mode, v2f const& delta_in)
         {
+            if (_ts->phase == InteractionPhase::Start)
+            {
+                update_constraints();
+            }
+
             // joystick mode controls
             v2f delta = delta_in;
 
             const float buffer = 4.f;
 
+            // make control less sensitive within the buffer 
             if (fabsf(delta.x) < buffer)
             {
                 float dx = fabsf(delta.x) / buffer;
@@ -610,80 +698,80 @@ namespace lab {
                 delta.y = buffer * copysign(dy, delta.y);
             }
 
-            v3f camera_to_focus = position - focus_point;
+            v3f camera_to_focus = _ts->position - _ts->focus_point;
             float distance_to_focus = length(camera_to_focus);
             const float feel = 0.02f;
             float scale = std::max(0.01f, logf(distance_to_focus) * feel);
 
             switch (mode)
             {
-            case CameraRigMode::Dolly:
+            case InteractionMode::Dolly:
             {
                 v3f camFwd = mount.forward();
                 v3f camRight = mount.right();
                 v3f deltaX = camRight * delta.x * scale;
                 v3f dP = camFwd * delta.y * scale - deltaX;
-                position += dP;
-                focus_point += dP;
-                mount.look_at(position, focus_point, world_up);
+                _ts->position += dP;
+                _ts->focus_point += dP;
+                mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
                 break;
             }
-            case CameraRigMode::Crane:
+            case InteractionMode::Crane:
             {
                 v3f camera_up = mount.up();
                 v3f camera_right = mount.right();
                 v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
-                position += dP;
-                focus_point += dP;
-                mount.look_at(position, focus_point, world_up);
+                _ts->position += dP;
+                _ts->focus_point += dP;
+                mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
                 break;
             }
-            case CameraRigMode::Gimbal:
-            case CameraRigMode::TurnTableOrbit:
+            case InteractionMode::Gimbal:
+            case InteractionMode::TurnTableOrbit:
             {
-                if (mode == CameraRigMode::Gimbal)
+                if (mode == InteractionMode::Gimbal)
                     delta.y *= -1.f;   // to feel like the camera is moving in the gesture direction
                 else
                     delta.x *= -1.f;   // to feel like the object is moving in the gesture direction
 
-                _azimuth += 0.01f * delta.x;
-                while (_azimuth > 2.f * pi)
-                    _azimuth -= 2.f * pi;
-                while (_azimuth < 0)
-                    _azimuth += 2.f * pi;
+                _ts->azimuth += 0.01f * delta.x;
+                while (_ts->azimuth > 2.f * pi)
+                    _ts->azimuth -= 2.f * pi;
+                while (_ts->azimuth < 0)
+                    _ts->azimuth += 2.f * pi;
 
-                _declination += 0.002f * delta.y;
-                while (_declination > pi * 0.5f)
-                    _declination = pi * 0.5f;
-                while (_declination < -pi * 0.5f)
-                    _declination = -pi * 0.5f;
+                _ts->declination += 0.002f * delta.y;
+                while (_ts->declination > pi * 0.5f)
+                    _ts->declination = pi * 0.5f;
+                while (_ts->declination < -pi * 0.5f)
+                    _ts->declination = -pi * 0.5f;
 
-                v3f ypr{ _azimuth, _declination, 0 };
+                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 m44f rot = lab::camera::rotation(ypr);
-                if (mode == CameraRigMode::TurnTableOrbit)
+                if (mode == InteractionMode::TurnTableOrbit)
                 {
-                    position = mul(rot, v3f{ 0, 0, distance_to_focus }) + focus_point;
+                    _ts->position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _ts->focus_point;
                 }
                 else
                 {
-                    focus_point = position - mul(rot, v3f{ 0, 0, distance_to_focus });
+                    _ts->focus_point = _ts->position - mul(rot, v3f{ 0, 0, distance_to_focus });
                 }
-                mount.set_view_transform(ypr, position);
+                mount.set_view_transform(ypr, _ts->position);
                 break;
             }
             default:
             {
                 // a tumble that moves the focus_point
                 v3f camera_forward = mount.forward();
-                v3f right = normalize(cross(world_up, camera_forward));
+                v3f right = normalize(cross(_ts->world_up, camera_forward));
 
                 v3f rel = mul(camera_to_focus, -1.f);
                 quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
                 quatf pitch = quat_from_axis_angle(right, feel * -0.125f * delta.y);
                 v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
-                focus_point = position + rotatedVec;
-                mount.look_at(position, focus_point, world_up);
-                update_constraints(mode);
+                _ts->focus_point = _ts->position + rotatedVec;
+                mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
+                update_constraints();
                 break;
             }
             }
@@ -692,93 +780,129 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void Camera::rig_interact(CameraRigMode mode,
-            v2f const& viewport_size,
-            Camera const& initial_camera,
-            v2f const& initial, v2f const& current)
+        void Camera::ttl_interaction(InteractionToken tok, InteractionMode mode,
+            v2f const& current)
         {
+            if (_ts->phase == InteractionPhase::Start)
+            {
+                _ts->prev_mouse = current;
+                _ts->init_mouse = current;
+                update_constraints();
+            }
+
             switch (mode)
             {
-            case CameraRigMode::Crane:
-            case CameraRigMode::Dolly:
-            case CameraRigMode::TurnTableOrbit:
+            case InteractionMode::Crane:
+            case InteractionMode::Dolly:
+            case InteractionMode::TurnTableOrbit:
             {
                 // Joystick mode
-                v2f dp = current - initial;
-                dp.x *= -10.f / viewport_size.x;
-                dp.y *= -10.f / viewport_size.y;
-                rig_interact(mode, dp);
+                v2f dp = current - _ts->init_mouse;
+                v2f prev_dp = _ts->prev_mouse - _ts->init_mouse;
+
+                // reset the anchor if the interaction direction changes on either axis.
+                // this is to increase the feeling of responsiveness
+                if (dp.x * prev_dp.x < 0)
+                    _ts->init_mouse.x = current.x;
+                if (dp.y * prev_dp.y < 0)
+                    _ts->init_mouse.y = current.y;
+                dp = current - _ts->init_mouse;
+
+                const float speed_scale = 10.f;
+                dp.x *=  speed_scale / _ts->viewport_size.x;
+                dp.y *= -speed_scale / _ts->viewport_size.y;
+                joystick_interaction(tok, mode, dp);
+
                 break;
             }
-            case CameraRigMode::Gimbal:
+            case InteractionMode::Gimbal:
             {
                 // Through the lens gimbal
-                Ray original_ray = initial_camera.get_ray_from_pixel(initial, { 0, 0 }, viewport_size);
-                Ray new_ray = initial_camera.get_ray_from_pixel(current, { 0, 0 }, viewport_size);
+                Ray original_ray = _ts->initial_camera.get_ray_from_pixel(_ts->init_mouse, { 0, 0 }, _ts->viewport_size);
+                Ray new_ray = _ts->initial_camera.get_ray_from_pixel(current, { 0, 0 }, _ts->viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
-                v3f rel = initial_camera.focus_point - initial_camera.position;
+                v3f rel = _ts->initial_focus_point - _ts->initial_position_constraint;
                 rel = quat_rotate_vector(rotation, rel);
-                focus_point = position + rel;
-                mount.look_at(position, focus_point, world_up);
-                update_constraints(mode);
+                _ts->focus_point = _ts->position + rel;
+                mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
+                update_constraints();
                 break;
             }
             }
+
+            _ts->prev_mouse = current;
         }
 
-        void Camera::rig_interact(CameraRigMode mode,
-            bool restart_interaction,
-            v2f const& viewport_size,
-            Camera const& initial_camera,
-            v2f const& initial, v2f const& current,
+        void Camera::constrained_ttl_interaction(InteractionToken tok, InteractionMode mode,
+            v2f const& current,
             v3f const& initial_hit_point)
         {
+            if (_ts->phase == InteractionPhase::Start)
+            {
+                _ts->prev_mouse = current;
+                _ts->init_mouse = current;
+                //update_constraints();
+            }
+
             switch (mode)
             {
-            case CameraRigMode::Crane:
+            case InteractionMode::Crane:
             {
-                if (restart_interaction)
+                if (_ts->phase == InteractionPhase::Start)
                 {
-                    focus_point = initial_hit_point;
+                    _ts->focus_point = initial_hit_point;
+                    _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
                 }
 
                 // Through the lens crane
-                v2f target_xy = project_to_viewport(v2f{ 0,0 }, viewport_size, focus_point) - current;
-                target_xy = mul(target_xy, 1.f / viewport_size.x);
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->focus_point) - current;
+                target_xy = mul(target_xy, 1.f / _ts->viewport_size.x);
                 v3f delta = mul(mount.right(), target_xy.x * 1.f);
                 delta += mul(mount.up(), target_xy.y * -1.f);
-                position += delta;
-                //focus_point += delta;
-                v3f ypr{ _azimuth, _declination, 0 };
-                mount.set_view_transform(ypr, position);
+                _ts->position += delta;
+                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
+                mount.set_view_transform(ypr, _ts->position);
+
+
+                if (_ts->phase == InteractionPhase::Finish)
+                {
+                    _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
+                }
                 break;
             }
-            case CameraRigMode::Dolly:
+            case InteractionMode::Dolly:
             {
-                if (restart_interaction)
+                if (_ts->phase == InteractionPhase::Start)
                 {
-                    focus_point = initial_hit_point;
+                    _ts->focus_point = initial_hit_point;
+                    _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
                 }
 
                 // Through the lens crane
-                v2f target_xy = project_to_viewport(v2f{ 0,0 }, viewport_size, focus_point) - current;
-                target_xy = mul(target_xy, 1.f / viewport_size.x);
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->focus_point) - current;
+                target_xy = mul(target_xy, 1.f / _ts->viewport_size.x);
                 v3f delta = mul(mount.right(), target_xy.x * 1.f);
                 v3f delta_fw = mul(mount.forward(), target_xy.y * -1.f);
-                position += delta + delta_fw;
-                focus_point += delta_fw;
-                v3f ypr{ _azimuth, _declination, 0 };
-                mount.set_view_transform(ypr, position);
+                _ts->position += delta + delta_fw;
+                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
+                mount.set_view_transform(ypr, _ts->position);
+
+                if (_ts->phase == InteractionPhase::Finish)
+                {
+                    _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
+                }
                 break;
             }
 
             default:
-                rig_interact(mode, viewport_size, initial_camera, initial, current);
+                ttl_interaction(tok, mode, current);
                 break;
             }
+
+            _ts->prev_mouse = current;
         }
 
-        v2f Camera::project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point)
+        v2f Camera::project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point) const
         {
             m44f m = view_projection(1.f);
             v4f p = mul(m, v4f{ point.x, point.y, point.z, 1.f });
@@ -789,6 +913,25 @@ namespace lab {
             pnt.y -= viewport_origin.y;
             return { pnt.x, pnt.y };
         }
+
+        v3f Camera::arcball_vector(v2f const& viewport_origin, v2f const& viewport_size, const v2f& point) const
+        {
+            /// @todo take origin into account
+
+            v3f p { 1.f * point.x / viewport_size.x * 2.f - 1.f,
+                    1.f * point.y / viewport_size.y * 2.f - 1.f,
+                    0.f };
+
+            p.y = -p.y;
+
+            float OP_squared = p.x * p.x + p.y * p.y;
+            if (OP_squared <= 1)
+                p.z = sqrtf(1 - OP_squared);  // Pythagoras
+            else
+                p = normalize(p);  // nearest point
+            return p;
+        }
+
 
 
 
