@@ -455,6 +455,18 @@ namespace lab {
             return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.value / (2.f * cropped_f)) };
         }
 
+        millimeters hyperfocal_distance(const Optics& optics, millimeters CoC)
+        {
+            return { optics.focal_length.value * optics.focal_length.value / (optics.fStop * CoC.value) };
+        }
+
+        v2f focus_range(const Optics& optics, millimeters h)
+        {
+            v2f r;
+            r.x = h.value * optics.focus_distance.value / (h.value + (optics.focus_distance.value - optics.focal_length.value));
+            r.y = h.value * optics.focus_distance.value / (h.value - (optics.focus_distance.value - optics.focal_length.value));
+        }
+
         millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
         {
             if (fov.value < 0 || fov.value > 3.141592653589793238f)

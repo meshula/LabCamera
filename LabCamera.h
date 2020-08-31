@@ -128,7 +128,7 @@ namespace camera {
         // Utility function to derive a focal length for this sensor
         // corresponding to the sensor geometry.
         //
-        millimeters focal_length_from_FOV(radians fov);
+        millimeters focal_length_from_vertical_FOV(radians fov);
     };
 
 
@@ -168,11 +168,38 @@ namespace camera {
     an anamorphic lens' horizontal field of view must take squeeze into account:
 
         fov = 2 atan((s * h/2) / f)
+
+    The hyperfocal distance is useful for determining what ranges are in focus.
+
+    If a camera is focused at infinity, objects from the hyperfocal distance to
+    infinity are in focus.
+
+    O----------------H----------------------------|
+    Infinity       hyperfocal distance         Sensor plane
+
+    If a camera is focussed at the hyperfocal distance, then objects from 1/2 H to
+    infinity are in focus.
+
+    O----------------H----------H/2---------------|
+    Infinity       hyperfocal distance         Sensor plane
+
+    Given a focus distance, and the hyperfocal distance, the in focus range is
+    given by
+
+        Dn = hd / (h + (d - f))
+        Df = hd / (h - (d - f))
+
+    Given a circle of confusion, such as 0.002mm as might be typical for 35mm film,
+    the hyperfocal distance can be determined.
+
+        h = f^2/(fstop * CoC)
     */
 
     struct Optics
     {
+        float fStop = 8.f;
         millimeters focal_length = { 50.f };
+        millimeters focus_distance = { 2.e3f };
         float zfar = 1e5f;
         float znear = 0.1f;
         float squeeze = 1.f; // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
@@ -182,6 +209,9 @@ namespace camera {
     m44f        inv_perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
     radians     vertical_FOV(const Sensor& sensor, const Optics& optics);
     radians     horizontal_FOV(const Sensor& sensor, const Optics& optics);
+
+    millimeters hyperfocal_distance(const Optics& optics, millimeters CoC);
+    v2f         focus_range(const Optics& optics, millimeters hyperfocal_distance); // return value in mm
 
     /*-------------------------------------------------------------------------
      Camera
