@@ -465,6 +465,7 @@ namespace lab {
             v2f r;
             r.x = h.value * optics.focus_distance.value / (h.value + (optics.focus_distance.value - optics.focal_length.value));
             r.y = h.value * optics.focus_distance.value / (h.value - (optics.focus_distance.value - optics.focal_length.value));
+            return r;
         }
 
         millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
@@ -494,7 +495,7 @@ namespace lab {
 
             v3f initial_position_constraint;
             v3f initial_focus_point;
-            Camera initial_camera;
+            m44f initial_inv_projection;
         };
 
         Camera::Camera() : _ts(new TransientState())
@@ -509,13 +510,7 @@ namespace lab {
 
         InteractionToken Camera::begin_interaction(InteractionPhase phase, v2f const& viewport_size)
         {
-            // The camera is copied for the mount, sensor, and optics, so that get_ray_from_pixel
-            // can be called during interaction on the initial camera. get_ray_from_pixel does
-            // not access transient state. so the transient state does not need to be copied into
-            // the initial_camera. The pointer in the initial_camera will be pointing to this -ts,
-            // which is fine.
-
-            _ts->initial_camera = *this;
+            _ts->initial_inv_projection = inv_view_projection(1.f);
 
             _ts->initial_position_constraint = _ts->position;
             _ts->initial_focus_point = _ts->focus_point;
@@ -623,20 +618,25 @@ namespace lab {
             return invert(mul(proj, view));
         }
 
-        Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
+        Ray get_ray(m44f const& inv_projection, v3f const& camera_position, v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size)
         {
             // 3d normalized device coordinates
             const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
             const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
 
             // eye coordinates
-            m44f inv_projection = inv_view_projection(1.f);
             v4f p0 = mul(inv_projection, v4f{ x, y, -1, 1 });
             v4f p1 = mul(inv_projection, v4f{ x, y, +1, 1 });
 
             p1 = mul(p1, 1.f / p1.w);
             p0 = mul(p0, 1.f / p0.w);
-            return{ _ts->position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+            return{ camera_position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+        }
+
+        Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
+        {
+            m44f inv_projection = inv_view_projection(1.f);
+            return get_ray(inv_projection, _ts->position, pixel, viewport_origin, viewport_size);
         }
 
         HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const
@@ -830,8 +830,8 @@ namespace lab {
             case InteractionMode::Gimbal:
             {
                 // Through the lens gimbal
-                Ray original_ray = _ts->initial_camera.get_ray_from_pixel(_ts->init_mouse, { 0, 0 }, _ts->viewport_size);
-                Ray new_ray = _ts->initial_camera.get_ray_from_pixel(current, { 0, 0 }, _ts->viewport_size);
+                Ray original_ray = get_ray(_ts->initial_inv_projection, _ts->initial_position_constraint, _ts->init_mouse, { 0, 0 }, _ts->viewport_size);
+                Ray new_ray = get_ray(_ts->initial_inv_projection, _ts->position, current, { 0, 0 }, _ts->viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
                 v3f rel = _ts->initial_focus_point - _ts->initial_position_constraint;
                 rel = quat_rotate_vector(rotation, rel);
