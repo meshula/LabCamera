@@ -700,9 +700,6 @@ namespace lab {
                 _ts->must_finalize = false;
             }
 
-            _ts->initial_inv_projection = inv_view_projection(1.f);
-            _ts->initial_position_constraint = _ts->position;
-            _ts->initial_focus_point = _ts->focus_point;
             _ts->viewport_size = viewport_size;
 
             // nb: in the future the InteractionToken will be used to manage
@@ -727,6 +724,9 @@ namespace lab {
 
             if (phase == InteractionPhase::Start)
             {
+                _ts->initial_inv_projection = inv_view_projection(1.f);
+                _ts->initial_position_constraint = _ts->position;
+                _ts->initial_focus_point = _ts->focus_point;
                 update_constraints();
             }
 
@@ -843,6 +843,9 @@ namespace lab {
             {
                 _ts->prev_mouse = current;
                 _ts->init_mouse = current;
+                _ts->initial_inv_projection = inv_view_projection(1.f);
+                _ts->initial_position_constraint = _ts->position;
+                _ts->initial_focus_point = _ts->focus_point;
                 update_constraints();
             }
 
@@ -873,8 +876,12 @@ namespace lab {
             case InteractionMode::Gimbal:
             {
                 // Through the lens gimbal
-                Ray original_ray = get_ray(_ts->initial_inv_projection, _ts->initial_position_constraint, _ts->init_mouse, { 0, 0 }, _ts->viewport_size);
-                Ray new_ray = get_ray(_ts->initial_inv_projection, _ts->position, current, { 0, 0 }, _ts->viewport_size);
+                Ray original_ray = get_ray(_ts->initial_inv_projection, 
+                    _ts->initial_position_constraint, _ts->init_mouse, 
+                    { 0, 0 }, _ts->viewport_size);
+                Ray new_ray = get_ray(_ts->initial_inv_projection, 
+                    _ts->position, current, 
+                    { 0, 0 }, _ts->viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
                 v3f rel = _ts->initial_focus_point - _ts->initial_position_constraint;
                 rel = quat_rotate_vector(rotation, rel);
@@ -897,6 +904,9 @@ namespace lab {
             {
                 _ts->prev_mouse = current;
                 _ts->init_mouse = current;
+                _ts->initial_inv_projection = inv_view_projection(1.f);
+                _ts->initial_position_constraint = _ts->position;
+                _ts->initial_focus_point = _ts->focus_point;
                 //update_constraints();
             }
 

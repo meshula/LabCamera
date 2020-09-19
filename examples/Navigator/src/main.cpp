@@ -323,12 +323,12 @@ bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
 }
 
 // return true if the gizmo was interacted
-bool run_gizmo(float width, float height)
+bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
 {
     //g_tt->ui(*g_fm);
 
     lab::camera::v3f camera_pos = gApp.camera.mount.position();
-    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ mouse.mouse_ws.x, mouse.mouse_ws.y }, { 0, 0 }, { width, height });
+    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ mouse_wsx, mouse_wsy }, { 0, 0 }, { width, height });
     lab::camera::quatf camera_orientation = gApp.camera.mount.rotation();
 
     gApp.gizmo_state.mouse_left = mouse.click_initiated || mouse.dragging;
@@ -795,21 +795,21 @@ void frame()
             mouse = MouseState{};
         }
         gApp.ui_state = UIStateMachine::None;
+        run_gizmo( -1, -1, (float)window_width, (float)window_height);
     }
     else if (mouse_in_viewport)
     {
         if (gApp.ui_state == UIStateMachine::Gizmo)
         {
-            if (!run_gizmo((float)window_width, (float)window_height))
+            if (!run_gizmo(mouse.mouse_ws.x, mouse.mouse_ws.y, (float)window_width, (float)window_height))
             {
                 gApp.ui_state = UIStateMachine::None;
                 sapp_lock_mouse(false);
-
             }
         }
         else if (gApp.ui_state <= UIStateMachine::UI)
         {
-            if (run_gizmo((float)window_width, (float)window_height))
+            if (run_gizmo(mouse.mouse_ws.x, mouse.mouse_ws.y, (float)window_width, (float)window_height))
             {
                 gApp.ui_state = UIStateMachine::Gizmo;
             }
