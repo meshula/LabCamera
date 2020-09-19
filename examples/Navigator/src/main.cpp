@@ -751,6 +751,7 @@ void frame()
         cam_pos.y += cam_nrm.y;
         cam_pos.z += cam_nrm.z;
 
+        // project onto a plane one unit in front of the camera
         lab::camera::HitResult hit = gApp.camera.hit_test(
             { mouse.mouse_ws.x, mouse.mouse_ws.y },
             { (float)window_width, (float)window_height },
@@ -761,7 +762,7 @@ void frame()
             lab::camera::v2f vp_sz{ (float)window_width, (float)window_height };
             lab::camera::v2f vp_or = { 0, 0 };
             lab::camera::v2f xy = gApp.camera.project_to_viewport(vp_or, vp_sz, hit.point);
-            ImGui::SetCursorScreenPos(ImVec2{ xy.x, xy.y } + canvas_offset);
+            ImGui::SetCursorScreenPos(ImVec2{ xy.x, xy.y } + canvas_offset - ImVec2{ 4,4 });
             ImGui::TextUnformatted("O");
         }
     }
@@ -864,11 +865,15 @@ void frame()
             else if (mouse.click_ended)
                 phase = lab::camera::InteractionPhase::Finish;
 
+
             ImGui::CaptureMouseFromApp(true);
 
             lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
-            if (false && gApp.ui_state == UIStateMachine::TTLCamera)
+            if (gApp.ui_state == UIStateMachine::TTLCamera)
             {
+                ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
+                ImGui::TextUnformatted("TTL+");
+
                 // through the lens mode
                 gApp.camera.constrained_ttl_interaction(
                     tok,
@@ -878,6 +883,9 @@ void frame()
             }
             else
             {
+                ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
+                ImGui::TextUnformatted("TTL");
+
                 // virtual joystick mode
                 gApp.camera.ttl_interaction(
                     tok,
