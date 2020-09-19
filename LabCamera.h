@@ -241,7 +241,7 @@ namespace camera {
 
     enum class InteractionPhase
     {
-        None, Start, Continue, Finish
+        None = 0, Restart, Start, Continue, Finish
     };
 
     struct HitResult
@@ -273,7 +273,7 @@ namespace camera {
         // returns an InteractionToken. In the future this will be in aid of 
         // multitouch, multidevice interactions on the same camera
         //
-        InteractionToken begin_interaction(InteractionPhase, v2f const& viewport_size);
+        InteractionToken begin_interaction(v2f const& viewport_size);
         void end_interaction(InteractionToken);
 
         // cameraRig_interact
@@ -285,7 +285,7 @@ namespace camera {
         // explicit neutral zero point. For example, delta could be computed as
         // delta = mousePos - mouseClickPos;
         //
-        void joystick_interaction(InteractionToken, InteractionMode mode, v2f const& delta);
+        void joystick_interaction(InteractionToken, InteractionPhase, InteractionMode, v2f const& delta);
 
         // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current
@@ -298,7 +298,7 @@ namespace camera {
         //
         // Gimbal: The camera will be panned and tilted to keep initial under current
 
-        void ttl_interaction(InteractionToken, InteractionMode mode, v2f const& current);
+        void ttl_interaction(InteractionToken, InteractionPhase, InteractionMode, v2f const& current);
 
         // through the lens, with a point in world space to keep under the mouse.
         // dolly: hit_point will be constrained to stay under the mouse
@@ -306,9 +306,10 @@ namespace camera {
         // gimbal: same
         // turntable orbit, roughly screen relative tumble motions
 
-        void constrained_ttl_interaction(InteractionToken, InteractionMode mode,
+        void constrained_ttl_interaction(InteractionToken, InteractionPhase, InteractionMode,
             v2f const& current,
             v3f const& hit_point);
+
 
         void set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up);
         v3f position_constraint() const;

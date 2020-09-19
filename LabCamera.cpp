@@ -490,8 +490,8 @@ namespace lab {
             v2f init_mouse{ 0,0 };
             v2f prev_mouse{ 0,0 };
             float initial_focus_distance = 10.f;
-            v2f viewport_size;
-            InteractionPhase phase;
+            v2f viewport_size = { 0, 0 };
+            bool must_finalize = false;
 
             v3f initial_position_constraint;
             v3f initial_focus_point;
@@ -508,25 +508,6 @@ namespace lab {
             delete _ts;
         }
 
-        InteractionToken Camera::begin_interaction(InteractionPhase phase, v2f const& viewport_size)
-        {
-            _ts->initial_inv_projection = inv_view_projection(1.f);
-
-            _ts->initial_position_constraint = _ts->position;
-            _ts->initial_focus_point = _ts->focus_point;
-
-            _ts->viewport_size = viewport_size;
-            _ts->phase = phase;
-
-            // nb: in the future the InteractionToken will be used to manage
-            // multitouch and multidevice interactions.
-            return 0;
-        }
-
-        void Camera::end_interaction(InteractionToken)
-        {
-
-        }
 
         void Camera::set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up)
         {
@@ -647,6 +628,36 @@ namespace lab {
             return r;
         }
 
+        v2f Camera::project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point) const
+        {
+            m44f m = view_projection(1.f);
+            v4f p = mul(m, v4f{ point.x, point.y, point.z, 1.f });
+            v3f pnt = xyz(mul(p, 1.f / p.w));
+            pnt.x = pnt.x * viewport_size.x * 0.5f + viewport_size.x * 0.5f;
+            pnt.y = pnt.y * viewport_size.y * -0.5f + viewport_size.y * 0.5f;
+            pnt.x -= viewport_origin.x;
+            pnt.y -= viewport_origin.y;
+            return { pnt.x, pnt.y };
+        }
+
+        v3f Camera::arcball_vector(v2f const& viewport_origin, v2f const& viewport_size, const v2f& point) const
+        {
+            /// @todo take origin into account
+
+            v3f p{ 1.f * point.x / viewport_size.x * 2.f - 1.f,
+                    1.f * point.y / viewport_size.y * 2.f - 1.f,
+                    0.f };
+
+            p.y = -p.y;
+
+            float OP_squared = p.x * p.x + p.y * p.y;
+            if (OP_squared <= 1)
+                p.z = sqrtf(1 - OP_squared);  // Pythagoras
+            else
+                p = normalize(p);  // nearest point
+            return p;
+        }
+
 
         bool Camera::check_constraints(InteractionMode mode)
         {
@@ -681,12 +692,40 @@ namespace lab {
             }
         }
 
+        InteractionToken Camera::begin_interaction(v2f const& viewport_size)
+        {
+            if (_ts->must_finalize)
+            {
+                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
+                _ts->must_finalize = false;
+            }
+
+            _ts->initial_inv_projection = inv_view_projection(1.f);
+            _ts->initial_position_constraint = _ts->position;
+            _ts->initial_focus_point = _ts->focus_point;
+            _ts->viewport_size = viewport_size;
+
+            // nb: in the future the InteractionToken will be used to manage
+            // multitouch and multidevice interactions.
+            return 0;
+        }
+
+        void Camera::end_interaction(InteractionToken)
+        {
+        }
+
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void Camera::joystick_interaction(InteractionToken, InteractionMode mode, v2f const& delta_in)
+        void Camera::joystick_interaction(InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in)
         {
-            if (_ts->phase == InteractionPhase::Start)
+            if (_ts->must_finalize)
+            {
+                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
+            }
+            _ts->must_finalize = false; // joystick_interaction has no finalization step necessary
+
+            if (phase == InteractionPhase::Start)
             {
                 update_constraints();
             }
@@ -792,10 +831,15 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void Camera::ttl_interaction(InteractionToken tok, InteractionMode mode,
-            v2f const& current)
+        void Camera::ttl_interaction(InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current)
         {
-            if (_ts->phase == InteractionPhase::Start)
+            if (_ts->must_finalize)
+            {
+                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
+            }
+            _ts->must_finalize = false; // joystick_interaction has no finalization step necessary
+
+            if (phase == InteractionPhase::Start)
             {
                 _ts->prev_mouse = current;
                 _ts->init_mouse = current;
@@ -823,8 +867,7 @@ namespace lab {
                 const float speed_scale = 10.f;
                 dp.x *=  speed_scale / _ts->viewport_size.x;
                 dp.y *= -speed_scale / _ts->viewport_size.y;
-                joystick_interaction(tok, mode, dp);
-
+                joystick_interaction(tok, phase, mode, dp);
                 break;
             }
             case InteractionMode::Gimbal:
@@ -845,11 +888,12 @@ namespace lab {
             _ts->prev_mouse = current;
         }
 
-        void Camera::constrained_ttl_interaction(InteractionToken tok, InteractionMode mode,
+        void Camera::constrained_ttl_interaction(InteractionToken tok, 
+            InteractionPhase phase, InteractionMode mode,
             v2f const& current,
             v3f const& initial_hit_point)
         {
-            if (_ts->phase == InteractionPhase::Start)
+            if (phase == InteractionPhase::Start)
             {
                 _ts->prev_mouse = current;
                 _ts->init_mouse = current;
@@ -860,7 +904,7 @@ namespace lab {
             {
             case InteractionMode::Crane:
             {
-                if (_ts->phase == InteractionPhase::Start)
+                if (phase == InteractionPhase::Start)
                 {
                     _ts->focus_point = initial_hit_point;
                     _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
@@ -875,16 +919,12 @@ namespace lab {
                 v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 mount.set_view_transform(ypr, _ts->position);
 
-
-                if (_ts->phase == InteractionPhase::Finish)
-                {
-                    _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
-                }
+                _ts->must_finalize = phase == InteractionPhase::Finish;
                 break;
             }
             case InteractionMode::Dolly:
             {
-                if (_ts->phase == InteractionPhase::Start)
+                if (phase == InteractionPhase::Start)
                 {
                     _ts->focus_point = initial_hit_point;
                     _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
@@ -899,49 +939,16 @@ namespace lab {
                 v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 mount.set_view_transform(ypr, _ts->position);
 
-                if (_ts->phase == InteractionPhase::Finish)
-                {
-                    _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
-                }
+                _ts->must_finalize = phase == InteractionPhase::Finish;
                 break;
             }
 
             default:
-                ttl_interaction(tok, mode, current);
+                ttl_interaction(tok, phase, mode, current);
                 break;
             }
 
             _ts->prev_mouse = current;
-        }
-
-        v2f Camera::project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point) const
-        {
-            m44f m = view_projection(1.f);
-            v4f p = mul(m, v4f{ point.x, point.y, point.z, 1.f });
-            v3f pnt = xyz(mul(p, 1.f / p.w));
-            pnt.x = pnt.x * viewport_size.x *  0.5f + viewport_size.x * 0.5f;
-            pnt.y = pnt.y * viewport_size.y * -0.5f + viewport_size.y * 0.5f;
-            pnt.x -= viewport_origin.x;
-            pnt.y -= viewport_origin.y;
-            return { pnt.x, pnt.y };
-        }
-
-        v3f Camera::arcball_vector(v2f const& viewport_origin, v2f const& viewport_size, const v2f& point) const
-        {
-            /// @todo take origin into account
-
-            v3f p { 1.f * point.x / viewport_size.x * 2.f - 1.f,
-                    1.f * point.y / viewport_size.y * 2.f - 1.f,
-                    0.f };
-
-            p.y = -p.y;
-
-            float OP_squared = p.x * p.x + p.y * p.y;
-            if (OP_squared <= 1)
-                p.z = sqrtf(1 - OP_squared);  // Pythagoras
-            else
-                p = normalize(p);  // nearest point
-            return p;
         }
 
 

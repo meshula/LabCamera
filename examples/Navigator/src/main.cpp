@@ -29,6 +29,8 @@
 #define LAB_CAMERA_DRY
 #include "LabCamera.h"
 
+#define TRACE_INTERACTION 1
+
 lab::m44f& m44f_cast(lab::camera::m44f& m) { return *(reinterpret_cast<lab::m44f*>(&m.x.x)); }
 const lab::m44f& m44f_cast(const lab::camera::m44f& m) { return *(reinterpret_cast<const lab::m44f*>(&m.x.x)); }
 lab::v3f& v3f_cast(lab::camera::v3f& v) { return *(reinterpret_cast<lab::v3f*>(&v.x)); }
@@ -37,10 +39,23 @@ const lab::v3f& v3f_cast(const lab::camera::v3f& v) { return *(reinterpret_cast<
 extern "C" void draw_cube();
 void simple_effect(const float* v_t, const float* mvp, float t, float dt);
 
-enum InteractionMode
+enum class UIStateMachine
 {
-    UI, Gizmo, DeltaCamera, TTLCamera
+    None = 0, UI, Gizmo, DeltaCamera, TTLCamera
 };
+
+const char* name_state(UIStateMachine s)
+{
+    switch (s)
+    {
+    case UIStateMachine::None: return "None";
+    case UIStateMachine::UI: return "UI";
+    case UIStateMachine::Gizmo: return "Gizmo";
+    case UIStateMachine::DeltaCamera: return "DeltaCamera";
+    case UIStateMachine::TTLCamera: return "TTLCamera";
+    }
+    return "";
+}
 
 struct AppState
 {
@@ -49,7 +64,7 @@ struct AppState
     lab::camera::Camera camera;
     lab::camera::v2f initial_mouse_position = { 0, 0 };
     lab::camera::v3f initial_hit_point;
-    InteractionMode interaction_mode = InteractionMode::UI;
+    UIStateMachine ui_state = UIStateMachine::UI;
 
     lab::m44f gizmo_transform;
     tinygizmo::gizmo_application_state gizmo_state;
@@ -98,8 +113,7 @@ struct MouseState
     bool dragging{ false };
     ImVec2 mouse_ws{ 0, 0 };
     ImVec2 initial_click_pos_ws{ 0, 0 };
-};
-static MouseState mouse;
+} mouse;
 
 float random()
 {
@@ -249,32 +263,35 @@ void init()
     gApp.g_time_transport = new lab::TimeTransport();
 }
 
-void update_mouseStatus_in_viewport(ImVec2 canvas_offset)
+
+bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
 {
-    // the 3d viewport should be the current window
+    // assuming the 3d viewport is the current window, fetch the content region
     ImGuiWindow* win = ImGui::GetCurrentWindow();
     ImRect edit_rect = win->ContentRegionRect;
-
     ImGuiIO& io = ImGui::GetIO();
-
     float width = ImGui::GetContentRegionAvailWidth();
     float height = ImGui::GetContentRegionAvail().y;
+
+    // detect that the mouse is in the content region
     ImVec2 imgui_cursor_pos = ImGui::GetCursorPos();
     ImGui::SetCursorScreenPos(edit_rect.Min);
     bool click_finished = ImGui::InvisibleButton("###GIZMOREGION", edit_rect.GetSize());
+    mouse.in_canvas = click_finished || ImGui::IsItemHovered();
 
     //---------------------------------------------------------------------
     // determine hovered, dragging, pressed, and released, as well as
     // window local coordinate and canvas local coordinate
-
+    //
     mouse.click_ended = false;
     mouse.click_initiated = false;
-    mouse.in_canvas = click_finished || ImGui::IsItemHovered();
     if (mouse.in_canvas)
     {
         if (click_finished)
         {
-            //printf("button released\n");
+            if (TRACE_INTERACTION)
+                printf("button released\n");
+
             mouse.dragging_node = false;
             mouse.resizing_node = false;
             mouse.click_ended = true;
@@ -286,7 +303,9 @@ void update_mouseStatus_in_viewport(ImVec2 canvas_offset)
         {
             if (!mouse.dragging)
             {
-                //printf("button clicked\n");
+                if (TRACE_INTERACTION)
+                    printf("button clicked\n");
+
                 mouse.click_initiated = true;
                 mouse.initial_click_pos_ws = io.MousePos;
                 mouse.dragging = true;
@@ -298,11 +317,9 @@ void update_mouseStatus_in_viewport(ImVec2 canvas_offset)
     else
         mouse.dragging = false;
 
-    if (!mouse.dragging)
-    {
-        // clear hover status
-    }
+    // restore the ImGui state
     ImGui::SetCursorPos(imgui_cursor_pos);
+    return mouse.in_canvas;
 }
 
 // return true if the gizmo was interacted
@@ -374,22 +391,29 @@ bool run_gizmo(float width, float height)
     return result;
 }
 
+enum class NavigatorPanelInteraction
+{
+    None = 0,
+    ModeChange,
+    TumbleInitiated, TumbleContinued, TumbleEnded
+};
+
 struct NavigatorPanel
 {
     const float size_x = 256;
     const float size_y = 160;
     const float trackball_width = size_x * 0.5f;
     ImVec2 trackball_size{ trackball_width, size_y };
-    bool tumble_initiated = false;
-    bool tumbling = false;
-    bool tumble_ended = false;
     float nav_radius = 6;
-    lab::camera::InteractionMode interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
+    lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
+    NavigatorPanelInteraction state = NavigatorPanelInteraction::None;
+    bool trackball_interacting = false;
 } navigator_panel;
 
 
-void run_navigator_panel()
+NavigatorPanelInteraction run_navigator_panel()
 {
+    NavigatorPanelInteraction result = NavigatorPanelInteraction::None;
     ImGui::SetNextWindowSize(ImVec2(navigator_panel.size_x, navigator_panel.size_y), ImGuiCond_FirstUseEver);
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel.size_x, 10));
@@ -400,7 +424,6 @@ void run_navigator_panel()
 
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
     ImVec2 mouse_pos = ImGui::GetMousePos();
-    static char msg[256];
 
     ImGui::Columns(3, "###NavCol", true);
     ImGui::SetColumnWidth(0, navigator_panel.trackball_width);
@@ -409,50 +432,78 @@ void run_navigator_panel()
     // it should continue until the mouse is no longer held down.
 
     ImGui::InvisibleButton("###Nav", navigator_panel.trackball_size);
-    navigator_panel.tumble_initiated = false;
-
-    bool tumbling = navigator_panel.tumbling;
-    if (ImGui::IsItemActive()) {
-        ImGui::SetCursorScreenPos(cursor_screen_pos);
-
-        if (navigator_panel.tumbling)
-            ImGui::TextUnformatted("DRAGGING");
-        else
+    if (ImGui::IsItemHovered())
+    {
+        if (ImGui::IsMouseDown(0))
         {
-            ImGui::TextUnformatted("CLICKED");
-            gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
-            navigator_panel.tumbling = true;
-            navigator_panel.tumble_initiated = true;
+            if (!navigator_panel.trackball_interacting)
+            {
+                navigator_panel.trackball_interacting = true;
+                ImGui::SetCursorScreenPos(cursor_screen_pos);
+                ImGui::TextUnformatted("CLICKED");
+                gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
+                result = NavigatorPanelInteraction::TumbleInitiated;
+            }
+            else
+            {
+                result = NavigatorPanelInteraction::TumbleContinued;
+                ImGui::SetCursorScreenPos(cursor_screen_pos);
+                ImGui::TextUnformatted("DRAGGING");
+            }
+        }
+        else if (navigator_panel.trackball_interacting)
+        {
+            result = NavigatorPanelInteraction::TumbleEnded;
+            navigator_panel.trackball_interacting = false;
+            ImGui::SetCursorScreenPos(cursor_screen_pos);
+            ImGui::TextUnformatted("RELEASED");
+        }
+        else 
+        {
+            result = NavigatorPanelInteraction::None;
+            navigator_panel.trackball_interacting = false;
+            ImGui::SetCursorScreenPos(cursor_screen_pos);
+            ImGui::TextUnformatted("HOVERED");
         }
     }
-    else if (ImGui::IsItemHovered()) {
-        ImGui::SetCursorScreenPos(cursor_screen_pos);
-        ImGui::TextUnformatted("HOVERED");
-        ImGui::TextUnformatted(msg);
+    else if (navigator_panel.trackball_interacting)
+    {
+        if (ImGui::IsMouseDown(0))
+        {
+            result = NavigatorPanelInteraction::TumbleContinued;
+            ImGui::SetCursorScreenPos(cursor_screen_pos);
+            ImGui::TextUnformatted("DRAGGING OUTSIDE");
+        }
+        else
+        {
+            result = NavigatorPanelInteraction::TumbleEnded;
+            navigator_panel.trackball_interacting = false;
+            ImGui::SetCursorScreenPos(cursor_screen_pos);
+            ImGui::TextUnformatted("RELEASED OUTSIDE");
+        }
     }
-
-    // if the lmb is released, tumbling should be cancelled
-    if (!ImGui::IsMouseDown(0))
-        navigator_panel.tumbling = false;
-    if (!navigator_panel.tumbling && tumbling)
-        navigator_panel.tumble_ended = true;
 
     ImGui::NextColumn();
 
     if (ImGui::Button("Home###NavHome")) {
         gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, gApp.camera.world_up_constraint());
+        result = NavigatorPanelInteraction::ModeChange;
     }
-    if (ImGui::Button(navigator_panel.interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
-        navigator_panel.interaction_mode = lab::camera::InteractionMode::Crane;
+    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
+        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Crane;
+        result = NavigatorPanelInteraction::ModeChange;
     }
-    if (ImGui::Button(navigator_panel.interaction_mode == lab::camera::InteractionMode::Dolly ? "-Dolly-" : " Dolly ")) {
-        navigator_panel.interaction_mode = lab::camera::InteractionMode::Dolly;
+    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Dolly ? "-Dolly-" : " Dolly ")) {
+        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Dolly;
+        result = NavigatorPanelInteraction::ModeChange;
     }
-    if (ImGui::Button(navigator_panel.interaction_mode == lab::camera::InteractionMode::TurnTableOrbit ? "-Orbit-" : " Orbit ")) {
-        navigator_panel.interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
+    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::TurnTableOrbit ? "-Orbit-" : " Orbit ")) {
+        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
+        result = NavigatorPanelInteraction::ModeChange;
     }
-    if (ImGui::Button(navigator_panel.interaction_mode == lab::camera::InteractionMode::Gimbal ? "-Gimbal-" : " Gimbal ")) {
-        navigator_panel.interaction_mode = lab::camera::InteractionMode::Gimbal;
+    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Gimbal ? "-Gimbal-" : " Gimbal ")) {
+        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Gimbal;
+        result = NavigatorPanelInteraction::ModeChange;
     }
 
     ImGui::NextColumn();
@@ -460,6 +511,7 @@ void run_navigator_panel()
     static float zoom = 0.f;
     if (ImGui::VSliderFloat("###Nav_Zoom", ImVec2(32, navigator_panel.size_y), &zoom, -1.0f, 1.0f)) {
         navigator_panel.nav_radius += zoom;
+        result = NavigatorPanelInteraction::ModeChange;
     }
     else
         zoom = 0.f;     // mouse released, reset
@@ -467,6 +519,7 @@ void run_navigator_panel()
     // end of columns.
 
     ImGui::End();
+    return result;
 }
 
 static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal, 
@@ -518,7 +571,7 @@ void frame()
     }
 
     float fovy = lab::camera::degrees_from_radians(lab::camera::vertical_FOV(gApp.camera.sensor, gApp.camera.optics));
-    gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_FOV(lab::camera::radians_from_degrees(60));
+    gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
     gApp.camera.optics.squeeze = w / h;
     lab::m44f proj = m44f_cast(lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics));
     lab::m44f view = m44f_cast(gApp.camera.mount.view_transform());
@@ -557,10 +610,10 @@ void frame()
         if (gApp.show_manip_plane_intersect)
         {
             lab::camera::HitResult hit = gApp.camera.hit_test(
-                                                { mouse.mouse_ws.x, mouse.mouse_ws.y },
-                                                { (float)window_width, (float)window_height },
-                                                *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
-                                                *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
+                { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                { (float)window_width, (float)window_height },
+                *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
+                *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
             if (hit.hit)
             {
                 m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
@@ -645,11 +698,14 @@ void frame()
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Show Look at point", 0, &gApp.show_look_at))
-            {}
+            {
+            }
             if (ImGui::MenuItem("Show manip plane intersect", 0, &gApp.show_manip_plane_intersect))
-            {}
+            {
+            }
             if (ImGui::MenuItem("Show view plane intersect", 0, &gApp.show_view_plane_intersect))
-            {}
+            {
+            }
 
             //if (key == GLFW_KEY_LEFT_CONTROL) gizmo_state.hotkey_ctrl = (action != GLFW_RELEASE);
             ImGui::EndMenu();
@@ -666,10 +722,10 @@ void frame()
     }
 
     ImGui::SetNextWindowPos({ 0, 0 });
-    ImGui::SetNextWindowSize({ (float) window_width, (float) window_height });
+    ImGui::SetNextWindowSize({ (float)window_width, (float)window_height });
     ImGui::Begin("###FULLSCREEN", false,
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse |ImGuiWindowFlags_NoBringToFrontOnFocus);
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 
@@ -679,7 +735,7 @@ void frame()
     for (float y = 0; y < window_height; y += 100)
     {
         char buff[32];
-        sprintf(buff, "%d", (int) y);
+        sprintf(buff, "%d", (int)y);
         ImGui::SetCursorScreenPos(ImVec2{ 0, y } + canvas_offset);
         ImGui::TextUnformatted(buff);
     }
@@ -702,7 +758,7 @@ void frame()
 
         if (hit.hit)
         {
-            lab::camera::v2f vp_sz { (float)window_width, (float)window_height };
+            lab::camera::v2f vp_sz{ (float)window_width, (float)window_height };
             lab::camera::v2f vp_or = { 0, 0 };
             lab::camera::v2f xy = gApp.camera.project_to_viewport(vp_or, vp_sz, hit.point);
             ImGui::SetCursorScreenPos(ImVec2{ xy.x, xy.y } + canvas_offset);
@@ -711,93 +767,112 @@ void frame()
     }
 
     ImGui::SetCursorScreenPos(cursor_screen_pos);
-
-    update_mouseStatus_in_viewport(canvas_offset);
-
-    // don't run the gizmo if the camera is interacting
-    bool gizmo_interacted = (gApp.interaction_mode == InteractionMode::UI || gApp.interaction_mode == InteractionMode::Gizmo) && 
-                                run_gizmo((float)window_width, (float)window_height);
-
-    if (mouse.dragging && gizmo_interacted)
-        gApp.interaction_mode = InteractionMode::Gizmo;
-    else
-        gApp.interaction_mode = InteractionMode::UI;
-
-    run_navigator_panel();
-
-    lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
-    if (mouse.click_initiated || navigator_panel.tumble_initiated)
-        phase = lab::camera::InteractionPhase::Start;
-    else if (mouse.click_ended || navigator_panel.tumble_ended)
-        phase = lab::camera::InteractionPhase::Finish;
-
     ImVec2 mouse_pos = ImGui::GetMousePos();
     lab::camera::v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
-    if (navigator_panel.tumbling)
-    {
-        ImGui::CaptureMouseFromApp(true);
-        const float speed_scaler = 10.f;
-        float scale = speed_scaler / navigator_panel.size_x;
-        float dx = (mouse_pos.x - gApp.initial_mouse_position.x) *  scale;
-        float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -scale;
+    lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
 
-        lab::camera::InteractionToken tok = gApp.camera.begin_interaction(phase, viewport);
-        gApp.camera.joystick_interaction(tok, navigator_panel.interaction_mode, { dx, dy });
-        gApp.camera.end_interaction(tok);
-    }
-    else if (gApp.interaction_mode != InteractionMode::Gizmo)
+    bool mouse_in_viewport = update_mouseStatus_in_viewport(canvas_offset);
+    NavigatorPanelInteraction in = run_navigator_panel();
+    if (in > NavigatorPanelInteraction::None)
     {
-        if (mouse.dragging || mouse.click_ended || mouse.click_initiated)
+        if (in > NavigatorPanelInteraction::ModeChange)
         {
-            // hit test versus the gizmo's plane
-            lab::camera::HitResult hit = gApp.camera.hit_test(
-                { mouse.mouse_ws.x, mouse.mouse_ws.y },
-                { (float)window_width, (float)window_height },
-                *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
-                *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
+            if (in == NavigatorPanelInteraction::TumbleInitiated)
+                phase = lab::camera::InteractionPhase::Start;
+            else if (in == NavigatorPanelInteraction::TumbleEnded)
+                phase = lab::camera::InteractionPhase::Finish;
 
-            if (mouse.click_initiated && gApp.interaction_mode == InteractionMode::UI)
+            ImGui::CaptureMouseFromApp(true);
+            const float speed_scaler = 10.f;
+            float scale = speed_scaler / navigator_panel.size_x;
+            float dx = (mouse_pos.x - gApp.initial_mouse_position.x) * scale;
+            float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -scale;
+
+            lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
+            gApp.camera.joystick_interaction(tok, phase, navigator_panel.camera_interaction_mode, { dx, dy });
+            gApp.camera.end_interaction(tok);
+
+            mouse = MouseState{};
+        }
+        gApp.ui_state = UIStateMachine::None;
+    }
+    else if (mouse_in_viewport)
+    {
+        if (gApp.ui_state == UIStateMachine::Gizmo)
+        {
+            if (!run_gizmo((float)window_width, (float)window_height))
             {
-                gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
+                gApp.ui_state = UIStateMachine::None;
+                sapp_lock_mouse(false);
 
-                if (false && hit.hit)
-                {
-                    gApp.initial_hit_point = hit.point;
-                    gApp.interaction_mode = InteractionMode::TTLCamera;
-                }
-                else
-                {
-                    lab::camera::v3f cam_pos = gApp.camera.position_constraint();
-                    lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
-                    cam_nrm.x *= -1.f;
-                    cam_nrm.y *= -1.f;
-                    cam_nrm.z *= -1.f;
-                    cam_pos.x += cam_nrm.x;
-                    cam_pos.y += cam_nrm.y;
-                    cam_pos.z += cam_nrm.z;
+            }
+        }
+        else if (gApp.ui_state <= UIStateMachine::UI)
+        {
+            if (run_gizmo((float)window_width, (float)window_height))
+            {
+                gApp.ui_state = UIStateMachine::Gizmo;
+            }
+            else if (mouse.click_initiated)
+            {
+                // hit test versus the gizmo's plane
+                lab::camera::HitResult hit = gApp.camera.hit_test(
+                    { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                    { (float)window_width, (float)window_height },
+                    *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
+                    *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
 
-                    hit = gApp.camera.hit_test(
-                        { mouse.mouse_ws.x, mouse.mouse_ws.y },
-                        { (float)window_width, (float)window_height },
-                        cam_pos, cam_nrm);
+                if (mouse.click_initiated && gApp.ui_state <= UIStateMachine::UI)
+                {
+                    gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
 
                     if (hit.hit)
                     {
                         gApp.initial_hit_point = hit.point;
-                        gApp.interaction_mode = InteractionMode::DeltaCamera;
+                        gApp.ui_state = UIStateMachine::TTLCamera;
+                    }
+                    else
+                    {
+                        lab::camera::v3f cam_pos = gApp.camera.position_constraint();
+                        lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+                        cam_nrm.x *= -1.f;
+                        cam_nrm.y *= -1.f;
+                        cam_nrm.z *= -1.f;
+                        cam_pos.x += cam_nrm.x;
+                        cam_pos.y += cam_nrm.y;
+                        cam_pos.z += cam_nrm.z;
+
+                        hit = gApp.camera.hit_test(
+                            { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                            { (float)window_width, (float)window_height },
+                            cam_pos, cam_nrm);
+
+                        if (hit.hit)
+                        {
+                            gApp.initial_hit_point = hit.point;
+                            gApp.ui_state = UIStateMachine::DeltaCamera;
+                        }
                     }
                 }
             }
+        }
+
+        if (gApp.ui_state == UIStateMachine::DeltaCamera || gApp.ui_state == UIStateMachine::TTLCamera)
+        {
+            if (mouse.click_initiated)
+                phase = lab::camera::InteractionPhase::Start;
+            else if (mouse.click_ended)
+                phase = lab::camera::InteractionPhase::Finish;
 
             ImGui::CaptureMouseFromApp(true);
 
-            lab::camera::InteractionToken tok = gApp.camera.begin_interaction(phase, viewport);
-            if (true || gApp.interaction_mode == InteractionMode::TTLCamera)
+            lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
+            if (false && gApp.ui_state == UIStateMachine::TTLCamera)
             {
                 // through the lens mode
                 gApp.camera.constrained_ttl_interaction(
                     tok,
-                    navigator_panel.interaction_mode,
+                    phase, navigator_panel.camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point);
             }
@@ -806,15 +881,17 @@ void frame()
                 // virtual joystick mode
                 gApp.camera.ttl_interaction(
                     tok,
-                    navigator_panel.interaction_mode,
+                    phase, navigator_panel.camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y });
             }
             gApp.camera.end_interaction(tok);
+
+            if (mouse.click_ended)
+            {
+                gApp.ui_state = UIStateMachine::None;
+                sapp_lock_mouse(false);
+            }
         }
-    }
-    else
-    {
-        sapp_lock_mouse(false);
     }
 
     ImGui::PopFont();
@@ -829,7 +906,7 @@ void frame()
     sg_commit();
 }
 
-void cleanup(void) {
+void cleanup() {
     simgui_shutdown();
     sg_imgui_discard(&gApp.sg_imgui);
     sgl_shutdown();
