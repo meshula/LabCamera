@@ -56,8 +56,14 @@ namespace lab {
             rpy.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
             return rpy;
         }
+
+        float distance_point_to_plane(v3f const& a, v3f const& point, v3f const& normal)
+        {
+            v3f d = point - a;
+            return dot(d, normal);
+        }
         
-        // adapted from IMath
+        // adapted from Imath
 
 
         inline quatf quat_set_rotation_internal(v3f const& f0, v3f const& t0)
@@ -491,7 +497,6 @@ namespace lab {
             v2f prev_mouse{ 0,0 };
             float initial_focus_distance = 10.f;
             v2f viewport_size = { 0, 0 };
-            bool must_finalize = false;
 
             v3f initial_position_constraint;
             v3f initial_focus_point;
@@ -694,16 +699,10 @@ namespace lab {
 
         InteractionToken Camera::begin_interaction(v2f const& viewport_size)
         {
-            if (_ts->must_finalize)
-            {
-                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
-                _ts->must_finalize = false;
-            }
-
-            _ts->viewport_size = viewport_size;
-
             // nb: in the future the InteractionToken will be used to manage
             // multitouch and multidevice interactions.
+
+            _ts->viewport_size = viewport_size;
             return 0;
         }
 
@@ -716,12 +715,6 @@ namespace lab {
         //
         void Camera::joystick_interaction(InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in)
         {
-            if (_ts->must_finalize)
-            {
-                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
-            }
-            _ts->must_finalize = false; // joystick_interaction has no finalization step necessary
-
             if (phase == InteractionPhase::Start)
             {
                 _ts->initial_inv_projection = inv_view_projection(1.f);
@@ -833,28 +826,17 @@ namespace lab {
         //
         void Camera::ttl_interaction(InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current)
         {
-            if (_ts->must_finalize)
-            {
-                _ts->focus_point = _ts->position + mul(mount.forward(), _ts->initial_focus_distance);
-            }
-            _ts->must_finalize = false; // joystick_interaction has no finalization step necessary
-
-            if (phase == InteractionPhase::Start)
-            {
-                _ts->prev_mouse = current;
-                _ts->init_mouse = current;
-                _ts->initial_inv_projection = inv_view_projection(1.f);
-                _ts->initial_position_constraint = _ts->position;
-                _ts->initial_focus_point = _ts->focus_point;
-                update_constraints();
-            }
-
             switch (mode)
             {
             case InteractionMode::Crane:
             case InteractionMode::Dolly:
             case InteractionMode::TurnTableOrbit:
             {
+                if (phase == InteractionPhase::Start)
+                {
+                    _ts->init_mouse = current;
+                }
+
                 // Joystick mode
                 v2f dp = current - _ts->init_mouse;
                 v2f prev_dp = _ts->prev_mouse - _ts->init_mouse;
@@ -875,6 +857,15 @@ namespace lab {
             }
             case InteractionMode::Gimbal:
             {
+                if (phase == InteractionPhase::Start)
+                {
+                    _ts->init_mouse = current;
+                    _ts->initial_inv_projection = inv_view_projection(1.f);
+                    _ts->initial_position_constraint = _ts->position;
+                    _ts->initial_focus_point = _ts->focus_point;
+                    update_constraints();
+                }
+
                 // Through the lens gimbal
                 Ray original_ray = get_ray(_ts->initial_inv_projection, 
                     _ts->initial_position_constraint, _ts->init_mouse, 
@@ -900,56 +891,50 @@ namespace lab {
             v2f const& current,
             v3f const& initial_hit_point)
         {
-            if (phase == InteractionPhase::Start)
-            {
-                _ts->prev_mouse = current;
-                _ts->init_mouse = current;
-                _ts->initial_inv_projection = inv_view_projection(1.f);
-                _ts->initial_position_constraint = _ts->position;
-                _ts->initial_focus_point = _ts->focus_point;
-                //update_constraints();
-            }
-
             switch (mode)
             {
             case InteractionMode::Crane:
             {
                 if (phase == InteractionPhase::Start)
                 {
-                    _ts->focus_point = initial_hit_point;
-                    _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
+                    _ts->initial_focus_point = initial_hit_point;
                 }
 
                 // Through the lens crane
-                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->focus_point) - current;
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _ts->viewport_size.x);
                 v3f delta = mul(mount.right(), target_xy.x * 1.f);
                 delta += mul(mount.up(), target_xy.y * -1.f);
                 _ts->position += delta;
+                _ts->focus_point += delta;
                 v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 mount.set_view_transform(ypr, _ts->position);
 
-                _ts->must_finalize = phase == InteractionPhase::Finish;
                 break;
             }
             case InteractionMode::Dolly:
             {
                 if (phase == InteractionPhase::Start)
                 {
-                    _ts->focus_point = initial_hit_point;
-                    _ts->initial_focus_distance = length(_ts->focus_point - _ts->position);
+                    _ts->initial_focus_point = initial_hit_point;
                 }
 
                 // Through the lens crane
-                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->focus_point) - current;
+                v2f target_xy = project_to_viewport(v2f{ 0,0 }, _ts->viewport_size, _ts->initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _ts->viewport_size.x);
                 v3f delta = mul(mount.right(), target_xy.x * 1.f);
                 v3f delta_fw = mul(mount.forward(), target_xy.y * -1.f);
-                _ts->position += delta + delta_fw;
-                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
-                mount.set_view_transform(ypr, _ts->position);
 
-                _ts->must_finalize = phase == InteractionPhase::Finish;
+                // would moving forward by delta_fw push past the plane (_ts->focus_point, mount.forward())?
+                v3f test_pos = _ts->position + delta_fw;
+                float dist = distance_point_to_plane(test_pos, _ts->initial_focus_point, mount.forward());
+                if (dist < 0)
+                {
+                    _ts->position += delta + delta_fw;
+                    _ts->focus_point += delta + delta_fw;
+                    v3f ypr{ _ts->azimuth, _ts->declination, 0 };
+                    mount.set_view_transform(ypr, _ts->position);
+                }
                 break;
             }
 
@@ -957,8 +942,6 @@ namespace lab {
                 ttl_interaction(tok, phase, mode, current);
                 break;
             }
-
-            _ts->prev_mouse = current;
         }
 
 
