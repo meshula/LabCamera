@@ -663,6 +663,11 @@ namespace lab {
             return p;
         }
 
+        v3f Camera::ypr() const
+        {
+            return { _ts->azimuth, _ts->declination, 0 };
+        }
+
 
         bool Camera::check_constraints(InteractionMode mode)
         {
@@ -685,16 +690,19 @@ namespace lab {
         {
             m44f t = mount.rotation_transform();
             _ts->declination = atan2(t[2].y, t[2].z);
+            while (_ts->declination > 0.5f * pi)
+                _ts->declination -= 2.0f * pi;
+            while (_ts->declination < -0.5f * pi)
+                _ts->declination += 2.0f * pi;
 
-            if (fabsf(_ts->declination) < pi * 0.5f)
-            {
-                v3f forward = mount.forward();
-                forward.y = 0;
-                forward = normalize(forward);
-                _ts->azimuth = atan2f(forward.x, forward.z);
-                if (_ts->azimuth < 0)
-                    _ts->azimuth += 2.f * pi;
-            }
+            v3f forward = mount.forward();
+            forward.y = 0;
+            forward = normalize(forward);
+            _ts->azimuth = atan2f(forward.x, forward.z);
+            while (_ts->azimuth < 0)
+                _ts->azimuth += 2.f * pi;
+            while (_ts->azimuth > 2.f * pi)
+                _ts->azimuth -= 2.f * pi;
         }
 
         InteractionToken Camera::begin_interaction(v2f const& viewport_size)
@@ -785,10 +793,16 @@ namespace lab {
                     _ts->azimuth += 2.f * pi;
 
                 _ts->declination += 0.002f * delta.y;
-                while (_ts->declination > pi * 0.5f)
+                if (_ts->declination > pi * 0.5f)
+                {
+                    printf("dy %f\n", delta.y);
                     _ts->declination = pi * 0.5f;
-                while (_ts->declination < -pi * 0.5f)
+                }
+                if (_ts->declination < -pi * 0.5f)
+                {
+                    printf("dy %f\n", delta.y);
                     _ts->declination = -pi * 0.5f;
+                }
 
                 v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 m44f rot = lab::camera::rotation(ypr);

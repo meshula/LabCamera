@@ -74,10 +74,9 @@ struct AppState
 
     uint64_t last_time = 0;
 
-    bool show_test_window = true;
-    bool show_another_window = true;
     bool show_navigator = true;
     bool show_look_at = true;
+    bool show_state = true;
     bool show_view_plane_intersect = false;
     bool show_manip_plane_intersect = false;
     bool quit = false;
@@ -710,6 +709,15 @@ void frame()
             //if (key == GLFW_KEY_LEFT_CONTROL) gizmo_state.hotkey_ctrl = (action != GLFW_RELEASE);
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Windows")) {
+            if (ImGui::MenuItem("Show Navigator", 0, &gApp.show_navigator))
+            {
+            }
+            if (ImGui::MenuItem("Show Application State", 0, &gApp.show_state))
+            {
+            }
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("Sokol")) {
             ImGui::MenuItem("Buffers", 0, &gApp.sg_imgui.buffers.open);
             ImGui::MenuItem("Images", 0, &gApp.sg_imgui.images.open);
@@ -772,8 +780,17 @@ void frame()
     lab::camera::v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
     lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
 
+    if (gApp.show_state)
+    {
+        ImGui::Begin("App State");
+        ImGui::Text("state: %s", name_state(gApp.ui_state));
+        lab::camera::v3f ypr = gApp.camera.ypr();
+        ImGui::Text("ypr: (%f, %f, %f)\n", ypr.x, ypr.y, ypr.z);
+        ImGui::End();
+    }
+
     bool mouse_in_viewport = update_mouseStatus_in_viewport(canvas_offset);
-    NavigatorPanelInteraction in = run_navigator_panel();
+    NavigatorPanelInteraction in = gApp.show_navigator ? run_navigator_panel() : NavigatorPanelInteraction::None;
     if (in > NavigatorPanelInteraction::None)
     {
         if (in > NavigatorPanelInteraction::ModeChange)
@@ -864,7 +881,6 @@ void frame()
                 phase = lab::camera::InteractionPhase::Start;
             else if (mouse.click_ended)
                 phase = lab::camera::InteractionPhase::Finish;
-
 
             ImGui::CaptureMouseFromApp(true);
 

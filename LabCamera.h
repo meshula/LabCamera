@@ -310,11 +310,12 @@ namespace camera {
             v2f const& current,
             v3f const& hit_point);
 
-
         void set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up);
+
         v3f position_constraint() const;
         v3f world_up_constraint() const;
         v3f focus_constraint() const;
+        v3f ypr() const;
 
         // move the camera along the view vector such that both bounds are visible
         void frame(v3f const& bound1, v3f const& bound2);
