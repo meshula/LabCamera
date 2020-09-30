@@ -414,63 +414,16 @@ namespace lab {
             return quat_from_matrix(_view_transform);
         }
 
-        m44f perspective(const Sensor& sensor, const Optics& optics, float aspect)
+        millimeters Optics::hyperfocal_distance(millimeters CoC)
         {
-            if (fabs(aspect) < std::numeric_limits<float>::epsilon())
-                return m44f_identity;
-
-            const float handedness = sensor.handedness; // -1 for left hand coordinates
-            float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
-            const float halfFovy = vertical_FOV(sensor, optics).value * 0.5f;
-            const float y = 1.f / tanf(halfFovy);
-            const float x = y / aspect / optics.squeeze;
-            const float scalex = 2.f * sensor.enlarge.x;
-            const float scaley = 2.f * sensor.enlarge.y;
-            const float dx = sensor.shift.x.value * 2.f * aspect / sensor.aperture_y.value;
-            const float dy = sensor.shift.y.value * 2.f / sensor.aperture_y.value;
-
-            const float znear = optics.znear;
-            const float zfar = optics.zfar;
-
-            m44f result;
-            memset(&result, 0, sizeof(m44f));
-            result[0].x = scalex * x / (right - left);
-            result[1].y = scaley * y / (top - bottom);
-            result[2].x = (right + left + dx) / (right - left);
-            result[2].y = (top + bottom + dy) / (top - bottom);
-            result[2].z = handedness * (zfar + znear) / (zfar - znear);
-            result[2].w = handedness;
-            result[3].z = handedness * 2.f * zfar * znear / (zfar - znear);
-            return result;
+            return { focal_length.value * focal_length.value / (fStop * CoC.value) };
         }
 
-        m44f inv_perspective(const Sensor& sensor, const Optics& optics, float aspect)
-        {
-            return invert(perspective(sensor, optics, aspect));
-        }
-
-        radians vertical_FOV(const Sensor& sensor, const Optics& optics) 
-        {
-            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
-            return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
-        }
-
-        radians horizontal_FOV(const Sensor& sensor, const Optics& optics)
-        {
-            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
-            return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.value / (2.f * cropped_f)) };
-        }
-
-        millimeters hyperfocal_distance(const Optics& optics, millimeters CoC)
-        {
-            return { optics.focal_length.value * optics.focal_length.value / (optics.fStop * CoC.value) };
-        }
-
-        v2f focus_range(const Optics& optics, millimeters h)
+        v2f Optics::focus_range(millimeters h)
         {
             v2f r;
-            r.x = h.value * optics.focus_distance.value / (h.value + (optics.focus_distance.value - optics.focal_length.value));
-            r.y = h.value * optics.focus_distance.value / (h.value - (optics.focus_distance.value - optics.focal_length.value));
+            r.x = h.value * focus_distance.value / (h.value + (focus_distance.value - focal_length.value));
+            r.y = h.value * focus_distance.value / (h.value - (focus_distance.value - focal_length.value));
             return r;
         }
 
@@ -514,6 +467,53 @@ namespace lab {
         }
 
 
+        m44f Camera::perspective(float aspect) const
+        {
+            if (fabs(aspect) < std::numeric_limits<float>::epsilon())
+                return m44f_identity;
+
+            const float handedness = sensor.handedness; // -1 for left hand coordinates
+            float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
+            const float halfFovy = vertical_FOV().value * 0.5f;
+            const float y = 1.f / tanf(halfFovy);
+            const float x = y / aspect / optics.squeeze;
+            const float scalex = 2.f * sensor.enlarge.x;
+            const float scaley = 2.f * sensor.enlarge.y;
+            const float dx = sensor.shift.x.value * 2.f * aspect / sensor.aperture_y.value;
+            const float dy = sensor.shift.y.value * 2.f / sensor.aperture_y.value;
+
+            const float znear = optics.znear;
+            const float zfar = optics.zfar;
+
+            m44f result;
+            memset(&result, 0, sizeof(m44f));
+            result[0].x = scalex * x / (right - left);
+            result[1].y = scaley * y / (top - bottom);
+            result[2].x = (right + left + dx) / (right - left);
+            result[2].y = (top + bottom + dy) / (top - bottom);
+            result[2].z = handedness * (zfar + znear) / (zfar - znear);
+            result[2].w = handedness;
+            result[3].z = handedness * 2.f * zfar * znear / (zfar - znear);
+            return result;
+        }
+
+        m44f Camera::inv_perspective(float aspect) const
+        {
+            return invert(perspective(aspect));
+        }
+
+        radians Camera::vertical_FOV() const
+        {
+            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
+            return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
+        }
+
+        radians Camera::horizontal_FOV() const
+        {
+            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
+            return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.value / (2.f * cropped_f)) };
+        }
+
         void Camera::set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up)
         {
             _ts->position = pos;
@@ -539,7 +539,7 @@ namespace lab {
         void Camera::frame(v3f const& bound1, v3f const& bound2)
         {
             float r = 0.5f * length(bound2 - bound1);
-            float g = (1.1f * r) / sinf(vertical_FOV(sensor, optics).value * 0.5f);
+            float g = (1.1f * r) / sinf(vertical_FOV().value * 0.5f);
             _ts->focus_point = (bound2 + bound1) * 0.5f;
             _ts->position = normalize(_ts->position - _ts->focus_point) * g;
             mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
@@ -592,14 +592,14 @@ namespace lab {
 
         m44f Camera::view_projection(float aspect) const
         {
-            m44f proj = perspective(sensor, optics, aspect);
+            m44f proj = perspective(aspect);
             m44f view = mount.view_transform();
             return mul(proj, view);
         }
 
         m44f Camera::inv_view_projection(float aspect) const
         {
-            m44f proj = perspective(sensor, optics, aspect);
+            m44f proj = perspective(aspect);
             m44f view = mount.view_transform();
             return invert(mul(proj, view));
         }

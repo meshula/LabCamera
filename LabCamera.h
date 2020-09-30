@@ -6,7 +6,6 @@
  LabCamera has no external dependencies. Include LabCamera.cpp in your project.
 */
 
-
 // LabCamera models a physical camera.
 //
 // Mount describes a camera's location and orientation in space, with the origin of
@@ -114,8 +113,9 @@ namespace camera {
     // can be computed by setting enlarge to { 2, 2 }, and
     // shift to millimeters{-17.5f}, millimeters{-12.25f}.
     //
-    struct Sensor
+    class Sensor
     {
+    public:
         struct Shift { millimeters x, y; };
 
         // spatial characteristics
@@ -130,8 +130,6 @@ namespace camera {
         //
         millimeters focal_length_from_vertical_FOV(radians fov);
     };
-
-
 
     /*
     ---------------------------------------------------------------------------
@@ -195,23 +193,20 @@ namespace camera {
         h = f^2/(fstop * CoC)
     */
 
-    struct Optics
+    class Optics
     {
+    public:
         float fStop = 8.f;
         millimeters focal_length = { 50.f };
         millimeters focus_distance = { 2.e3f };
         float zfar = 1e5f;
         float znear = 0.1f;
         float squeeze = 1.f; // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
+
+        millimeters hyperfocal_distance(millimeters CoC);
+        v2f         focus_range(millimeters hyperfocal_distance); // return value in mm
     };
 
-    m44f        perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
-    m44f        inv_perspective(const Sensor& sensor, const Optics& optics, float aspect = 1.f);
-    radians     vertical_FOV(const Sensor& sensor, const Optics& optics);
-    radians     horizontal_FOV(const Sensor& sensor, const Optics& optics);
-
-    millimeters hyperfocal_distance(const Optics& optics, millimeters CoC);
-    v2f         focus_range(const Optics& optics, millimeters hyperfocal_distance); // return value in mm
 
     /*-------------------------------------------------------------------------
      Camera
@@ -236,7 +231,7 @@ namespace camera {
 
     enum class InteractionMode
     {
-        Static, Dolly, Crane, TurnTableOrbit, Gimbal
+        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal
     };
 
     enum class InteractionPhase
@@ -267,6 +262,14 @@ namespace camera {
 
         Camera();
         ~Camera();
+
+        // perspective and field of view are computed from the sensor
+        // and optics of the camera.
+        //
+        m44f        perspective(float aspect = 1.f) const;
+        m44f        inv_perspective(float aspect = 1.f) const;
+        radians     vertical_FOV() const;
+        radians     horizontal_FOV() const;
 
         // begin_interaction
         //
