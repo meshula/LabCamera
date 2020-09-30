@@ -53,37 +53,7 @@ target_compile_definitions(imgui PRIVATE
 # Lab
 #-------------------------------------------------------------------------------
 
-add_subdirectory(third/LabVfx)
 add_subdirectory(third/LabMath)
-
-#-------------------------------------------------------------------------------
-# LabImGui
-#-------------------------------------------------------------------------------
-
-set(LABIMGUI_SRC
-    third/LabImGui/include/LabImGui/FontManager.h
-    third/LabImGui/include/LabImGui/materialIconDefinitions.h
-    third/LabImGui/include/LabImGui/meshula-icons.h
-    third/LabImGui/include/LabImGui/roboto_regular.ttf.h
-    third/LabImGui/include/LabImGui/robotomono_regular.ttf.h
-    third/LabImGui/include/LabImGui/Timeline.h
-    third/LabImGui/include/LabImGui/TimeTransport.h
-    third/LabImGui/include/LabImGui/Widgets.h
-    third/LabImGui/FontManager.cpp
-    third/LabImGui/Timeline.cpp
-    third/LabImGui/TimeTransport.cpp
-    third/LabImGui/Widgets.cpp
-)
-
-add_library(LabImGui STATIC ${LABIMGUI_SRC})
-target_include_directories(LabImGui SYSTEM
-    PUBLIC third/LabImGui/include
-    PRIVATE third/imgui
-)
-
-target_compile_definitions(LabImGui PRIVATE ${PLATFORM_DEFS})
-
-add_library(Lab::ImGui ALIAS LabImGui)
 
 #-------------------------------------------------------------------------------
 # sokol
@@ -91,7 +61,6 @@ add_library(Lab::ImGui ALIAS LabImGui)
 
 set(SOKOL_SRC 
     src/sokol.cc)
-#    third/sokol-samples/libs/dbgui/dbgui.cc)
 
 set(SOKOL_HEADERS 
     third/sokol/sokol_app.h
@@ -104,13 +73,12 @@ set(SOKOL_HEADERS
     third/sokol/util/sokol_gfx_imgui.h
     third/sokol/util/sokol_gl.h
     third/sokol/util/sokol_imgui.h
-    third/sokol-samples/libs/dbgui/dbgui.h
 )
 
 add_library(sokol STATIC ${SOKOL_SRC} ${SOKOL_HEADERS})
 
 target_include_directories(sokol SYSTEM 
-    PUBLIC third/sokol third/sokol/util third/sokol-samples/libs/dbgui)
+    PUBLIC third/sokol third/sokol/util)
 
 target_link_libraries(sokol imgui)
 add_dependencies(sokol imgui)
@@ -137,24 +105,14 @@ install(
 
 set(NAVIGATOR_SRC
     src/gizmo.c
-    src/instancing.cpp
     ../../LabCamera.h
     ../../LabCamera.cpp
     src/main.cpp
-    src/simple_cube.c
-    src/simple_effect.cpp
-    src/LabVfxRender.cpp
-    src/LabVfxRender.h
     src/gizmo.glsl
-    #Remotery.h
-    #Remotery.cpp
 )
 
 set(NAVIGATOR_SHADERS
-    billboard_instances
     gizmo
-    instancing 
-    simple_cube 
 )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated_src)
@@ -203,11 +161,6 @@ target_include_directories(imgui SYSTEM
 set_property(TARGET Navigator PROPERTY CXX_STANDARD 17)
 set_property(TARGET Navigator PROPERTY CXX_STANDARD_REQUIRED ON)
 
-#if (MSVC)
-#  set(CMAKE_EXE_LINKER_FLAGS
-#      "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:tbb.lib /NODEFAULTLIB:tbb_debug.lib")
-#endif()
-
 if (WIN32)
   set(PLATFORM_LIBS ws2_32 Iphlpapi.lib opengl32.lib)
 endif()
@@ -217,8 +170,6 @@ target_link_libraries(Navigator
     imgui
     tinygizmo
     Lab::Math
-    Lab::Vfx
-    Lab::ImGui
     sokol)
 
 #-------------------------------------------------------------------------------
@@ -227,7 +178,6 @@ target_link_libraries(Navigator
 
 install(
     FILES
-        resources/fonts/8bitdaw/8bitdaw.ttf
         resources/fonts/meshula-icons/meshula-icons.ttf
         DESTINATION bin/Navigator_rsrc/fonts/)
 

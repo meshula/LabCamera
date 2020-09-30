@@ -19,25 +19,20 @@
 #include "sokol_glue.h"
 #include "sokol_gl.h"
 #include "gizmo.h"
-#include "LabImGui/FontManager.h"
-#include "LabImGui/Timeline.h"
-#include "LabImGui/TimeTransport.h"
 #include <LabMath/LabMath.h>
 #include <tiny-gizmo.hpp>
 #include <mutex>
+#include <vector>
 
 #define LAB_CAMERA_DRY
 #include "LabCamera.h"
 
-#define TRACE_INTERACTION 1
+#define TRACE_INTERACTION 0
 
 lab::m44f& m44f_cast(lab::camera::m44f& m) { return *(reinterpret_cast<lab::m44f*>(&m.x.x)); }
 const lab::m44f& m44f_cast(const lab::camera::m44f& m) { return *(reinterpret_cast<const lab::m44f*>(&m.x.x)); }
 lab::v3f& v3f_cast(lab::camera::v3f& v) { return *(reinterpret_cast<lab::v3f*>(&v.x)); }
 const lab::v3f& v3f_cast(const lab::camera::v3f& v) { return *(reinterpret_cast<const lab::v3f*>(&v.x)); }
-
-extern "C" void draw_cube();
-void simple_effect(const float* v_t, const float* mvp, float t, float dt);
 
 enum class UIStateMachine
 {
@@ -70,8 +65,6 @@ struct AppState
     tinygizmo::gizmo_application_state gizmo_state;
     tinygizmo::gizmo_context gizmo_ctx;
 
-    lab::TimeTransport* g_time_transport = nullptr;
-
     uint64_t last_time = 0;
 
     bool show_navigator = true;
@@ -85,8 +78,8 @@ struct AppState
     sg_imgui_t sg_imgui;
     sg_pass_action pass_action;
 
-    lab::ImGui::FontManager* g_fm = nullptr;
-    ImFont* g_roboto = nullptr;
+    //lab::ImGui::FontManager* g_fm = nullptr;
+    //ImFont* g_roboto = nullptr;
 } gApp;
 
 struct GizmoTriangles
@@ -155,7 +148,7 @@ static void grid(float y, const lab::m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lab::camera::m44f proj = lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics);
+    lab::camera::m44f proj = gApp.camera.perspective();
     sgl_load_matrix(&proj.x.x);
 
     lab::camera::m44f view = gApp.camera.mount.view_transform();
@@ -184,7 +177,7 @@ static void jack(float s, const lab::m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lab::camera::m44f proj = lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics);
+    lab::camera::m44f proj = gApp.camera.perspective();
     sgl_load_matrix(&proj.x.x);
 
     lab::camera::m44f view = gApp.camera.mount.view_transform();
@@ -233,8 +226,8 @@ void init()
     gApp.pass_action.colors[0].val[3] = 1.0f;
 
     std::string resource_path = gApp.g_app_path + "/Navigator_rsrc";
-    gApp.g_fm = new lab::ImGui::FontManager(resource_path.c_str());
-    gApp.g_roboto = gApp.g_fm->GetFont(lab::ImGui::FontName::Regular);
+    //gApp.g_fm = new lab::ImGui::FontManager(resource_path.c_str());
+    //gApp.g_roboto = gApp.g_fm->GetFont(lab::ImGui::FontName::Regular);
 
     uint8_t* data = nullptr;
     int32_t width = 0;
@@ -258,8 +251,6 @@ void init()
     img_desc.content.subimage[0][0].ptr = font_pixels;
     img_desc.content.subimage[0][0].size = font_width * font_height * 4;
     io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
-
-    gApp.g_time_transport = new lab::TimeTransport();
 }
 
 
@@ -334,7 +325,7 @@ bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
     gApp.gizmo_state.cam.near_clip = gApp.camera.optics.znear;
     gApp.gizmo_state.cam.far_clip = gApp.camera.optics.zfar;
-    gApp.gizmo_state.cam.yfov = lab::camera::vertical_FOV(gApp.camera.sensor, gApp.camera.optics).value;
+    gApp.gizmo_state.cam.yfov = gApp.camera.vertical_FOV().value;
     gApp.gizmo_state.cam.position = tinygizmo::v3f{ camera_pos.x, camera_pos.y, camera_pos.z };
     gApp.gizmo_state.cam.orientation = tinygizmo::v4f{ camera_orientation.x, camera_orientation.y, camera_orientation.z, camera_orientation.w };
     gApp.gizmo_state.ray_origin = tinygizmo::v3f{ ray.pos.x, ray.pos.y, ray.pos.z };
@@ -569,10 +560,10 @@ void frame()
         once = false;
     }
 
-    float fovy = lab::camera::degrees_from_radians(lab::camera::vertical_FOV(gApp.camera.sensor, gApp.camera.optics));
+    float fovy = lab::camera::degrees_from_radians(gApp.camera.vertical_FOV());
     gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
     gApp.camera.optics.squeeze = w / h;
-    lab::m44f proj = m44f_cast(lab::camera::perspective(gApp.camera.sensor, gApp.camera.optics));
+    lab::m44f proj = m44f_cast(gApp.camera.perspective());
     lab::m44f view = m44f_cast(gApp.camera.mount.view_transform());
     lab::m44f view_proj = lab::matrix_multiply(proj, view);
     lab::m44f view_t = lab::matrix_transpose(view);
@@ -651,7 +642,7 @@ void frame()
 
     ImVec2 canvas_offset = ImGui::GetCursorPos();
 
-    ImGui::PushFont(gApp.g_roboto);
+    //ImGui::PushFont(gApp.g_roboto);
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Playground")) {
@@ -918,7 +909,7 @@ void frame()
         }
     }
 
-    ImGui::PopFont();
+    //ImGui::PopFont();
 
     ImGui::End(); // full screen
 
