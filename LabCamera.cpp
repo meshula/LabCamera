@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cfloat>
 
 namespace lab {
     namespace camera {
@@ -16,7 +17,7 @@ namespace lab {
         constexpr v3f qzdir(const quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
         constexpr v3f xyz(const v4f& a) { return { a.x, a.y, a.z }; }
         constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-        constexpr float dot(const v3f& a, const v3f& b) { return { a.x * b.x + a.y * b.y + a.z * b.z }; }
+        constexpr float dot(const v3f& a, const v3f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z; }
         constexpr v2f operator + (const v2f& a, const v2f& b) { return v2f{ a.x + b.x, a.y + b.y }; }
         constexpr v2f operator - (const v2f& a, const v2f& b) { return v2f{ a.x - b.x, a.y - b.y }; }
         constexpr v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
@@ -33,7 +34,7 @@ namespace lab {
         constexpr quatf mul(const quatf& a, const quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
         constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
-        constexpr v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
+        v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
         inline quatf quat_from_axis_angle(v3f v, float a)
@@ -379,25 +380,25 @@ namespace lab {
             _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
         }
 
-        constexpr v3f Mount::right() const {
+        v3f Mount::right() const {
             return normalize(
                 v3f{ _view_transform[0].x,
                      _view_transform[1].x,
                      _view_transform[2].x });
         }
-        constexpr v3f Mount::up() const {
+        v3f Mount::up() const {
             return normalize(
                 v3f{ _view_transform[0].y,
                      _view_transform[1].y,
                      _view_transform[2].y });
         }
-        constexpr v3f Mount::forward() const {
+        v3f Mount::forward() const {
             return normalize(
                 v3f{ _view_transform[0].z,
                      _view_transform[1].z,
                      _view_transform[2].z });
         }
-        constexpr v3f Mount::position() const {
+        v3f Mount::position() const {
             return v3f{ _view_transform[3].x,
                         _view_transform[3].y,
                         _view_transform[3].z };

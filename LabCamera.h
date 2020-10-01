@@ -67,7 +67,7 @@ namespace camera {
     }
     constexpr float degrees_from_radians(radians r)
     {
-        return { r.value * 57.2957795131f };
+        return r.value * 57.2957795131f;
     }
 
     //-------------------------------------------------------------------------
@@ -89,10 +89,10 @@ namespace camera {
 
         // components
         quatf rotation() const;
-        constexpr v3f right() const;
-        constexpr v3f up() const;
-        constexpr v3f forward() const;
-        constexpr v3f position() const;
+        v3f right() const;
+        v3f up() const;
+        v3f forward() const;
+        v3f position() const;
 
         // mutation
         void set_view_transform(quatf const& q, v3f const& pos);
