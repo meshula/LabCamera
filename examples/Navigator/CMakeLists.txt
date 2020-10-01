@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.11)
 project(Navigator VERSION 0.1.0 LANGUAGES C CXX)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 if (MSVC)
     set (PLATFORM_DEFS
         WIN32_LEAN_AND_MEAN
@@ -10,10 +14,22 @@ if (MSVC)
     )
 endif()
 
-set(ST_GFX_DEFS
-    IMGUI_IMPL_API=
-    SOKOL_GLCORE33
-)
+if (APPLE)
+    set(ST_GFX_DEFS
+        IMGUI_IMPL_API=
+        SOKOL_METAL
+    )
+elseif (WIN32)
+    set(ST_GFX_DEFS
+        IMGUI_IMPL_API=
+        SOKOL_GLCORE33
+    )
+else()
+    set(ST_GFX_DEFS
+        IMGUI_IMPL_API=
+        SOKOL_GLCORE33
+    )
+endif()
 
 #-------------------------------------------------------------------------------
 # tinygizmo
@@ -59,8 +75,13 @@ add_subdirectory(third/LabMath)
 # sokol
 #-------------------------------------------------------------------------------
 
-set(SOKOL_SRC 
-    src/sokol.cc)
+if (APPLE)
+    set(SOKOL_SRC
+        src/sokol.mm)
+else()
+    set(SOKOL_SRC
+        src/sokol.cc)
+endif()
 
 set(SOKOL_HEADERS 
     third/sokol/sokol_app.h
@@ -118,11 +139,25 @@ set(NAVIGATOR_SHADERS
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated_src)
 
 foreach(SHADER ${NAVIGATOR_SHADERS})
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
-        COMMENT "Running sokol-shdc for ${SHADER}.glsl"
-    )
+    if (WIN32)
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+        )
+    elseif (APPLE)
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/osx/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+        )
+    else()
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/linux/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+        )
+    endif()
     list(APPEND NAVIGATOR_SHADERS_SRC ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h)
 endforeach()
 
@@ -134,7 +169,7 @@ add_executable(Navigator
     ${NAVIGATOR_SHADERS_SRC}
 )
 
-add_dependencies(Navigator Lab::Vfx CompileNavigatorShaderFiles)
+add_dependencies(Navigator CompileNavigatorShaderFiles)
 
 target_compile_definitions(Navigator PRIVATE
     ${ST_GFX_DEFS}
@@ -171,6 +206,18 @@ target_link_libraries(Navigator
     tinygizmo
     Lab::Math
     sokol)
+    
+if (APPLE)
+target_link_libraries(Navigator
+    "-framework AppKit"
+    "-framework CoreGraphics"
+    "-framework Foundation"
+    "-framework Metal"
+    "-framework MetalKit"
+    "-framework QuartzCore"
+    )
+endif()
+
 
 #-------------------------------------------------------------------------------
 # Installer
