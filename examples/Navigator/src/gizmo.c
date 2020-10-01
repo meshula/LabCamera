@@ -8,6 +8,8 @@
 #include "sokol_app.h"
 #include "sokol_glue.h"
 
+#include <unistd.h>
+
 typedef struct {
     float m[16];
 } gizmo_mat4;

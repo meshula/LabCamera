@@ -107,12 +107,6 @@ struct MouseState
     ImVec2 initial_click_pos_ws{ 0, 0 };
 } mouse;
 
-float random()
-{
-    int r = rand() & 0x7fff;
-    return (float)r / 32767.f;
-}
-
 static void start_gl_rendering()
 {
     static bool once = true;
@@ -476,7 +470,8 @@ NavigatorPanelInteraction run_navigator_panel()
     ImGui::NextColumn();
 
     if (ImGui::Button("Home###NavHome")) {
-        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, gApp.camera.world_up_constraint());
+        auto up = gApp.camera.world_up_constraint();
+        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, up);
         result = NavigatorPanelInteraction::ModeChange;
     }
     if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
@@ -556,7 +551,8 @@ void frame()
 
     static bool once = true;
     if (once) {
-        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, gApp.camera.world_up_constraint());
+        auto up = gApp.camera.world_up_constraint();
+        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, up);
         once = false;
     }
 
@@ -722,7 +718,8 @@ void frame()
 
     ImGui::SetNextWindowPos({ 0, 0 });
     ImGui::SetNextWindowSize({ (float)window_width, (float)window_height });
-    ImGui::Begin("###FULLSCREEN", false,
+    static bool begin_flag = false;
+    ImGui::Begin("###FULLSCREEN", &begin_flag,
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
