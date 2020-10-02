@@ -87,6 +87,9 @@ void draw_gizmo(const float* v_t, const float* mvp, int triangle_count, uint32_t
         init = false;
     }
 
+    if (!triangle_count)
+        return;
+
     sg_update_buffer(state.vbuf, vertices, triangle_count * 10 * sizeof(float));
     sg_update_buffer(state.ibuf, indices, triangle_count * 3 * sizeof(uint32_t));
 
