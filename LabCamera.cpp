@@ -341,6 +341,11 @@ namespace lab {
             return invert(_view_transform);
         }
 
+        m44f Mount::model_view_transform(float const* const view_matrix) const
+        {
+            return mul(_view_transform, *(m44f*)view_matrix);
+        }
+
         m44f Mount::inv_rotation_transform() const
         {
             return transpose(rotation_transform());

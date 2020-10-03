@@ -31,8 +31,6 @@
 
 lab::m44f& m44f_cast(lab::camera::m44f& m) { return *(reinterpret_cast<lab::m44f*>(&m.x.x)); }
 const lab::m44f& m44f_cast(const lab::camera::m44f& m) { return *(reinterpret_cast<const lab::m44f*>(&m.x.x)); }
-lab::v3f& v3f_cast(lab::camera::v3f& v) { return *(reinterpret_cast<lab::v3f*>(&v.x)); }
-const lab::v3f& v3f_cast(const lab::camera::v3f& v) { return *(reinterpret_cast<const lab::v3f*>(&v.x)); }
 
 enum class UIStateMachine
 {
@@ -174,9 +172,10 @@ static void jack(float s, const lab::m44f& m)
     lab::camera::m44f proj = gApp.camera.perspective();
     sgl_load_matrix(&proj.x.x);
 
-    lab::camera::m44f view = gApp.camera.mount.view_transform();
-    lab::m44f mv = *(lab::m44f*) & view.x.x * m;
-
+    //lab::camera::m44f view = gApp.camera.mount.view_transform();
+    //lab::m44f mv = *(lab::m44f*) & view.x.x * m;
+    gApp.camera.mount.foo();
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
 

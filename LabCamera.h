@@ -83,9 +83,12 @@ namespace camera {
 
         // matrix
         m44f const& view_transform() const { return _view_transform; }
+        m44f model_view_transform(float const* const view_matrix) const;
         m44f inv_view_transform() const;
         m44f rotation_transform() const { m44f j = _view_transform; j[3] = { 0,0,0,1 }; return j; }
         m44f inv_rotation_transform() const;
+
+        void foo() {}
 
         // components
         quatf rotation() const;

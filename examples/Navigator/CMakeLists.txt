@@ -182,16 +182,13 @@ target_include_directories(Navigator SYSTEM
     PRIVATE third/sokol-samples/sapp
     PRIVATE third/sokol-samples/libs
     PRIVATE third/imgui
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..
 )
 
 target_include_directories(Navigator
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated_src
     PRIVATE third/imgui/examples
 )
-
-target_include_directories(imgui SYSTEM
-    PRIVATE third/imgui)
 
 set_property(TARGET Navigator PROPERTY CXX_STANDARD 17)
 set_property(TARGET Navigator PROPERTY CXX_STANDARD_REQUIRED ON)
