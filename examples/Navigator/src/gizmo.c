@@ -8,7 +8,9 @@
 #include "sokol_app.h"
 #include "sokol_glue.h"
 
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 
 typedef struct {
     float m[16];
