@@ -1,9 +1,9 @@
-//------------------------------------------------------------------------------
-//  imgui-sapp.c
-//
-//  Demonstrates Dear ImGui UI rendering via sokol_gfx.h and
-//  the utility header sokol_imgui.h
-//------------------------------------------------------------------------------
+
+/*-----------------------------------------------------------------------------
+    Demonstrating the use of lab::Camera with ImGui and sokol.
+ */
+
+#include "LabCamera.h"
 
 #define SOKOL_TRACE_HOOKS
 #include "sokol_app.h"
@@ -23,10 +23,49 @@
 #include <mutex>
 #include <vector>
 
-#define LAB_CAMERA_DRY
-#include "LabCamera.h"
 
 #define TRACE_INTERACTION 0
+
+/*-----------------------------------------------------------------------------
+    Random utility
+ */
+
+static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
+    lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
+{
+    const float PLANE_EPSILON = 0.001f;
+    const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
+
+    // Make sure we're not parallel to the plane
+    if (std::abs(d) > PLANE_EPSILON)
+    {
+        float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
+        w = -w;
+
+        float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
+        float t = -distance / d;
+
+        if (t >= PLANE_EPSILON)
+        {
+            if (outT) *outT = t;
+            if (intersection)
+            {
+                lab::camera::v3f result = ray.pos;
+                result.x += t * ray.dir.x;
+                result.y += t * ray.dir.y;
+                result.z += t * ray.dir.z;
+                *intersection = result;
+            }
+            return true;
+        }
+    }
+    if (outT) *outT = std::numeric_limits<float>::max();
+    return false;
+}
+
+/*-----------------------------------------------------------------------------
+    Application State
+ */
 
 enum class UIStateMachine
 {
@@ -73,19 +112,6 @@ struct AppState
     sg_pass_action pass_action;
 } gApp;
 
-struct GizmoTriangles
-{
-    GizmoTriangles()
-    {
-        indices.push_back(0);
-        vertices.push_back(0);
-    }
-    int triangle_count = 0;
-    std::vector<uint32_t> indices;
-    std::vector<float> vertices;
-};
-static GizmoTriangles gizmo_triangles;
-
 struct MouseState
 {
     bool click_ended{ false };
@@ -97,144 +123,6 @@ struct MouseState
     ImVec2 mouse_ws{ 0, 0 };
     ImVec2 initial_click_pos_ws{ 0, 0 };
 } mouse;
-
-static void start_gl_rendering()
-{
-    static bool once = true;
-    if (once) {
-        /* setup sokol-gl */
-        sgl_desc_t sgl_desc;
-        memset(&sgl_desc, 0, sizeof(sgl_desc_t));
-        sgl_desc.sample_count = sapp_sample_count();
-        sgl_setup(&sgl_desc);
-
-        /* a pipeline object with less-equal depth-testing */
-        sg_pipeline_desc sg_p;
-        memset(&sg_p, 0, sizeof(sg_pipeline_desc));
-        sg_p.depth_stencil.depth_write_enabled = true;
-        sg_p.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
-        gApp.gl_pipelne = sgl_make_pipeline(&sg_p);
-
-        once = false;
-    }
-
-    sgl_defaults();
-    sgl_push_pipeline();
-    sgl_load_pipeline(gApp.gl_pipelne);
-}
-
-static void end_gl_rendering()
-{
-    sgl_pop_pipeline();
-    sgl_draw();
-}
-
-static void grid(float y, const lab::camera::m44f& m)
-{
-    sgl_matrix_mode_projection();
-
-    lab::camera::m44f proj = gApp.camera.perspective();
-    sgl_load_matrix(&proj.x.x);
-
-    lab::camera::m44f view = gApp.camera.mount.view_transform();
-    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(m);
-
-    sgl_matrix_mode_modelview();
-    sgl_load_matrix(&mv.x.x);
-
-    sgl_c3f(1.0f, 0.0f, 1.0f);
-
-    const float num = 32;
-    const float step = 1.0f;
-    sgl_begin_lines();
-    for (float x = -num; x < num; x += step) {
-        sgl_v3f(x, y, -num * step);
-        sgl_v3f(x, y,  num * step);
-    }
-    for (float z = -num; z < num; z += step) {
-        sgl_v3f(-num * step, y, z);
-        sgl_v3f( num * step, y, z);
-    }
-    sgl_end();
-}
-
-static void jack(float s, const lab::camera::m44f& m)
-{
-    lab::camera::m44f proj = gApp.camera.perspective();
-    sgl_matrix_mode_projection();
-    sgl_load_matrix(&proj.x.x);
-
-    gApp.camera.mount.foo();
-    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
-    sgl_matrix_mode_modelview();
-    sgl_load_matrix(&mv.x.x);
-
-    sgl_begin_lines();
-    sgl_c3f( 1,  0,  0);
-    sgl_v3f(-s,  0,  0);
-    sgl_v3f( s,  0,  0);
-    sgl_c3f( 0,  1,  0);
-    sgl_v3f( 0, -s,  0);
-    sgl_v3f( 0,  s,  0);
-    sgl_c3f( 0,  0,  1);
-    sgl_v3f( 0,  0, -s);
-    sgl_v3f( 0,  0,  s);
-    sgl_end();
-}
-
-
-void init()
-{
-    // setup sokol-gfx, sokol-time and sokol-imgui
-    sg_desc desc = { };
-    desc.context = sapp_sgcontext();
-    sg_setup(&desc);
-    stm_setup();
-
-    // setup debug inspection header(s)
-    sg_imgui_init(&gApp.sg_imgui);
-
-    // setup sokol-imgui, but provide our own font
-    simgui_desc_t simgui_desc = { };
-    simgui_desc.no_default_font = true;
-    simgui_desc.sample_count = sapp_sample_count();
-    simgui_desc.dpi_scale = sapp_dpi_scale();
-    simgui_setup(&simgui_desc);
-
-    // initial clear color
-    gApp.pass_action.colors[0].action = SG_ACTION_CLEAR;
-    gApp.pass_action.colors[0].val[0] = 0.0f;
-    gApp.pass_action.colors[0].val[1] = 0.5f;
-    gApp.pass_action.colors[0].val[2] = 0.7f;
-    gApp.pass_action.colors[0].val[3] = 1.0f;
-
-    std::string resource_path = gApp.g_app_path + "/Navigator_rsrc";
-    //gApp.g_fm = new lab::ImGui::FontManager(resource_path.c_str());
-    //gApp.g_roboto = gApp.g_fm->GetFont(lab::ImGui::FontName::Regular);
-
-    uint8_t* data = nullptr;
-    int32_t width = 0;
-    int32_t height = 0;
-
-    ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->GetTexDataAsRGBA32(&data, &width, &height);
-
-    // Upload new font texture atlas
-    unsigned char* font_pixels;
-    int font_width, font_height;
-    io.Fonts->GetTexDataAsRGBA32(&font_pixels, &font_width, &font_height);
-    sg_image_desc img_desc = { };
-    img_desc.width = font_width;
-    img_desc.height = font_height;
-    img_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-    img_desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-    img_desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-    img_desc.min_filter = SG_FILTER_LINEAR;
-    img_desc.mag_filter = SG_FILTER_LINEAR;
-    img_desc.content.subimage[0][0].ptr = font_pixels;
-    img_desc.content.subimage[0][0].size = font_width * font_height * 4;
-    io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
-}
 
 
 bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
@@ -295,11 +183,172 @@ bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
     return mouse.in_canvas;
 }
 
+/*-----------------------------------------------------------------------------
+    Miscellaneous graphics helpers
+ */
+
+static void start_gl_rendering()
+{
+    static bool once = true;
+    if (once) {
+        /* setup sokol-gl */
+        sgl_desc_t sgl_desc;
+        memset(&sgl_desc, 0, sizeof(sgl_desc_t));
+        sgl_desc.sample_count = sapp_sample_count();
+        sgl_setup(&sgl_desc);
+
+        /* a pipeline object with less-equal depth-testing */
+        sg_pipeline_desc sg_p;
+        memset(&sg_p, 0, sizeof(sg_pipeline_desc));
+        sg_p.depth_stencil.depth_write_enabled = true;
+        sg_p.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
+        gApp.gl_pipelne = sgl_make_pipeline(&sg_p);
+
+        once = false;
+    }
+
+    sgl_defaults();
+    sgl_push_pipeline();
+    sgl_load_pipeline(gApp.gl_pipelne);
+}
+
+static void end_gl_rendering()
+{
+    sgl_pop_pipeline();
+    sgl_draw();
+}
+
+static void draw_grid(float y, const lab::camera::m44f& m)
+{
+    sgl_matrix_mode_projection();
+
+    lab::camera::m44f proj = gApp.camera.perspective();
+    sgl_load_matrix(&proj.x.x);
+
+    lab::camera::m44f view = gApp.camera.mount.view_transform();
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(m);
+
+    sgl_matrix_mode_modelview();
+    sgl_load_matrix(&mv.x.x);
+
+    sgl_c3f(1.0f, 0.0f, 1.0f);
+
+    const float num = 32;
+    const float step = 1.0f;
+    sgl_begin_lines();
+    for (float x = -num; x < num; x += step) {
+        sgl_v3f(x, y, -num * step);
+        sgl_v3f(x, y,  num * step);
+    }
+    for (float z = -num; z < num; z += step) {
+        sgl_v3f(-num * step, y, z);
+        sgl_v3f( num * step, y, z);
+    }
+    sgl_end();
+}
+
+static void draw_jack(float s, const lab::camera::m44f& m)
+{
+    lab::camera::m44f proj = gApp.camera.perspective();
+    sgl_matrix_mode_projection();
+    sgl_load_matrix(&proj.x.x);
+
+    gApp.camera.mount.foo();
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
+    sgl_matrix_mode_modelview();
+    sgl_load_matrix(&mv.x.x);
+
+    sgl_begin_lines();
+    sgl_c3f( 1,  0,  0);
+    sgl_v3f(-s,  0,  0);
+    sgl_v3f( s,  0,  0);
+    sgl_c3f( 0,  1,  0);
+    sgl_v3f( 0, -s,  0);
+    sgl_v3f( 0,  s,  0);
+    sgl_c3f( 0,  0,  1);
+    sgl_v3f( 0,  0, -s);
+    sgl_v3f( 0,  0,  s);
+    sgl_end();
+}
+
+void initialize_graphics()
+{
+    // setup sokol-gfx, sokol-time and sokol-imgui
+    sg_desc desc = { };
+    desc.context = sapp_sgcontext();
+    sg_setup(&desc);
+    stm_setup();
+
+    // setup debug inspection header(s)
+    sg_imgui_init(&gApp.sg_imgui);
+
+    // setup sokol-imgui, but provide our own font
+    simgui_desc_t simgui_desc = { };
+    simgui_desc.no_default_font = true;
+    simgui_desc.sample_count = sapp_sample_count();
+    simgui_desc.dpi_scale = sapp_dpi_scale();
+    simgui_setup(&simgui_desc);
+
+    // initial clear color
+    gApp.pass_action.colors[0].action = SG_ACTION_CLEAR;
+    gApp.pass_action.colors[0].val[0] = 0.0f;
+    gApp.pass_action.colors[0].val[1] = 0.5f;
+    gApp.pass_action.colors[0].val[2] = 0.7f;
+    gApp.pass_action.colors[0].val[3] = 1.0f;
+
+    uint8_t* data = nullptr;
+    int32_t width = 0;
+    int32_t height = 0;
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->GetTexDataAsRGBA32(&data, &width, &height);
+
+    // Upload new font texture atlas
+    unsigned char* font_pixels;
+    int font_width, font_height;
+    io.Fonts->GetTexDataAsRGBA32(&font_pixels, &font_width, &font_height);
+    sg_image_desc img_desc = { };
+    img_desc.width = font_width;
+    img_desc.height = font_height;
+    img_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
+    img_desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+    img_desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+    img_desc.min_filter = SG_FILTER_LINEAR;
+    img_desc.mag_filter = SG_FILTER_LINEAR;
+    img_desc.content.subimage[0][0].ptr = font_pixels;
+    img_desc.content.subimage[0][0].size = font_width * font_height * 4;
+    io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
+}
+
+void shutdown_graphics() {
+    simgui_shutdown();
+    sg_imgui_discard(&gApp.sg_imgui);
+    sgl_shutdown();
+    sg_shutdown();
+}
+
+
+/*-----------------------------------------------------------------------------
+    Run the gizmo which is tied to a virtual plane to help exercise various
+    ray-intersection methods in lab::Camera
+ */
+
+struct GizmoTriangles
+{
+    GizmoTriangles()
+    {
+        indices.push_back(0);
+        vertices.push_back(0);
+    }
+    int triangle_count = 0;
+    std::vector<uint32_t> indices;
+    std::vector<float> vertices;
+};
+static GizmoTriangles gizmo_triangles;
+
 // return true if the gizmo was interacted
 bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
 {
-    //g_tt->ui(*g_fm);
-
     lab::camera::v3f camera_pos = gApp.camera.mount.position();
     lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ mouse_wsx, mouse_wsy }, { 0, 0 }, { width, height });
     lab::camera::quatf camera_orientation = gApp.camera.mount.rotation();
@@ -363,6 +412,10 @@ bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
     gApp.gizmo_ctx.end(gApp.gizmo_state);
     return result;
 }
+
+/*-----------------------------------------------------------------------------
+     Demonstrate navigation via a virtual joystick hosted in a little window
+ */
 
 enum class NavigatorPanelInteraction
 {
@@ -496,41 +549,12 @@ NavigatorPanelInteraction run_navigator_panel()
     return result;
 }
 
-static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal, 
-            lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
-{
-    const float PLANE_EPSILON = 0.001f;
-    const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
-
-    // Make sure we're not parallel to the plane
-    if (std::abs(d) > PLANE_EPSILON)
-    {
-        float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
-        w = -w;
-
-        float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
-        float t = -distance / d;
-
-        if (t >= PLANE_EPSILON)
-        {
-            if (outT) *outT = t;
-            if (intersection)
-            {
-                lab::camera::v3f result = ray.pos;
-                result.x += t * ray.dir.x;
-                result.y += t * ray.dir.y;
-                result.z += t * ray.dir.z;
-                *intersection = result;
-            }
-            return true;
-        }
-    }
-    if (outT) *outT = std::numeric_limits<float>::max();
-    return false;
-}
+/*-----------------------------------------------------------------------------
+    Application logic
+ */
 
 
-void frame()
+void run_application_logic()
 {
     const int window_width = sapp_width();
     const int window_height = sapp_height();
@@ -562,8 +586,8 @@ void frame()
     start_gl_rendering();
 
     lab::camera::m44f identity = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-    grid(0, identity);
-    grid(0, * (const lab::camera::m44f*) &gApp.gizmo_transform);
+    draw_grid(0, identity);
+    draw_grid(0, * (const lab::camera::m44f*) &gApp.gizmo_transform);
 
     {
         lab::camera::m44f m = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
@@ -573,11 +597,11 @@ void frame()
         {
             lab::camera::v3f lookat = gApp.camera.focus_constraint();
             m.w = { lookat.x, lookat.y, lookat.z, 1.f };
-            jack(1, m);
+            draw_jack(1, m);
         }
 
         m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y, gApp.initial_hit_point.z, 1.f };
-        jack(0.25, m);
+        draw_jack(0.25, m);
 
         // hit point on manipulator plane
         if (gApp.show_manip_plane_intersect)
@@ -590,7 +614,7 @@ void frame()
             if (hit.hit)
             {
                 m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
-                jack(0.5f, m);
+                draw_jack(0.5f, m);
             }
         }
 
@@ -614,7 +638,7 @@ void frame()
             if (hit.hit)
             {
                 m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
-                jack(0.1f, m);
+                draw_jack(0.1f, m);
             }
         }
     }
@@ -624,8 +648,6 @@ void frame()
     simgui_new_frame(window_width, window_height, delta_time);
 
     ImVec2 canvas_offset = ImGui::GetCursorPos();
-
-    //ImGui::PushFont(gApp.g_roboto);
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Playground")) {
@@ -893,8 +915,6 @@ void frame()
         }
     }
 
-    //ImGui::PopFont();
-
     ImGui::End(); // full screen
 
     sg_imgui_draw(&gApp.sg_imgui);
@@ -905,14 +925,8 @@ void frame()
     sg_commit();
 }
 
-void cleanup() {
-    simgui_shutdown();
-    sg_imgui_discard(&gApp.sg_imgui);
-    sgl_shutdown();
-    sg_shutdown();
-}
-
-void input(const sapp_event* event) {
+void imgui_callback_handler(const sapp_event* event)
+{
     simgui_handle_event(event);
 }
 
@@ -925,10 +939,10 @@ sapp_desc sokol_main(int argc, char* argv[])
     gApp.g_app_path = app_path.substr(0, index);
 
     sapp_desc desc = { };
-    desc.init_cb = init;
-    desc.frame_cb = frame;
-    desc.cleanup_cb = cleanup;
-    desc.event_cb = input;
+    desc.init_cb = initialize_graphics;
+    desc.frame_cb = run_application_logic;
+    desc.cleanup_cb = shutdown_graphics;
+    desc.event_cb = imgui_callback_handler;
     desc.width = 1200;
     desc.height = 1000;
     desc.gl_force_gles2 = true;
