@@ -19,7 +19,6 @@
 #include "sokol_glue.h"
 #include "sokol_gl.h"
 #include "gizmo.h"
-#include <LabMath/LabMath.h>
 #include <tiny-gizmo.hpp>
 #include <mutex>
 #include <vector>
@@ -28,9 +27,6 @@
 #include "LabCamera.h"
 
 #define TRACE_INTERACTION 0
-
-lab::m44f& m44f_cast(lab::camera::m44f& m) { return *(reinterpret_cast<lab::m44f*>(&m.x.x)); }
-const lab::m44f& m44f_cast(const lab::camera::m44f& m) { return *(reinterpret_cast<const lab::m44f*>(&m.x.x)); }
 
 enum class UIStateMachine
 {
@@ -59,7 +55,7 @@ struct AppState
     lab::camera::v3f initial_hit_point;
     UIStateMachine ui_state = UIStateMachine::UI;
 
-    lab::m44f gizmo_transform;
+    tinygizmo::m44f gizmo_transform;
     tinygizmo::gizmo_application_state gizmo_state;
     tinygizmo::gizmo_context gizmo_ctx;
 
@@ -75,9 +71,6 @@ struct AppState
     sgl_pipeline gl_pipelne;
     sg_imgui_t sg_imgui;
     sg_pass_action pass_action;
-
-    //lab::ImGui::FontManager* g_fm = nullptr;
-    //ImFont* g_roboto = nullptr;
 } gApp;
 
 struct GizmoTriangles
@@ -136,7 +129,7 @@ static void end_gl_rendering()
     sgl_draw();
 }
 
-static void grid(float y, const lab::m44f& m)
+static void grid(float y, const lab::camera::m44f& m)
 {
     sgl_matrix_mode_projection();
 
@@ -144,7 +137,7 @@ static void grid(float y, const lab::m44f& m)
     sgl_load_matrix(&proj.x.x);
 
     lab::camera::m44f view = gApp.camera.mount.view_transform();
-    lab::m44f mv = *(lab::m44f*) &view.x.x * m;
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(m);
 
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
@@ -165,15 +158,12 @@ static void grid(float y, const lab::m44f& m)
     sgl_end();
 }
 
-static void jack(float s, const lab::m44f& m)
+static void jack(float s, const lab::camera::m44f& m)
 {
-    sgl_matrix_mode_projection();
-
     lab::camera::m44f proj = gApp.camera.perspective();
+    sgl_matrix_mode_projection();
     sgl_load_matrix(&proj.x.x);
 
-    //lab::camera::m44f view = gApp.camera.mount.view_transform();
-    //lab::m44f mv = *(lab::m44f*) & view.x.x * m;
     gApp.camera.mount.foo();
     lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
@@ -558,27 +548,25 @@ void frame()
     float fovy = lab::camera::degrees_from_radians(gApp.camera.vertical_FOV());
     gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
     gApp.camera.optics.squeeze = w / h;
-    lab::m44f proj = m44f_cast(gApp.camera.perspective());
-    lab::m44f view = m44f_cast(gApp.camera.mount.view_transform());
-    lab::m44f view_proj = lab::matrix_multiply(proj, view);
-    lab::m44f view_t = lab::matrix_transpose(view);
+    lab::camera::m44f proj = gApp.camera.perspective();
+    lab::camera::m44f view = gApp.camera.mount.view_transform();
+    lab::camera::m44f view_t = gApp.camera.mount.view_transform_inv();
+    lab::camera::m44f view_proj = gApp.camera.view_projection(1.f);
 
     lab::camera::v3f pos = gApp.camera.position_constraint();
 
     sg_begin_default_pass(&gApp.pass_action, window_width, window_height);
 
-    //draw_cube();
-
     draw_gizmo(&view_t.x.x, &view_proj.x.x, gizmo_triangles.triangle_count, gizmo_triangles.indices.data(), gizmo_triangles.vertices.data());
 
-    //SimpleEffect(&view_t.x.x, &view_proj.x.x, static_cast<float>(stm_sec(stm_now())), static_cast<float>(delta_time));
     start_gl_rendering();
 
-    grid(0, lab::m44f_identity);
-    grid(0, gApp.gizmo_transform);
+    lab::camera::m44f identity = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+    grid(0, identity);
+    grid(0, * (const lab::camera::m44f*) &gApp.gizmo_transform);
 
     {
-        lab::m44f m = lab::m44f_identity;
+        lab::camera::m44f m = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
 
         // display look at
         if (gApp.show_look_at)

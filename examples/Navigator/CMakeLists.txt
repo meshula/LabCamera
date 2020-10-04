@@ -65,11 +65,6 @@ target_compile_definitions(imgui PRIVATE
     ${PLATFORM_DEFS}
 )
 
-#-------------------------------------------------------------------------------
-# Lab
-#-------------------------------------------------------------------------------
-
-add_subdirectory(third/LabMath)
 
 #-------------------------------------------------------------------------------
 # sokol
@@ -201,7 +196,6 @@ target_link_libraries(Navigator
     ${PLATFORM_LIBS}
     imgui
     tinygizmo
-    Lab::Math
     sokol)
     
 if (APPLE)

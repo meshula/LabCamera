@@ -336,7 +336,7 @@ namespace lab {
         Mount::Mount()
             : _view_transform(m44f_identity) {}
 
-        m44f Mount::inv_view_transform() const
+        m44f Mount::view_transform_inv() const
         {
             return invert(_view_transform);
         }
@@ -344,6 +344,11 @@ namespace lab {
         m44f Mount::model_view_transform(float const* const view_matrix) const
         {
             return mul(_view_transform, *(m44f*)view_matrix);
+        }
+
+        m44f Mount::model_view_transform(m44f const& view_matrix) const
+        {
+            return mul(_view_transform, view_matrix);
         }
 
         m44f Mount::inv_rotation_transform() const
