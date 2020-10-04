@@ -1,9 +1,6 @@
 [submodule "examples/Navigator/third/imgui"]
 	path = examples/Navigator/third/imgui
 	url = git@github.com:ocornut/imgui.git
-[submodule "examples/Navigator/third/LabMath"]
-	path = examples/Navigator/third/LabMath
-	url = git@github.com:meshula/LabMath.git
 [submodule "examples/Navigator/third/tinygizmo"]
 	path = examples/Navigator/third/tinygizmo
 	url = git@github.com:meshula/tinygizmo.git
