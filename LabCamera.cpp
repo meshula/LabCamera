@@ -701,10 +701,15 @@ namespace lab {
         {
             m44f t = mount.rotation_transform();
             _ts->declination = atan2(t[2].y, t[2].z);
-            while (_ts->declination > 0.5f * pi)
-                _ts->declination -= 2.0f * pi;
-            while (_ts->declination < -0.5f * pi)
-                _ts->declination += 2.0f * pi;
+
+            if (_ts->declination > 0.5f * pi)
+            {
+                _ts->declination = -pi + _ts->declination;
+            }
+            else if (_ts->declination < -0.5f * pi)
+            {
+                _ts->declination = _ts->declination + pi;
+            }
 
             v3f forward = mount.forward();
             forward.y = 0;
@@ -806,12 +811,12 @@ namespace lab {
                 _ts->declination += 0.002f * delta.y;
                 if (_ts->declination > pi * 0.5f)
                 {
-                    printf("dy %f\n", delta.y);
+                    printf("+d: %f dy: %f\n", _ts->declination, delta.y);
                     _ts->declination = pi * 0.5f;
                 }
                 if (_ts->declination < -pi * 0.5f)
                 {
-                    printf("dy %f\n", delta.y);
+                    printf("-d: %f dy: %f\n", _ts->declination, delta.y);
                     _ts->declination = -pi * 0.5f;
                 }
 
