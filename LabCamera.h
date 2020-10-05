@@ -117,6 +117,8 @@ namespace camera {
     // can be computed by setting enlarge to { 2, 2 }, and
     // shift to millimeters{-17.5f}, millimeters{-12.25f}.
     //
+    // The default sensor aperture is as for 35mm DSLR.
+    //
     class Sensor
     {
     public:
@@ -313,7 +315,8 @@ namespace camera {
         // gimbal: same
         // turntable orbit, roughly screen relative tumble motions
 
-        void constrained_ttl_interaction(InteractionToken, InteractionPhase, InteractionMode,
+        void constrained_ttl_interaction(
+            InteractionToken, InteractionPhase, InteractionMode,
             v2f const& current,
             v3f const& hit_point);
 
