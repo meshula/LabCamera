@@ -810,15 +810,9 @@ namespace lab {
 
                 _ts->declination += 0.002f * delta.y;
                 if (_ts->declination > pi * 0.5f)
-                {
-                    printf("+d: %f dy: %f\n", _ts->declination, delta.y);
                     _ts->declination = pi * 0.5f;
-                }
                 if (_ts->declination < -pi * 0.5f)
-                {
-                    printf("-d: %f dy: %f\n", _ts->declination, delta.y);
                     _ts->declination = -pi * 0.5f;
-                }
 
                 v3f ypr{ _ts->azimuth, _ts->declination, 0 };
                 m44f rot = lab::camera::rotation(ypr);
@@ -869,7 +863,7 @@ namespace lab {
 
                 // Joystick mode
                 v2f dp = current - _ts->init_mouse;
-                v2f prev_dp = _ts->prev_mouse - _ts->init_mouse;
+                v2f prev_dp = current - _ts->prev_mouse;
 
                 // reset the anchor if the interaction direction changes on either axis.
                 // this is to increase the feeling of responsiveness
