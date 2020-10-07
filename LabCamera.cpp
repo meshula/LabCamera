@@ -267,32 +267,65 @@ namespace lab {
             return m;
         }
 
-        m44f rotation(v3f e)
+        m44f rotation_xyz(v3f e)
         {
-            float cos_yaw = cosf(e.x);
-            float cos_pitch = cosf(e.y);
-            float cos_roll = cosf(e.z);
+            float cx = cosf(-e.y);
+            float cy = cosf(-e.x);
+            float cz = cosf(e.z);
 
-            float sin_yaw = sinf(e.x);
-            float sin_pitch = sinf(e.y);
-            float sin_roll = sinf(e.z);
+            float sx = sinf(-e.y);
+            float sy = sinf(-e.x);
+            float sz = sinf(e.z);
 
             m44f m;
-            m[0].x = cos_roll * cos_yaw;
-            m[0].y = sin_roll * cos_yaw;
-            m[0].z = -sin_yaw;
+            // zyx
+            m[0].x =  cy * cz;
+            m[0].y = -cy * sz;
+            m[0].z =  sy;
             m[0].w = 0;
 
-            m[1].x = -sin_roll * cos_pitch + cos_roll * sin_yaw * sin_pitch;
-            m[1].y = cos_roll * cos_pitch + sin_roll * sin_yaw * sin_pitch;
-            m[1].z = cos_yaw * sin_pitch;
+            m[1].x =  sx * sy * cz + cx * sz;
+            m[1].y = -sx * sy * sz + cx * cz;
+            m[1].z = -sx * cy;
             m[1].w = 0;
 
-            m[2].x = sin_roll * sin_pitch + cos_roll * sin_yaw * cos_pitch;
-            m[2].y = -cos_roll * sin_pitch + sin_roll * sin_yaw * cos_pitch;
-            m[2].z = cos_yaw * cos_pitch;
+            m[2].x = -cx * sy * cz + sx * sz;
+            m[2].y =  cx * sy * sz + sx * cz;
+            m[2].z =  cx * cy;
             m[2].w = 0;
+            
+/*
+            m[0].x =  cx * cz;
+            m[0].y =  cx * sz;
+            m[0].z = -sx;
+            m[0].w = 0;
 
+            m[1].x = sx * sy * cz + cy * -sz;
+            m[1].y = sx * sy * sz + cy *  cz;
+            m[1].z = cx   *  sy;
+            m[1].w = 0;
+
+            m[2].x = sx * cy * cz + sy *  sz;
+            m[2].y = sx * cy * sz + sy * -cz;
+            m[2].z =  cx  *  cy;
+            m[2].w = 0;
+//
+            // xyz
+            m[0].x =  cy * cz;
+            m[0].y = -cy * sz;
+            m[0].z =  sy;
+            m[0].w = 0;
+
+            m[1].x =  sx * sy * cz + cy * sz;
+            m[1].y = -sx * sy * sz + cx   * cz;
+            m[1].z = -sx * cy;
+            m[1].w = 0;
+
+            m[2].x = -cx * sy * cz + sx * sz;
+            m[2].y =  cx * sy * sz + sx * cz;
+            m[2].z =  cx * cy;
+            m[2].w = 0;
+            */
             m[3] = { 0,0,0,1 };
             return m;
         }
@@ -356,7 +389,7 @@ namespace lab {
             return transpose(rotation_transform());
         }
 
-        void Mount::set_view_transform(quatf const& v, v3f const& eye)
+        void Mount::set_view_transform_ypr_eye(quatf const& v, v3f const& eye)
         {
             v3f xaxis = {
                 1 - 2 * (v.y * v.y + v.z * v.z),
@@ -381,13 +414,21 @@ namespace lab {
                 v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
         }
 
-        void Mount::set_view_transform(v3f const& ypr, v3f const& eye)
+        void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)
         {
-            _view_transform = transpose(lab::camera::rotation(ypr));
+            _view_transform = transpose(lab::camera::rotation_xyz(ypr));
             m44f const& m = _view_transform;
             _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
             _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
             _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
+        }
+
+        void Mount::set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos)
+        {
+            _view_transform = transpose(lab::camera::rotation_xyz(ypr));
+            _view_transform.w.x = pos.x;
+            _view_transform.w.y = pos.y;
+            _view_transform.w.z = pos.z;
         }
 
         v3f Mount::right() const {
@@ -425,6 +466,45 @@ namespace lab {
             return quat_from_matrix(_view_transform);
         }
 
+        v3f Mount::ypr() const
+        {
+            m44f t = rotation_transform();
+            v3f ypr;
+
+            v3f fwd = forward();
+            fwd.y = 0;
+            fwd = normalize(fwd);
+
+            // yaw
+            ypr.x = atan2f(fwd.x, fwd.z);
+            while (ypr.x < 0)
+                ypr.x += 2.f * pi;
+            while (ypr.x > 2.f * pi)
+                ypr.x -= 2.f * pi;
+
+            // pitch
+            ypr.y = atan2(t[2].y, t[2].z);
+            if (ypr.y > 0.5f * pi)
+            {
+                ypr.y = -pi + ypr.y;
+            }
+            else if (ypr.y < -0.5f * pi)
+            {
+                ypr.y = ypr.y + pi;
+            }
+
+            ypr.z = 0;
+#if 0
+            // roll
+            quatf q = rotation();
+            float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+            float cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+            ypr.z = atan2f(siny_cosp, cosy_cosp);
+#endif
+            return ypr;
+        }
+
+
         millimeters Optics::hyperfocal_distance(millimeters CoC)
         {
             return { focal_length.value * focal_length.value / (fStop * CoC.value) };
@@ -453,8 +533,6 @@ namespace lab {
             v3f position{ 0, 0, 0 };
             v3f world_up{ 0, 1, 0 };
             v3f focus_point{ 0, 0, -10 };
-            float declination = 0;
-            float azimuth = 0;
 
             // working state
             v2f init_mouse{ 0,0 };
@@ -531,7 +609,6 @@ namespace lab {
             _ts->focus_point = at;
             _ts->world_up = up;
             mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
-            update_constraints();
         }
 
         v3f Camera::world_up_constraint() const
@@ -674,53 +751,6 @@ namespace lab {
             return p;
         }
 
-        v3f Camera::ypr() const
-        {
-            return { _ts->azimuth, _ts->declination, 0 };
-        }
-
-
-        bool Camera::check_constraints(InteractionMode mode)
-        {
-            m44f t = mount.rotation_transform();
-            float declination = atan2(t[2].y, t[2].z);
-            float azimuth = _ts->azimuth;
-            if (fabsf(declination) < pi * 0.5f)
-            {
-                v3f forward = mount.forward();
-                forward.y = 0;
-                forward = normalize(forward);
-                float azimuth = atan2f(forward.x, forward.z);
-                if (azimuth < 0)
-                    azimuth += 2.f * pi;
-            }
-            return declination == _ts->declination && azimuth == _ts->azimuth;
-        }
-
-        void Camera::update_constraints()
-        {
-            m44f t = mount.rotation_transform();
-            _ts->declination = atan2(t[2].y, t[2].z);
-
-            if (_ts->declination > 0.5f * pi)
-            {
-                _ts->declination = -pi + _ts->declination;
-            }
-            else if (_ts->declination < -0.5f * pi)
-            {
-                _ts->declination = _ts->declination + pi;
-            }
-
-            v3f forward = mount.forward();
-            forward.y = 0;
-            forward = normalize(forward);
-            _ts->azimuth = atan2f(forward.x, forward.z);
-            while (_ts->azimuth < 0)
-                _ts->azimuth += 2.f * pi;
-            while (_ts->azimuth > 2.f * pi)
-                _ts->azimuth -= 2.f * pi;
-        }
-
         InteractionToken Camera::begin_interaction(v2f const& viewport_size)
         {
             // nb: in the future the InteractionToken will be used to manage
@@ -744,7 +774,6 @@ namespace lab {
                 _ts->initial_inv_projection = inv_view_projection(1.f);
                 _ts->initial_position_constraint = _ts->position;
                 _ts->initial_focus_point = _ts->focus_point;
-                update_constraints();
             }
 
             // joystick mode controls
@@ -802,20 +831,24 @@ namespace lab {
                 else
                     delta.x *= -1.f;   // to feel like the object is moving in the gesture direction
 
-                _ts->azimuth += 0.01f * delta.x;
-                while (_ts->azimuth > 2.f * pi)
-                    _ts->azimuth -= 2.f * pi;
-                while (_ts->azimuth < 0)
-                    _ts->azimuth += 2.f * pi;
+                v3f start_ypr = mount.ypr();
 
-                _ts->declination += 0.002f * delta.y;
-                if (_ts->declination > pi * 0.5f)
-                    _ts->declination = pi * 0.5f;
-                if (_ts->declination < -pi * 0.5f)
-                    _ts->declination = -pi * 0.5f;
+                // azimuth
+                start_ypr.x += 0.01f * delta.x;
+                while (start_ypr.x > 2.f * pi)
+                    start_ypr.x -= 2.f * pi;
+                while (start_ypr.x < 0)
+                    start_ypr.x += 2.f * pi;
 
-                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
-                m44f rot = lab::camera::rotation(ypr);
+                start_ypr.y += 0.002f * delta.y;
+                if (start_ypr.y > pi * 0.5f)
+                    start_ypr.y = pi * 0.5f;
+                if (start_ypr.y < -pi * 0.5f)
+                    start_ypr.y = -pi * 0.5f;
+
+                v3f ypr{ start_ypr.x, start_ypr.y, start_ypr.z };
+
+                m44f rot = lab::camera::rotation_xyz(ypr);
                 if (mode == InteractionMode::TurnTableOrbit)
                 {
                     _ts->position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _ts->focus_point;
@@ -824,7 +857,7 @@ namespace lab {
                 {
                     _ts->focus_point = _ts->position - mul(rot, v3f{ 0, 0, distance_to_focus });
                 }
-                mount.set_view_transform(ypr, _ts->position);
+                mount.set_view_transform_ypr_eye(ypr, _ts->position);
                 break;
             }
             default:
@@ -839,7 +872,6 @@ namespace lab {
                 v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
                 _ts->focus_point = _ts->position + rotatedVec;
                 mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
-                update_constraints();
                 break;
             }
             }
@@ -887,7 +919,6 @@ namespace lab {
                     _ts->initial_inv_projection = inv_view_projection(1.f);
                     _ts->initial_position_constraint = _ts->position;
                     _ts->initial_focus_point = _ts->focus_point;
-                    update_constraints();
                 }
 
                 // Through the lens gimbal
@@ -902,7 +933,6 @@ namespace lab {
                 rel = quat_rotate_vector(rotation, rel);
                 _ts->focus_point = _ts->position + rel;
                 mount.look_at(_ts->position, _ts->focus_point, _ts->world_up);
-                update_constraints();
                 break;
             }
             }
@@ -931,9 +961,7 @@ namespace lab {
                 delta += mul(mount.up(), target_xy.y * -1.f);
                 _ts->position += delta;
                 _ts->focus_point += delta;
-                v3f ypr{ _ts->azimuth, _ts->declination, 0 };
-                mount.set_view_transform(ypr, _ts->position);
-
+                mount.set_view_transform_ypr_eye(mount.ypr(), _ts->position);
                 break;
             }
             case InteractionMode::Dolly:
@@ -956,8 +984,7 @@ namespace lab {
                 {
                     _ts->position += delta + delta_fw;
                     _ts->focus_point += delta + delta_fw;
-                    v3f ypr{ _ts->azimuth, _ts->declination, 0 };
-                    mount.set_view_transform(ypr, _ts->position);
+                    mount.set_view_transform_ypr_eye(mount.ypr(), _ts->position);
                 }
                 break;
             }

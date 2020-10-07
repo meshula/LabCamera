@@ -253,7 +253,6 @@ static void draw_jack(float s, const lab::camera::m44f& m)
     sgl_matrix_mode_projection();
     sgl_load_matrix(&proj.x.x);
 
-    gApp.camera.mount.foo();
     lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
@@ -420,7 +419,7 @@ bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
 enum class NavigatorPanelInteraction
 {
     None = 0,
-    ModeChange,
+    ModeChange, RollUpdated,
     TumbleInitiated, TumbleContinued, TumbleEnded
 };
 
@@ -430,6 +429,7 @@ struct NavigatorPanel
     const float size_y = 160;
     const float trackball_width = size_x * 0.5f;
     ImVec2 trackball_size{ trackball_width, size_y };
+    float roll = 0;
     float nav_radius = 6;
     lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
     NavigatorPanelInteraction state = NavigatorPanelInteraction::None;
@@ -451,7 +451,7 @@ NavigatorPanelInteraction run_navigator_panel()
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
     ImVec2 mouse_pos = ImGui::GetMousePos();
 
-    ImGui::Columns(3, "###NavCol", true);
+    ImGui::Columns(2, "###NavCol", true);
     ImGui::SetColumnWidth(0, navigator_panel.trackball_width);
 
     // was tumbling is initiated by clicking the ###Nav button,
@@ -533,12 +533,11 @@ NavigatorPanelInteraction run_navigator_panel()
         result = NavigatorPanelInteraction::ModeChange;
     }
 
-    ImGui::NextColumn();
-
     static float zoom = 0.f;
-    if (ImGui::VSliderFloat("###Nav_Zoom", ImVec2(32, navigator_panel.size_y), &zoom, -1.0f, 1.0f)) {
-        navigator_panel.nav_radius += zoom;
-        result = NavigatorPanelInteraction::ModeChange;
+    if (ImGui::SliderAngle("###Dutch", &zoom, -180.f, 180.f, "%.0f"))
+    {
+        navigator_panel.roll = zoom;
+        result = NavigatorPanelInteraction::RollUpdated;
     }
     else
         zoom = 0.f;     // mouse released, reset
@@ -781,7 +780,7 @@ void run_application_logic()
     {
         ImGui::Begin("App State");
         ImGui::Text("state: %s", name_state(gApp.ui_state));
-        lab::camera::v3f ypr = gApp.camera.ypr();
+        lab::camera::v3f ypr = gApp.camera.mount.ypr();
         ImGui::Text("ypr: (%f, %f, %f)\n", ypr.x, ypr.y, ypr.z);
         ImGui::End();
     }
@@ -792,22 +791,32 @@ void run_application_logic()
     {
         if (in > NavigatorPanelInteraction::ModeChange)
         {
-            if (in == NavigatorPanelInteraction::TumbleInitiated)
-                phase = lab::camera::InteractionPhase::Start;
-            else if (in == NavigatorPanelInteraction::TumbleEnded)
-                phase = lab::camera::InteractionPhase::Finish;
+            if (in == NavigatorPanelInteraction::RollUpdated)
+            {
+                lab::camera::v3f ypr = gApp.camera.mount.ypr();
+                lab::camera::v3f pos = gApp.camera.mount.position();
+                ypr.z = navigator_panel.roll;
+                gApp.camera.mount.set_view_transform_ypr_pos(ypr, pos);
+            }
+            else
+            {
+                if (in == NavigatorPanelInteraction::TumbleInitiated)
+                    phase = lab::camera::InteractionPhase::Start;
+                else if (in == NavigatorPanelInteraction::TumbleEnded)
+                    phase = lab::camera::InteractionPhase::Finish;
 
-            ImGui::CaptureMouseFromApp(true);
-            const float speed_scaler = 10.f;
-            float scale = speed_scaler / navigator_panel.size_x;
-            float dx = (mouse_pos.x - gApp.initial_mouse_position.x) * scale;
-            float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -scale;
+                ImGui::CaptureMouseFromApp(true);
+                const float speed_scaler = 10.f;
+                float scale = speed_scaler / navigator_panel.size_x;
+                float dx = (mouse_pos.x - gApp.initial_mouse_position.x) * scale;
+                float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -scale;
 
-            lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
-            gApp.camera.joystick_interaction(tok, phase, navigator_panel.camera_interaction_mode, { dx, dy });
-            gApp.camera.end_interaction(tok);
+                lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
+                gApp.camera.joystick_interaction(tok, phase, navigator_panel.camera_interaction_mode, { dx, dy });
+                gApp.camera.end_interaction(tok);
 
-            mouse = MouseState{};
+                mouse = MouseState{};
+            }
         }
         gApp.ui_state = UIStateMachine::None;
         run_gizmo( -1, -1, (float)window_width, (float)window_height);

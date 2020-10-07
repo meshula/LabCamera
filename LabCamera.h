@@ -89,18 +89,18 @@ namespace camera {
         m44f rotation_transform() const { m44f j = _view_transform; j[3] = { 0,0,0,1 }; return j; }
         m44f inv_rotation_transform() const;
 
-        void foo() {}
-
         // components
         quatf rotation() const;
+        v3f ypr() const;
         v3f right() const;
         v3f up() const;
         v3f forward() const;
         v3f position() const;
 
         // mutation
-        void set_view_transform(quatf const& q, v3f const& pos);
-        void set_view_transform(v3f const& ypr, v3f const& pos);
+        void set_view_transform_ypr_eye(quatf const& q, v3f const& eye);
+        void set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye);
+        void set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos);
         void look_at(v3f const& eye, v3f const& target, v3f const& up);
     };
 
@@ -258,9 +258,6 @@ namespace camera {
     {
         TransientState* _ts;
 
-        void update_constraints();
-        bool check_constraints(InteractionMode);
-
     public:
         Mount  mount;
         Sensor sensor;
@@ -325,7 +322,6 @@ namespace camera {
         v3f position_constraint() const;
         v3f world_up_constraint() const;
         v3f focus_constraint() const;
-        v3f ypr() const;
 
         // move the camera along the view vector such that both bounds are visible
         void frame(v3f const& bound1, v3f const& bound2);
