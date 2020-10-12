@@ -37,6 +37,16 @@ namespace lab {
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
+        m44f rotz(float r)
+        {
+            float c = cosf(r);
+            float s = sinf(r);
+            return {  c,-s, 0, 0,
+                      s, c, 0, 0,
+                      0, 0, 1, 0,
+                      0, 0, 0, 1 };
+        }
+
         inline quatf quat_from_axis_angle(v3f v, float a)
         {
             quatf Result;
@@ -271,13 +281,14 @@ namespace lab {
         {
             float cx = cosf(-e.y);
             float cy = cosf(-e.x);
-            float cz = cosf(e.z);
+            float cz = 1.f; // cosf(e.z);
 
             float sx = sinf(-e.y);
             float sy = sinf(-e.x);
-            float sz = sinf(e.z);
+            float sz = 0.f; //sinf(e.z);
 
             m44f m;
+            
             // zyx
             m[0].x =  cy * cz;
             m[0].y = -cy * sz;
@@ -371,17 +382,17 @@ namespace lab {
 
         m44f Mount::view_transform_inv() const
         {
-            return invert(_view_transform);
+            return invert(view_transform());
         }
 
         m44f Mount::model_view_transform(float const* const view_matrix) const
         {
-            return mul(_view_transform, *(m44f*)view_matrix);
+            return mul(view_transform(), *(m44f*)view_matrix);
         }
 
         m44f Mount::model_view_transform(m44f const& view_matrix) const
         {
-            return mul(_view_transform, view_matrix);
+            return mul(view_transform(), view_matrix);
         }
 
         m44f Mount::inv_rotation_transform() const
@@ -416,7 +427,9 @@ namespace lab {
 
         void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)
         {
-            _view_transform = transpose(lab::camera::rotation_xyz(ypr));
+            _roll = ypr.z;
+            v3f rot = { ypr.x, ypr.y, 0 };
+            _view_transform = transpose(lab::camera::rotation_xyz(rot));
             m44f const& m = _view_transform;
             _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
             _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
@@ -425,36 +438,46 @@ namespace lab {
 
         void Mount::set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos)
         {
-            _view_transform = transpose(lab::camera::rotation_xyz(ypr));
+            _roll = ypr.z;
+            v3f rot = { ypr.x, ypr.y, 0 };
+            _view_transform = transpose(lab::camera::rotation_xyz(rot));
             _view_transform.w.x = pos.x;
             _view_transform.w.y = pos.y;
             _view_transform.w.z = pos.z;
         }
 
         v3f Mount::right() const {
+            m44f m = view_transform();
             return normalize(
-                v3f{ _view_transform[0].x,
-                     _view_transform[1].x,
-                     _view_transform[2].x });
+                v3f{ m[0].x,
+                     m[1].x,
+                     m[2].x });
         }
         v3f Mount::up() const {
+            m44f m = view_transform();
             return normalize(
-                v3f{ _view_transform[0].y,
-                     _view_transform[1].y,
-                     _view_transform[2].y });
+                v3f{ m[0].y,
+                     m[1].y,
+                     m[2].y });
         }
         v3f Mount::forward() const {
+            m44f m = view_transform();
             return normalize(
-                v3f{ _view_transform[0].z,
-                     _view_transform[1].z,
-                     _view_transform[2].z });
+                v3f{ m[0].z,
+                     m[1].z,
+                     m[2].z });
         }
         v3f Mount::position() const {
-            return v3f{ _view_transform[3].x,
-                        _view_transform[3].y,
-                        _view_transform[3].z };
+            m44f m = view_transform();
+            return v3f{ m[3].x,
+                        m[3].y,
+                        m[3].z };
         }
 
+        m44f Mount::view_transform() const 
+        { 
+            return mul(_view_transform, rotz(_roll));
+        }
 
         void Mount::look_at(v3f const& eye, v3f const& target, v3f const& up)
         {
@@ -493,7 +516,7 @@ namespace lab {
                 ypr.y = ypr.y + pi;
             }
 
-            ypr.z = 0;
+            ypr.z = _roll;
 #if 0
             // roll
             quatf q = rotation();

@@ -77,16 +77,17 @@ namespace camera {
     class Mount
     {
         m44f _view_transform;
+        float _roll{ 0 };
 
     public:
         Mount();
 
         // matrix
-        m44f const& view_transform() const { return _view_transform; }
+        m44f view_transform() const;
         m44f view_transform_inv() const;
         m44f model_view_transform(m44f const& view_matrix) const;
         m44f model_view_transform(float const* const view_matrix) const;
-        m44f rotation_transform() const { m44f j = _view_transform; j[3] = { 0,0,0,1 }; return j; }
+        m44f rotation_transform() const { m44f j = view_transform(); j[3] = { 0,0,0,1 }; return j; }
         m44f inv_rotation_transform() const;
 
         // components
