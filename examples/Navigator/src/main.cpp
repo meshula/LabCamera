@@ -4,6 +4,7 @@
  */
 
 #include "LabCamera.h"
+#include "LabCameraImgui.h"
 
 #define SOKOL_TRACE_HOOKS
 #include "sokol_app.h"
@@ -23,11 +24,11 @@
 #include <mutex>
 #include <vector>
 
-
 #define TRACE_INTERACTION 0
 
+
 /*-----------------------------------------------------------------------------
-    Random utility
+    Utility
  */
 
 static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
@@ -85,21 +86,54 @@ const char* name_state(UIStateMachine s)
     return "";
 }
 
+struct MouseState
+{
+    float initial_mousex{ 0 };          // set when mouse transitions from not dragging to dragging
+    float initial_mousey{ 0 };
+    float mousex{ 0 };                  // current mouse position in window space
+    float mousey{ 0 };
+    bool  click_initiated{ false };     // true only on the frame when the mouse transitioned from not dragging to dragging
+    bool  dragging{ false };            // true as long as the button is held
+    bool  click_ended{ false };         // true only on the frame when the mouse transitioned from dragging to not dragging
+};
+
+void mouse_state_update(MouseState* ms,
+                        float mousex, float mousey, bool left_button_down)
+{
+    ms->click_ended = ms->dragging && !left_button_down;
+    ms->click_initiated = !ms->dragging && left_button_down;
+    ms->dragging = left_button_down;
+    ms->mousex = mousex;
+    ms->mousey = mousey;
+
+    if (ms->click_initiated)
+    {
+        ms->initial_mousex = mousex;
+        ms->initial_mousey = mousey;
+    };
+
+    if (TRACE_INTERACTION && ms->click_ended)
+        printf("button released\n");
+    if (TRACE_INTERACTION && ms->click_initiated)
+        printf("button clicked\n");
+}
+
 struct AppState
 {
-    std::string g_app_path;
-
+    // camera and application state
     lab::camera::Camera camera;
-    lab::camera::v2f initial_mouse_position = { 0, 0 };
     lab::camera::v3f initial_hit_point;
     UIStateMachine ui_state = UIStateMachine::UI;
+    uint64_t last_time = 0;
+    MouseState mouse;
+    LCNav_PanelState* navigator_panel = nullptr;
 
+    // gizmo state
     tinygizmo::m44f gizmo_transform;
     tinygizmo::gizmo_application_state gizmo_state;
     tinygizmo::gizmo_context gizmo_ctx;
 
-    uint64_t last_time = 0;
-
+    // UI elements and flags
     bool show_navigator = true;
     bool show_look_at = true;
     bool show_state = true;
@@ -107,80 +141,32 @@ struct AppState
     bool show_manip_plane_intersect = false;
     bool quit = false;
 
+    // sokol
     sgl_pipeline gl_pipelne;
     sg_imgui_t sg_imgui;
     sg_pass_action pass_action;
 } gApp;
 
-struct MouseState
-{
-    bool click_ended{ false };
-    bool click_initiated{ false };
-    bool in_canvas{ false };
-    bool dragging_node{ false };
-    bool resizing_node{ false };
-    bool dragging{ false };
-    ImVec2 mouse_ws{ 0, 0 };
-    ImVec2 initial_click_pos_ws{ 0, 0 };
-} mouse;
 
-
-bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
+bool update_mouseStatus_in_current_imgui_window(MouseState* mouse)
 {
     // assuming the 3d viewport is the current window, fetch the content region
     ImGuiWindow* win = ImGui::GetCurrentWindow();
     ImRect edit_rect = win->ContentRegionRect;
     ImGuiIO& io = ImGui::GetIO();
-    float width = ImGui::GetContentRegionAvailWidth();
-    float height = ImGui::GetContentRegionAvail().y;
-
-    // detect that the mouse is in the content region
     ImVec2 imgui_cursor_pos = ImGui::GetCursorPos();
     ImGui::SetCursorScreenPos(edit_rect.Min);
+
+    // detect that the mouse is in the content region
     bool click_finished = ImGui::InvisibleButton("###GIZMOREGION", edit_rect.GetSize());
-    mouse.in_canvas = click_finished || ImGui::IsItemHovered();
+    bool in_canvas = click_finished || ImGui::IsItemHovered();
 
-    //---------------------------------------------------------------------
-    // determine hovered, dragging, pressed, and released, as well as
-    // window local coordinate and canvas local coordinate
-    //
-    mouse.click_ended = false;
-    mouse.click_initiated = false;
-    if (mouse.in_canvas)
-    {
-        if (click_finished)
-        {
-            if (TRACE_INTERACTION)
-                printf("button released\n");
-
-            mouse.dragging_node = false;
-            mouse.resizing_node = false;
-            mouse.click_ended = true;
-        }
-
-        mouse.mouse_ws = io.MousePos - ImGui::GetCurrentWindow()->Pos;
-
-        if (io.MouseDown[0] && io.MouseDownOwned[0])
-        {
-            if (!mouse.dragging)
-            {
-                if (TRACE_INTERACTION)
-                    printf("button clicked\n");
-
-                mouse.click_initiated = true;
-                mouse.initial_click_pos_ws = io.MousePos;
-                mouse.dragging = true;
-            }
-        }
-        else
-            mouse.dragging = false;
-    }
-    else
-        mouse.dragging = false;
+    ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos;
+    mouse_state_update(mouse, mouse_pos.x, mouse_pos.y, io.MouseDown[0] && io.MouseDownOwned[0]);
 
     // restore the ImGui state
     ImGui::SetCursorPos(imgui_cursor_pos);
-    return mouse.in_canvas;
+    return in_canvas;
 }
 
 /*-----------------------------------------------------------------------------
@@ -189,8 +175,9 @@ bool update_mouseStatus_in_viewport(ImVec2 canvas_offset)
 
 static void start_gl_rendering()
 {
-    static bool once = true;
-    if (once) {
+    static std::once_flag once;
+    std::call_once(once, []()
+    {
         /* setup sokol-gl */
         sgl_desc_t sgl_desc;
         memset(&sgl_desc, 0, sizeof(sgl_desc_t));
@@ -203,9 +190,7 @@ static void start_gl_rendering()
         sg_p.depth_stencil.depth_write_enabled = true;
         sg_p.depth_stencil.depth_compare_func = SG_COMPAREFUNC_LESS_EQUAL;
         gApp.gl_pipelne = sgl_make_pipeline(&sg_p);
-
-        once = false;
-    }
+    });
 
     sgl_defaults();
     sgl_push_pipeline();
@@ -272,6 +257,8 @@ static void draw_jack(float s, const lab::camera::m44f& m)
 
 void initialize_graphics()
 {
+    gApp.navigator_panel = create_navigator_panel();
+
     // setup sokol-gfx, sokol-time and sokol-imgui
     sg_desc desc = { };
     desc.context = sapp_sgcontext();
@@ -319,13 +306,16 @@ void initialize_graphics()
     io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
 }
 
-void shutdown_graphics() {
+void shutdown_graphics() 
+{
     simgui_shutdown();
     sg_imgui_discard(&gApp.sg_imgui);
     sgl_shutdown();
     sg_shutdown();
-}
 
+    release_navigator_panel(gApp.navigator_panel);
+    gApp.navigator_panel = nullptr;
+}
 
 /*-----------------------------------------------------------------------------
     Run the gizmo which is tied to a virtual plane to help exercise various
@@ -339,20 +329,21 @@ struct GizmoTriangles
         indices.push_back(0);
         vertices.push_back(0);
     }
+
     int triangle_count = 0;
     std::vector<uint32_t> indices;
-    std::vector<float> vertices;
+    std::vector<float>    vertices;
 };
 static GizmoTriangles gizmo_triangles;
 
 // return true if the gizmo was interacted
-bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
+bool run_gizmo(MouseState* ms, float width, float height)
 {
     lab::camera::v3f camera_pos = gApp.camera.mount.position();
-    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ mouse_wsx, mouse_wsy }, { 0, 0 }, { width, height });
+    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
     lab::camera::quatf camera_orientation = gApp.camera.mount.rotation();
 
-    gApp.gizmo_state.mouse_left = mouse.click_initiated || mouse.dragging;
+    gApp.gizmo_state.mouse_left = ms->dragging;
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
     gApp.gizmo_state.cam.near_clip = gApp.camera.optics.znear;
     gApp.gizmo_state.cam.far_clip = gApp.camera.optics.zfar;
@@ -412,146 +403,10 @@ bool run_gizmo(float mouse_wsx, float mouse_wsy, float width, float height)
     return result;
 }
 
-/*-----------------------------------------------------------------------------
-     Demonstrate navigation via a virtual joystick hosted in a little window
- */
-
-enum class NavigatorPanelInteraction
-{
-    None = 0,
-    ModeChange, RollUpdated,
-    TumbleInitiated, TumbleContinued, TumbleEnded
-};
-
-struct NavigatorPanel
-{
-    const float size_x = 256;
-    const float size_y = 160;
-    const float trackball_width = size_x * 0.5f;
-    ImVec2 trackball_size{ trackball_width, size_y };
-    float roll = 0;
-    float nav_radius = 6;
-    lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
-    NavigatorPanelInteraction state = NavigatorPanelInteraction::None;
-    bool trackball_interacting = false;
-} navigator_panel;
-
-
-NavigatorPanelInteraction run_navigator_panel()
-{
-    NavigatorPanelInteraction result = NavigatorPanelInteraction::None;
-    ImGui::SetNextWindowSize(ImVec2(navigator_panel.size_x, navigator_panel.size_y), ImGuiCond_FirstUseEver);
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel.size_x, 10));
-
-    ImGui::Begin("Navigator", &gApp.show_navigator,
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollWithMouse);
-
-    ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
-    ImVec2 mouse_pos = ImGui::GetMousePos();
-
-    ImGui::Columns(2, "###NavCol", true);
-    ImGui::SetColumnWidth(0, navigator_panel.trackball_width);
-
-    // was tumbling is initiated by clicking the ###Nav button,
-    // it should continue until the mouse is no longer held down.
-
-    ImGui::InvisibleButton("###Nav", navigator_panel.trackball_size);
-    if (ImGui::IsItemHovered())
-    {
-        if (ImGui::IsMouseDown(0))
-        {
-            if (!navigator_panel.trackball_interacting)
-            {
-                navigator_panel.trackball_interacting = true;
-                ImGui::SetCursorScreenPos(cursor_screen_pos);
-                ImGui::TextUnformatted("CLICKED");
-                gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
-                result = NavigatorPanelInteraction::TumbleInitiated;
-            }
-            else
-            {
-                result = NavigatorPanelInteraction::TumbleContinued;
-                ImGui::SetCursorScreenPos(cursor_screen_pos);
-                ImGui::TextUnformatted("DRAGGING");
-            }
-        }
-        else if (navigator_panel.trackball_interacting)
-        {
-            result = NavigatorPanelInteraction::TumbleEnded;
-            navigator_panel.trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("RELEASED");
-        }
-        else 
-        {
-            result = NavigatorPanelInteraction::None;
-            navigator_panel.trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("HOVERED");
-        }
-    }
-    else if (navigator_panel.trackball_interacting)
-    {
-        if (ImGui::IsMouseDown(0))
-        {
-            result = NavigatorPanelInteraction::TumbleContinued;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("DRAGGING OUTSIDE");
-        }
-        else
-        {
-            result = NavigatorPanelInteraction::TumbleEnded;
-            navigator_panel.trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("RELEASED OUTSIDE");
-        }
-    }
-
-    ImGui::NextColumn();
-
-    if (ImGui::Button("Home###NavHome")) {
-        auto up = gApp.camera.world_up_constraint();
-        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, up);
-        result = NavigatorPanelInteraction::ModeChange;
-    }
-    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
-        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Crane;
-        result = NavigatorPanelInteraction::ModeChange;
-    }
-    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Dolly ? "-Dolly-" : " Dolly ")) {
-        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Dolly;
-        result = NavigatorPanelInteraction::ModeChange;
-    }
-    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::TurnTableOrbit ? "-Orbit-" : " Orbit ")) {
-        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
-        result = NavigatorPanelInteraction::ModeChange;
-    }
-    if (ImGui::Button(navigator_panel.camera_interaction_mode == lab::camera::InteractionMode::Gimbal ? "-Gimbal-" : " Gimbal ")) {
-        navigator_panel.camera_interaction_mode = lab::camera::InteractionMode::Gimbal;
-        result = NavigatorPanelInteraction::ModeChange;
-    }
-
-    static float zoom = 0.f;
-    if (ImGui::SliderAngle("###Dutch", &zoom, -180.f, 180.f, "%.0f"))
-    {
-        navigator_panel.roll = zoom;
-        result = NavigatorPanelInteraction::RollUpdated;
-    }
-    else
-        zoom = 0.f;     // mouse released, reset
-
-    // end of columns.
-
-    ImGui::End();
-    return result;
-}
 
 /*-----------------------------------------------------------------------------
     Application logic
  */
-
 
 void run_application_logic()
 {
@@ -564,7 +419,7 @@ void run_application_logic()
     static bool once = true;
     if (once) {
         auto up = gApp.camera.world_up_constraint();
-        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel.nav_radius }, { 0,0,0 }, up);
+        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, gApp.navigator_panel->nav_radius }, { 0,0,0 }, up);
         once = false;
     }
 
@@ -606,7 +461,7 @@ void run_application_logic()
         if (gApp.show_manip_plane_intersect)
         {
             lab::camera::HitResult hit = gApp.camera.hit_test(
-                { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
                 *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
@@ -630,7 +485,7 @@ void run_application_logic()
             cam_pos.z += cam_nrm.z;
 
             lab::camera::HitResult hit = gApp.camera.hit_test(
-                { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 cam_pos, cam_nrm);
 
@@ -757,7 +612,7 @@ void run_application_logic()
 
         // project onto a plane one unit in front of the camera
         lab::camera::HitResult hit = gApp.camera.hit_test(
-            { mouse.mouse_ws.x, mouse.mouse_ws.y },
+            { gApp.mouse.mousex, gApp.mouse.mousey },
             { (float)window_width, (float)window_height },
             cam_pos, cam_nrm);
 
@@ -775,57 +630,36 @@ void run_application_logic()
     ImVec2 mouse_pos = ImGui::GetMousePos();
     lab::camera::v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
     lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+    bool mouse_in_viewport = update_mouseStatus_in_current_imgui_window(&gApp.mouse);
 
     if (gApp.show_state)
     {
         ImGui::Begin("App State");
         ImGui::Text("state: %s", name_state(gApp.ui_state));
         lab::camera::v3f ypr = gApp.camera.mount.ypr();
-        ImGui::Text("ypr: (%f, %f, %f)\n", ypr.x, ypr.y, ypr.z);
+        ImGui::Text("ypr: (%f, %f, %f)", ypr.x, ypr.y, ypr.z);
+        lab::camera::v3f pos = gApp.camera.mount.position();
+        ImGui::Text("pos: (%f, %f, %f)", pos.x, pos.y, pos.z);
+        ImGui::Separator();
+        ImGui::Text("imouse: %f, %f", gApp.mouse.initial_mousex, gApp.mouse.initial_mousey);
+        ImGui::Text(" mouse: %f, %f", gApp.mouse.mousex, gApp.mouse.mousey);
+        ImGui::Text(" click: %s", gApp.mouse.dragging ? "X" : "-");
         ImGui::End();
     }
 
-    bool mouse_in_viewport = update_mouseStatus_in_viewport(canvas_offset);
-    NavigatorPanelInteraction in = gApp.show_navigator ? run_navigator_panel() : NavigatorPanelInteraction::None;
-    if (in > NavigatorPanelInteraction::None)
+    LabCameraNavigatorPanelInteraction in = gApp.show_navigator ?
+        run_navigator_panel(gApp.navigator_panel, viewport, gApp.camera) : LCNav_None;
+
+    if (in > LCNav_None)
     {
-        if (in > NavigatorPanelInteraction::ModeChange)
-        {
-            if (in == NavigatorPanelInteraction::RollUpdated)
-            {
-                lab::camera::v3f ypr = gApp.camera.mount.ypr();
-                lab::camera::v3f pos = gApp.camera.mount.position();
-                ypr.z = navigator_panel.roll;
-                gApp.camera.mount.set_view_transform_ypr_pos(ypr, pos);
-            }
-            else
-            {
-                if (in == NavigatorPanelInteraction::TumbleInitiated)
-                    phase = lab::camera::InteractionPhase::Start;
-                else if (in == NavigatorPanelInteraction::TumbleEnded)
-                    phase = lab::camera::InteractionPhase::Finish;
-
-                ImGui::CaptureMouseFromApp(true);
-                const float speed_scaler = 10.f;
-                float scale = speed_scaler / navigator_panel.size_x;
-                float dx = (mouse_pos.x - gApp.initial_mouse_position.x) * scale;
-                float dy = (mouse_pos.y - gApp.initial_mouse_position.y) * -scale;
-
-                lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
-                gApp.camera.joystick_interaction(tok, phase, navigator_panel.camera_interaction_mode, { dx, dy });
-                gApp.camera.end_interaction(tok);
-
-                mouse = MouseState{};
-            }
-        }
         gApp.ui_state = UIStateMachine::None;
-        run_gizmo( -1, -1, (float)window_width, (float)window_height);
+        run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
     }
     else if (mouse_in_viewport)
     {
         if (gApp.ui_state == UIStateMachine::Gizmo)
         {
-            if (!run_gizmo(mouse.mouse_ws.x, mouse.mouse_ws.y, (float)window_width, (float)window_height))
+            if (!run_gizmo(&gApp.mouse, (float)window_width, (float)window_height))
             {
                 gApp.ui_state = UIStateMachine::None;
                 sapp_lock_mouse(false);
@@ -833,23 +667,21 @@ void run_application_logic()
         }
         else if (gApp.ui_state <= UIStateMachine::UI)
         {
-            if (run_gizmo(mouse.mouse_ws.x, mouse.mouse_ws.y, (float)window_width, (float)window_height))
+            if (run_gizmo(&gApp.mouse, (float)window_width, (float)window_height))
             {
                 gApp.ui_state = UIStateMachine::Gizmo;
             }
-            else if (mouse.click_initiated)
+            else if (gApp.mouse.click_initiated)
             {
                 // hit test versus the gizmo's plane
                 lab::camera::HitResult hit = gApp.camera.hit_test(
-                    { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                    { gApp.mouse.mousex, gApp.mouse.mousey },
                     { (float)window_width, (float)window_height },
                     *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
                     *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
 
-                if (mouse.click_initiated && gApp.ui_state <= UIStateMachine::UI)
+                if (gApp.mouse.click_initiated && gApp.ui_state <= UIStateMachine::UI)
                 {
-                    gApp.initial_mouse_position = { mouse_pos.x, mouse_pos.y };
-
                     if (hit.hit)
                     {
                         gApp.initial_hit_point = hit.point;
@@ -867,7 +699,7 @@ void run_application_logic()
                         cam_pos.z += cam_nrm.z;
 
                         hit = gApp.camera.hit_test(
-                            { mouse.mouse_ws.x, mouse.mouse_ws.y },
+                            { gApp.mouse.mousex, gApp.mouse.mousey },
                             { (float)window_width, (float)window_height },
                             cam_pos, cam_nrm);
 
@@ -883,9 +715,9 @@ void run_application_logic()
 
         if (gApp.ui_state == UIStateMachine::DeltaCamera || gApp.ui_state == UIStateMachine::TTLCamera)
         {
-            if (mouse.click_initiated)
+            if (gApp.mouse.click_initiated)
                 phase = lab::camera::InteractionPhase::Start;
-            else if (mouse.click_ended)
+            else if (gApp.mouse.click_ended)
                 phase = lab::camera::InteractionPhase::Finish;
 
             ImGui::CaptureMouseFromApp(true);
@@ -899,7 +731,7 @@ void run_application_logic()
                 // through the lens mode
                 gApp.camera.constrained_ttl_interaction(
                     tok,
-                    phase, navigator_panel.camera_interaction_mode,
+                    phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point);
             }
@@ -911,12 +743,12 @@ void run_application_logic()
                 // virtual joystick mode
                 gApp.camera.ttl_interaction(
                     tok,
-                    phase, navigator_panel.camera_interaction_mode,
+                    phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y });
             }
             gApp.camera.end_interaction(tok);
 
-            if (mouse.click_ended)
+            if (gApp.mouse.click_ended)
             {
                 gApp.ui_state = UIStateMachine::None;
                 sapp_lock_mouse(false);
@@ -941,12 +773,6 @@ void imgui_callback_handler(const sapp_event* event)
 
 sapp_desc sokol_main(int argc, char* argv[]) 
 {
-    std::string app_path(argv[0]);
-    size_t index = app_path.rfind('/');
-    if (index == std::string::npos)
-        index = app_path.rfind('\\');
-    gApp.g_app_path = app_path.substr(0, index);
-
     sapp_desc desc = { };
     desc.init_cb = initialize_graphics;
     desc.frame_cb = run_application_logic;

@@ -123,6 +123,8 @@ set(NAVIGATOR_SRC
     src/gizmo.c
     ../../LabCamera.h
     ../../LabCamera.cpp
+    ../../LabCameraImgui.h
+    ../../LabCameraImgui.cpp
     src/main.cpp
     src/gizmo.glsl
 )
