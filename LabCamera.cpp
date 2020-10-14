@@ -35,13 +35,15 @@ namespace lab {
         constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
+        float length(const quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
+        quatf normalize(const quatf& a) { float l = 1.f / length(a); return { a.x * l, a.y * l, a.z * l, a.w * l }; }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
         m44f rotz(float r)
         {
             float c = cosf(r);
             float s = sinf(r);
-            return {  c,-s, 0, 0,
+            return { c,-s, 0, 0,
                       s, c, 0, 0,
                       0, 0, 1, 0,
                       0, 0, 0, 1 };
@@ -58,14 +60,76 @@ namespace lab {
             return Result;
         }
 
-        inline v3f euler_from_quat(quatf q)
+        inline v3f euler_from_quat(const quatf& q)
         {
-            v3f rpy;
+            v3f ypr;
             const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
-            rpy.x = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
-            rpy.y = float(-asin(2. * q1 * q3 - 2. * q0 * q2));
-            rpy.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
-            return rpy;
+            ypr.x = float(asin(2. * q1 * q3 - 2. * q0 * q2));
+            ypr.y = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
+            ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
+            return ypr;
+        }
+
+        // swing twist decomposition.
+        // cf. https://stackoverflow.com/questions/3684269/component-of-a-quaternion-rotation-around-an-axis/4341489
+        // assumes dir is normailzed
+        inline float angle_about_dir(const quatf& q, const v3f& dir)
+        {
+            v3f axis = { q.x, q.y, q.z };
+            float dot_product = dot(dir, axis);
+            v3f projection = mul(dir, dot_product);
+            quatf twist = normalize(quatf{ projection.x, projection.y, projection.z, q.w });
+
+            if (dot_product < 0.0) {
+                // Ensure `twist` points towards `direction`
+                // (if calculating the new axis, then all of twist needs negating)
+                twist.w = -twist.w;
+                // Rotation angle `twist.angle()` is now reliable
+            }
+            return 2.f * acosf(twist.w); // if axis and angle is being computed, more work is necessary: https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
+        }
+
+        inline quatf rotation_about_dir(const quatf& q, const v3f& dir)
+        {
+            v3f axis = { q.x, q.y, q.z };
+            float dot_product = dot(dir, axis);
+            v3f projection = mul(dir, dot_product);
+            quatf twist = normalize(quatf{ projection.x, projection.y, projection.z, q.w });
+
+            if (dot_product < 0.0) {
+                // Ensure `twist` points towards `direction`
+                twist = mul(twist, -1.f);
+                // Rotation angle `twist.angle()` is now reliable
+            }
+            return twist;
+        }
+
+        // returns a ypr vector consistent with the ypr being used throughout this API
+        // ypr is distinct from an Euler angle in that it is the specific pair of angles
+        // of azimuth and declination, as opposed to an arbitrary but otherwise correct
+        // Euler angle tuple.
+        inline v3f ypr_from_quat(const quatf& q)
+        {
+            quatf yaw_rot = rotation_about_dir(q, v3f{ 0, 1, 0 });
+            quatf pitch_rot = rotation_about_dir(q, v3f{ 1, 0, 0 });
+
+            // get local roll about the composed yaw an pitch
+            //quatf yaw_pitch = mul(yaw_rot, pitch_rot);
+            //float n = 1.f / sqrtf(1.f - yaw_pitch.w * yaw_pitch.w);
+            //quatf roll_rot = rotation_about_dir(q, v3f{ yaw_pitch.x * n, yaw_pitch.y * n, yaw_pitch.z * n });
+            v3f ypr = {
+                2.f * acosf(yaw_rot.w),
+                2.f * acosf(pitch_rot.w),
+                0 //2.f * acosf(roll_rot.w)
+            };
+
+            ypr.x = 2.f * pi - ypr.x;
+
+            if (ypr.y > pi)
+                ypr.y = 2.f * pi - ypr.y;
+            else
+                ypr.y *= -1.f;
+            return ypr;
         }
 
         float distance_point_to_plane(v3f const& a, v3f const& point, v3f const& normal)
@@ -277,6 +341,34 @@ namespace lab {
             return m;
         }
 
+        m44f rotation_quat(quatf const& v)
+        {
+            v3f xaxis = {
+                    1 - 2 * (v.y * v.y + v.z * v.z),
+                    2 * (v.x * v.y + v.z * v.w),
+                    2 * (v.z * v.x - v.y * v.w),
+            };
+            v3f yaxis = {
+                2 * (v.x * v.y - v.z * v.w),
+                1 - 2 * (v.z * v.z + v.x * v.x),
+                2 * (v.y * v.z + v.x * v.w),
+            };
+            v3f zaxis = {
+                2 * (v.z * v.x + v.y * v.w),
+                2 * (v.y * v.z - v.x * v.w),
+                1 - 2 * (v.y * v.y + v.x * v.x),
+            };
+
+            return {
+                v4f{ xaxis.x, xaxis.y, xaxis.z, 0.f },
+                v4f{ yaxis.x, yaxis.y, yaxis.z, 0.f },
+                v4f{ zaxis.x, zaxis.y, zaxis.z, 0.f },
+                v4f{ 0.f, 0.f, 0.f, 1.f } };
+        }
+
+
+#if 0
+
         m44f rotation_xyz(v3f e)
         {
             float cx = cosf(-e.y);
@@ -304,42 +396,42 @@ namespace lab {
             m[2].y =  cx * sy * sz + sx * cz;
             m[2].z =  cx * cy;
             m[2].w = 0;
-            
-/*
-            m[0].x =  cx * cz;
-            m[0].y =  cx * sz;
-            m[0].z = -sx;
-            m[0].w = 0;
-
-            m[1].x = sx * sy * cz + cy * -sz;
-            m[1].y = sx * sy * sz + cy *  cz;
-            m[1].z = cx   *  sy;
-            m[1].w = 0;
-
-            m[2].x = sx * cy * cz + sy *  sz;
-            m[2].y = sx * cy * sz + sy * -cz;
-            m[2].z =  cx  *  cy;
-            m[2].w = 0;
-//
-            // xyz
-            m[0].x =  cy * cz;
-            m[0].y = -cy * sz;
-            m[0].z =  sy;
-            m[0].w = 0;
-
-            m[1].x =  sx * sy * cz + cy * sz;
-            m[1].y = -sx * sy * sz + cx   * cz;
-            m[1].z = -sx * cy;
-            m[1].w = 0;
-
-            m[2].x = -cx * sy * cz + sx * sz;
-            m[2].y =  cx * sy * sz + sx * cz;
-            m[2].z =  cx * cy;
-            m[2].w = 0;
-            */
             m[3] = { 0,0,0,1 };
             return m;
         }
+
+#endif
+
+        m44f rotation_xyz(v3f e)
+        {
+            float cos_yaw = cosf(e.x);
+            float cos_pitch = cosf(e.y);
+            float cos_roll = cosf(e.z);
+
+            float sin_yaw = sinf(e.x);
+            float sin_pitch = sinf(e.y);
+            float sin_roll = sinf(e.z);
+
+            m44f m;
+            m[0].x = cos_roll * cos_yaw;
+            m[0].y = sin_roll * cos_yaw;
+            m[0].z = -sin_yaw;
+            m[0].w = 0;
+
+            m[1].x = -sin_roll * cos_pitch + cos_roll * sin_yaw * sin_pitch;
+            m[1].y = cos_roll * cos_pitch + sin_roll * sin_yaw * sin_pitch;
+            m[1].z = cos_yaw * sin_pitch;
+            m[1].w = 0;
+
+            m[2].x = sin_roll * sin_pitch + cos_roll * sin_yaw * cos_pitch;
+            m[2].y = -cos_roll * sin_pitch + sin_roll * sin_yaw * cos_pitch;
+            m[2].z = cos_yaw * cos_pitch;
+            m[2].w = 0;
+
+            m[3] = { 0,0,0,1 };
+            return m;
+        }
+
 
         static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
             lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
@@ -727,7 +819,7 @@ namespace lab {
 
             p1 = mul(p1, 1.f / p1.w);
             p0 = mul(p0, 1.f / p0.w);
-            return{ camera_position, normalize({ p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+            return{ camera_position, normalize(v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
         Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
@@ -792,6 +884,15 @@ namespace lab {
         //
         void Camera::joystick_interaction(InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in)
         {
+            if (0)
+            {
+                m44f m = mount.view_transform();
+                quatf q = quat_from_matrix(m);
+                v3f e2 = ypr_from_quat(q);
+                printf("%f %f %f\n", e2.x, e2.y, e2.z);
+            }
+
+
             if (phase == InteractionPhase::Start)
             {
                 _ts->initial_inv_projection = inv_view_projection(1.f);
