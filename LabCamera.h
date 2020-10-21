@@ -70,6 +70,20 @@ namespace camera {
         return r.value * 57.2957795131f;
     }
 
+    typedef int InteractionToken;
+
+
+    enum class InteractionMode
+    {
+        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal
+    };
+
+    enum class InteractionPhase
+    {
+        None = 0, Restart, Start, Continue, Finish
+    };
+
+
     //-------------------------------------------------------------------------
     // Mount is a nodal mount, centered on the camera's sensor
     // The mount's transform is left handed, y is up, -z is forward
@@ -77,10 +91,10 @@ namespace camera {
     class Mount
     {
         m44f _view_transform;
-        float _roll{ 0 };
 
     public:
         Mount();
+        ~Mount();
 
         // matrix
         m44f view_transform() const;
@@ -236,29 +250,14 @@ namespace camera {
 
      */
 
-    enum class InteractionMode
-    {
-        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal
-    };
-
-    enum class InteractionPhase
-    {
-        None = 0, Restart, Start, Continue, Finish
-    };
-
     struct HitResult
     {
         bool hit;
         v3f point;
     };
 
-    struct TransientState;
-    typedef int InteractionToken;
-
     class Camera
     {
-        TransientState* _ts;
-
     public:
         Mount  mount;
         Sensor sensor;
@@ -275,54 +274,6 @@ namespace camera {
         radians     vertical_FOV() const;
         radians     horizontal_FOV() const;
 
-        // begin_interaction
-        //
-        // returns an InteractionToken. In the future this will be in aid of 
-        // multitouch, multidevice interactions on the same camera
-        //
-        InteractionToken begin_interaction(v2f const& viewport_size);
-        void end_interaction(InteractionToken);
-
-        // cameraRig_interact
-        //
-        // delta is the 2d motion of a mouse or gesture in the screen plane, or
-        // the absolute value of an analog joystick position.
-        //
-        // This interaction mode is intended for joystick like behaviors that have an
-        // explicit neutral zero point. For example, delta could be computed as
-        // delta = mousePos - mouseClickPos;
-        //
-        void joystick_interaction(InteractionToken, InteractionPhase, InteractionMode, v2f const& delta);
-
-        // This mode is intended for through the lens screen space manipulation. 
-        // Dolly: the camera will be moved in the view plane to keep initial under current
-        // in the horizontal direction, and forward and backward motion will be under a 
-        // heuristic
-        //
-        // Crane: the camera will be moved in the view plane to keep initial under current
-        // 
-        // TurnTableOrbit: roughly screen relative tumble motions
-        //
-        // Gimbal: The camera will be panned and tilted to keep initial under current
-
-        void ttl_interaction(InteractionToken, InteractionPhase, InteractionMode, v2f const& current);
-
-        // through the lens, with a point in world space to keep under the mouse.
-        // dolly: hit_point will be constrained to stay under the mouse
-        // crane: same
-        // gimbal: same
-        // turntable orbit, roughly screen relative tumble motions
-
-        void constrained_ttl_interaction(
-            InteractionToken, InteractionPhase, InteractionMode,
-            v2f const& current,
-            v3f const& hit_point);
-
-        void set_look_at_constraint(v3f const& pos, v3f const& at, v3f& up);
-
-        v3f position_constraint() const;
-        v3f world_up_constraint() const;
-        v3f focus_constraint() const;
 
         // move the camera along the view vector such that both bounds are visible
         void frame(v3f const& bound1, v3f const& bound2);
@@ -342,6 +293,83 @@ namespace camera {
 
         m44f view_projection(float aspect = 1.f) const;
         m44f inv_view_projection(float aspect = 1.f) const;
+    };
+
+
+
+    class PanTiltController
+    {
+        // constraints
+        v3f _position{ 0, 0.2f, -6 };
+        v3f _world_up{ 0, 1, 0 };
+        v3f _focus_point{ 0, 0, -0 };
+
+        // working state
+        v2f _viewport_size = { 0, 0 };
+
+        v2f _init_mouse{ 0,0 };
+        v2f _prev_mouse{ 0,0 };
+
+        float _initial_focus_distance = 10.f;
+        v3f _initial_position_constraint = { 0,0,0 };
+        v3f _initial_focus_point = { 0, 0, -10 };
+        m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+
+    public:
+
+        PanTiltController() = default;
+
+        v3f position_constraint() const;
+        v3f world_up_constraint() const;
+        v3f focus_constraint() const;
+        void set_focus_constraint(v3f const& pos);
+        void set_world_up_constraint(v3f const& up);
+        void set_position_constraint(v3f const& pos);
+
+        // begin_interaction
+        //
+        // returns an InteractionToken. In the future this will be in aid of 
+        // multitouch, multidevice interactions on the same camera
+        //
+        InteractionToken begin_interaction(v2f const& viewport_size);
+
+        void end_interaction(InteractionToken);
+
+        // cameraRig_interact
+        //
+        // delta is the 2d motion of a mouse or gesture in the screen plane, or
+        // the absolute value of an analog joystick position.
+        //
+        // This interaction mode is intended for joystick like behaviors that have an
+        // explicit neutral zero point. For example, delta could be computed as
+        // delta = mousePos - mouseClickPos;
+        //
+        void joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in);
+
+        // This mode is intended for through the lens screen space manipulation. 
+        // Dolly: the camera will be moved in the view plane to keep initial under current
+        // in the horizontal direction, and forward and backward motion will be under a 
+        // heuristic
+        //
+        // Crane: the camera will be moved in the view plane to keep initial under current
+        // 
+        // TurnTableOrbit: roughly screen relative tumble motions
+        //
+        // Gimbal: The camera will be panned and tilted to keep initial under current
+        //
+        void ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current);
+
+        // through the lens, with a point in world space to keep under the mouse.
+        // dolly: hit_point will be constrained to stay under the mouse
+        // crane: same
+        // gimbal: same
+        // turntable orbit, roughly screen relative tumble motions
+        //
+        void constrained_ttl_interaction(Camera& camera, InteractionToken tok,
+            InteractionPhase phase, InteractionMode mode,
+            v2f const& current,
+            v3f const& initial_hit_point);
+
     };
 
 

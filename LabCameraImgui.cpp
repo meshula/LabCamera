@@ -31,6 +31,11 @@ struct LCNav_MouseState
 
 struct LCNav_Panel : public LCNav_PanelState
 {
+    LCNav_Panel()
+    {
+        home();
+    }
+
     LCNav_MouseState mouse_state;
     const float size_x = 256;
     const float size_y = 160;
@@ -39,6 +44,13 @@ struct LCNav_Panel : public LCNav_PanelState
     float trackball_size_h;
     float roll = 0;
     bool trackball_interacting = false;
+
+    void home()
+    {
+        auto up = pan_tilt.world_up_constraint();
+        pan_tilt.set_position_constraint({ 0.f, 0.2f, nav_radius });
+        pan_tilt.set_focus_constraint({ 0,0,0 });
+    }
 };
 
 LCNav_PanelState* create_navigator_panel()
@@ -176,9 +188,13 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
     ImGui::NextColumn();
 
     if (ImGui::Button("Home###NavHome")) {
-        auto up = camera.world_up_constraint();
-        camera.set_look_at_constraint({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0,0,0 }, up);
-        result = LCNav_ModeChange;
+        auto up = navigator_panel->pan_tilt.world_up_constraint();
+        navigator_panel->pan_tilt.set_position_constraint({ 0.f, 0.2f, navigator_panel->nav_radius });
+        navigator_panel->pan_tilt.set_focus_constraint({ 0,0,0 });
+        camera.mount.look_at(navigator_panel->pan_tilt.position_constraint(),
+            navigator_panel->pan_tilt.focus_constraint(),
+            navigator_panel->pan_tilt.world_up_constraint());
+        result = LCNav_None;
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
         navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Crane;
@@ -240,9 +256,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
             float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
             float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
 
-            lab::camera::InteractionToken tok = camera.begin_interaction(viewport);
-            camera.joystick_interaction(tok, phase, navigator_panel->camera_interaction_mode, { dx, dy });
-            camera.end_interaction(tok);
+            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
+            navigator_panel->pan_tilt.joystick_interaction(camera, tok, phase, navigator_panel->camera_interaction_mode, { dx, dy });
+            navigator_panel->pan_tilt.end_interaction(tok);
         }
         break;
 

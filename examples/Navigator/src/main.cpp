@@ -106,6 +106,8 @@ void mouse_state_update(MouseState* ms,
     ms->mousex = mousex;
     ms->mousey = mousey;
 
+    printf("%f %f\n", mousex, mousey);
+
     if (ms->click_initiated)
     {
         ms->initial_mousex = mousex;
@@ -123,6 +125,7 @@ struct AppState
     // camera and application state
     lab::camera::Camera camera;
     lab::camera::v3f initial_hit_point;
+    lab::camera::PanTiltController main_pan_tilt;
     UIStateMachine ui_state = UIStateMachine::UI;
     uint64_t last_time = 0;
     MouseState mouse;
@@ -416,12 +419,7 @@ void run_application_logic()
     const float h = (float)sapp_height();
     const double delta_time = std::max(stm_sec(stm_laptime(&gApp.last_time)), 1./60.);
 
-    static bool once = true;
-    if (once) {
-        auto up = gApp.camera.world_up_constraint();
-        gApp.camera.set_look_at_constraint({ 0.f, 0.2f, gApp.navigator_panel->nav_radius }, { 0,0,0 }, up);
-        once = false;
-    }
+    lab::camera::PanTiltController& ptc = gApp.main_pan_tilt;
 
     float fovy = lab::camera::degrees_from_radians(gApp.camera.vertical_FOV());
     gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
@@ -431,7 +429,7 @@ void run_application_logic()
     lab::camera::m44f view_t = gApp.camera.mount.view_transform_inv();
     lab::camera::m44f view_proj = gApp.camera.view_projection(1.f);
 
-    lab::camera::v3f pos = gApp.camera.position_constraint();
+    lab::camera::v3f pos = gApp.camera.mount.position();
 
     sg_begin_default_pass(&gApp.pass_action, window_width, window_height);
 
@@ -449,7 +447,7 @@ void run_application_logic()
         // display look at
         if (gApp.show_look_at)
         {
-            lab::camera::v3f lookat = gApp.camera.focus_constraint();
+            lab::camera::v3f lookat = gApp.navigator_panel->pan_tilt.focus_constraint();
             m.w = { lookat.x, lookat.y, lookat.z, 1.f };
             draw_jack(1, m);
         }
@@ -465,6 +463,7 @@ void run_application_logic()
                 { (float)window_width, (float)window_height },
                 *(lab::camera::v3f*)(&gApp.gizmo_transform.w),
                 *(lab::camera::v3f*)(&gApp.gizmo_transform.y));
+
             if (hit.hit)
             {
                 m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
@@ -475,7 +474,7 @@ void run_application_logic()
         // intersection of mouse ray with image plane at 1 unit distance
         if (gApp.show_view_plane_intersect)
         {
-            lab::camera::v3f cam_pos = gApp.camera.position_constraint();
+            lab::camera::v3f cam_pos = gApp.camera.mount.position();
             lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
             cam_nrm.x *= -1.f;
             cam_nrm.y *= -1.f;
@@ -601,7 +600,7 @@ void run_application_logic()
 
     // show where the 2d projected 3d projected 2d hit point is
     {
-        lab::camera::v3f cam_pos = gApp.camera.position_constraint();
+        lab::camera::v3f cam_pos = gApp.camera.mount.position();
         lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
         cam_nrm.x *= -1.f;
         cam_nrm.y *= -1.f;
@@ -654,6 +653,11 @@ void run_application_logic()
     {
         gApp.ui_state = UIStateMachine::None;
         run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
+
+        // the navigator ran, so clone the constraints into the main panel
+        gApp.main_pan_tilt.set_focus_constraint(gApp.navigator_panel->pan_tilt.focus_constraint());
+        gApp.main_pan_tilt.set_position_constraint(gApp.navigator_panel->pan_tilt.position_constraint());
+        gApp.main_pan_tilt.set_world_up_constraint(gApp.navigator_panel->pan_tilt.world_up_constraint());
     }
     else if (mouse_in_viewport)
     {
@@ -689,7 +693,7 @@ void run_application_logic()
                     }
                     else
                     {
-                        lab::camera::v3f cam_pos = gApp.camera.position_constraint();
+                        lab::camera::v3f cam_pos = gApp.camera.mount.position();
                         lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
                         cam_nrm.x *= -1.f;
                         cam_nrm.y *= -1.f;
@@ -722,14 +726,15 @@ void run_application_logic()
 
             ImGui::CaptureMouseFromApp(true);
 
-            lab::camera::InteractionToken tok = gApp.camera.begin_interaction(viewport);
+            lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
             if (gApp.ui_state == UIStateMachine::TTLCamera)
             {
                 ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
                 ImGui::TextUnformatted("TTL+");
 
                 // through the lens mode
-                gApp.camera.constrained_ttl_interaction(
+                ptc.constrained_ttl_interaction(
+                    gApp.camera,
                     tok,
                     phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
@@ -741,12 +746,17 @@ void run_application_logic()
                 ImGui::TextUnformatted("TTL");
 
                 // virtual joystick mode
-                gApp.camera.ttl_interaction(
+                ptc.ttl_interaction(
+                    gApp.camera,
                     tok,
                     phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y });
             }
-            gApp.camera.end_interaction(tok);
+            ptc.end_interaction(tok);
+            gApp.navigator_panel->pan_tilt.set_focus_constraint(gApp.main_pan_tilt.focus_constraint());
+            gApp.navigator_panel->pan_tilt.set_position_constraint(gApp.main_pan_tilt.position_constraint());
+            gApp.navigator_panel->pan_tilt.set_world_up_constraint(gApp.main_pan_tilt.world_up_constraint());
+
 
             if (gApp.mouse.click_ended)
             {

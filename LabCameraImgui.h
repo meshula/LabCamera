@@ -27,6 +27,7 @@ protected:
 
 public:
     float nav_radius = 6;
+    lab::camera::PanTiltController pan_tilt;
     LabCameraNavigatorPanelInteraction state = LCNav_None;
     lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
 };
