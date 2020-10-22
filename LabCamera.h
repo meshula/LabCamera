@@ -300,9 +300,9 @@ namespace camera {
     class PanTiltController
     {
         // constraints
-        v3f _position{ 0, 0.2f, -6 };
+        v3f _position{ 0, 0.2f, 5 };
         v3f _world_up{ 0, 1, 0 };
-        v3f _focus_point{ 0, 0, -0 };
+        v3f _focus_point{ 0, 0, 0 };
 
         // working state
         v2f _viewport_size = { 0, 0 };
@@ -310,10 +310,10 @@ namespace camera {
         v2f _init_mouse{ 0,0 };
         v2f _prev_mouse{ 0,0 };
 
-        float _initial_focus_distance = 10.f;
-        v3f _initial_position_constraint = { 0,0,0 };
-        v3f _initial_focus_point = { 0, 0, -10 };
-        m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+        float _initial_focus_distance = 5.f;
+        v3f _initial_position_constraint = { 0,0,5 };
+        v3f _initial_focus_point = { 0, 0, 0 };
+        m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
 
     public:
 

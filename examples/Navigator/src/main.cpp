@@ -106,8 +106,6 @@ void mouse_state_update(MouseState* ms,
     ms->mousex = mousex;
     ms->mousey = mousey;
 
-    printf("%f %f\n", mousex, mousey);
-
     if (ms->click_initiated)
     {
         ms->initial_mousex = mousex;

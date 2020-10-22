@@ -784,7 +784,7 @@ namespace lab {
         Mount::Mount()
         : _view_transform(m44f_identity)
         {
-            look_at({ 0, 1, -6 }, { 0,0,0 }, { 0,1,0 });
+            look_at({ 0, 0.2f, 5 }, { 0,0,0 }, { 0,1,0 });
         }
 
         Mount::~Mount()
@@ -878,9 +878,10 @@ namespace lab {
         }
         v3f Mount::position() const {
             m44f m = view_transform();
-            return v3f{ m[3].x,
-                        m[3].y,
-                        m[3].z };
+            v3f p = mul(xyz(m[3]), -1.f);
+            m = inv_rotation_transform();
+            p = mul(m, p);
+            return p;
         }
 
         m44f Mount::view_transform() const 
