@@ -3,6 +3,8 @@
     Demonstrating the use of lab::Camera with ImGui and sokol.
  */
 
+#include "lab_sokol_config.h"
+
 #include "LabCamera.h"
 #include "LabCameraImgui.h"
 

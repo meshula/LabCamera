@@ -78,7 +78,8 @@ else()
         src/sokol.cc)
 endif()
 
-set(SOKOL_HEADERS 
+set(SOKOL_HEADERS
+    src/lab_sokol_config.h
     third/sokol/sokol_app.h
     third/sokol/sokol_args.h
     third/sokol/sokol_audio.h

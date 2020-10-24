@@ -1,5 +1,7 @@
 
 
+#include "lab_sokol_config.h"
+
 #include "imgui.h"
 //#define SOKOL_GLCORE33 --- needs to be defined globally
 
@@ -21,3 +23,10 @@
 
 #ifdef SOKOL_GL_IMPL_INCLUDED
 #endif
+
+#include <stdio.h>
+
+void lab_sokol_log(const char* s)
+{
+    puts(s);
+}
