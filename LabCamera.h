@@ -113,6 +113,7 @@ namespace camera {
         v3f position() const;
 
         // mutation
+        void set_view_transform(m44f const&);
         void set_view_transform_ypr_eye(quatf const& q, v3f const& eye);
         void set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye);
         void set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos);

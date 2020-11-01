@@ -39,14 +39,34 @@ namespace lab {
         quatf normalize(const quatf& a) { float l = 1.f / length(a); return { a.x * l, a.y * l, a.z * l, a.w * l }; }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
+        m44f rotx(float r)
+        {
+            float c = cosf(r);
+            float s = sinf(r);
+            return { 1, 0, 0, 0,
+                     0, c,-s, 0,
+                     0, s, c, 0,
+                     0, 0, 0, 1 };
+        }
+
+        m44f roty(float r)
+        {
+            float c = cosf(r);
+            float s = sinf(r);
+            return { c, 0, s, 0,
+                     0, 1, 0, 0,
+                    -s, 0, c, 0,
+                     0, 0, 0, 1 };
+        }
+
         m44f rotz(float r)
         {
             float c = cosf(r);
             float s = sinf(r);
             return { c,-s, 0, 0,
-                      s, c, 0, 0,
-                      0, 0, 1, 0,
-                      0, 0, 0, 1 };
+                     s, c, 0, 0,
+                     0, 0, 1, 0,
+                     0, 0, 0, 1 };
         }
 
         inline quatf quat_from_axis_angle(v3f v, float a)
@@ -373,11 +393,11 @@ namespace lab {
         {
             float cx = cosf(-e.y);
             float cy = cosf(-e.x);
-            float cz = 1.f; // cosf(e.z);
+            float cz = cosf(e.z);
 
             float sx = sinf(-e.y);
             float sy = sinf(-e.x);
-            float sz = 0.f; //sinf(e.z);
+            float sz = sinf(e.z);
 
             m44f m;
             
@@ -404,28 +424,28 @@ namespace lab {
 
         m44f rotation_xyz(v3f e)
         {
-            float cos_yaw = cosf(e.x);
-            float cos_pitch = cosf(e.y);
-            float cos_roll = cosf(e.z);
+            float cx = cosf(e.x);
+            float cy = cosf(e.y);
+            float cz = cosf(e.z);
 
-            float sin_yaw = sinf(e.x);
-            float sin_pitch = sinf(e.y);
-            float sin_roll = sinf(e.z);
+            float sx = sinf(e.x);
+            float sy = sinf(e.y);
+            float sz = sinf(e.z);
 
             m44f m;
-            m[0].x = cos_roll * cos_yaw;
-            m[0].y = sin_roll * cos_yaw;
-            m[0].z = -sin_yaw;
+            m[0].x = cx * cz;
+            m[0].y = cx * sz;
+            m[0].z = -sx;
             m[0].w = 0;
 
-            m[1].x = -sin_roll * cos_pitch + cos_roll * sin_yaw * sin_pitch;
-            m[1].y = cos_roll * cos_pitch + sin_roll * sin_yaw * sin_pitch;
-            m[1].z = cos_yaw * sin_pitch;
+            m[1].x = sx * sy * cz - cy * sz;
+            m[1].y = sx * sy * sz + cy * cz;
+            m[1].z = cx * sy;
             m[1].w = 0;
 
-            m[2].x = sin_roll * sin_pitch + cos_roll * sin_yaw * cos_pitch;
-            m[2].y = -cos_roll * sin_pitch + sin_roll * sin_yaw * cos_pitch;
-            m[2].z = cos_yaw * cos_pitch;
+            m[2].x = sx * cy * cz - sy * sz;
+            m[2].y = sx * cy * sz - sy * cz;
+            m[2].z = cx * cy;
             m[2].w = 0;
 
             m[3] = { 0,0,0,1 };
@@ -579,6 +599,7 @@ namespace lab {
 
                 v3f start_ypr = camera.mount.ypr();
                 start_ypr.z = 0;
+                v3f orig_fwd = camera.mount.forward();
 
                 // azimuth
                 start_ypr.x += 0.01f * delta.x;
@@ -587,15 +608,23 @@ namespace lab {
                 while (start_ypr.x < 0)
                     start_ypr.x += 2.f * pi;
 
-                start_ypr.y += 0.002f * delta.y;
-                if (start_ypr.y > pi * 0.5f)
+                start_ypr.y += 0.02f * delta.y; // this value has to be great enough to escape the pole threshold.
+                if (start_ypr.y > pi * 0.5f) {
                     start_ypr.y = pi * 0.5f;
+                    if (orig_fwd.z < 0)
+                        start_ypr.y -= 1e-4f; // compensate for rounding error on pi/2 in the negative half space
+                }
                 if (start_ypr.y < -pi * 0.5f)
+                {
                     start_ypr.y = -pi * 0.5f;
+                    if (orig_fwd.z < 0)
+                        start_ypr.y += 1e-4f; // compensate for rounding error on -pi/2 in the negative half space
+                }
 
-                v3f ypr{ start_ypr.x, start_ypr.y, start_ypr.z };
+                m44f rot = lab::camera::rotation_xyz(start_ypr);
 
-                m44f rot = lab::camera::rotation_xyz(ypr);
+                v3f pos_temp = _position;
+
                 if (mode == InteractionMode::TurnTableOrbit)
                 {
                     _position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _focus_point;
@@ -604,9 +633,15 @@ namespace lab {
                 {
                     _focus_point = _position - mul(rot, v3f{ 0, 0, distance_to_focus });
                 }
-                camera.mount.set_view_transform_ypr_eye(ypr, _position);
+
+                rot = transpose(rot);
+                rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
+                rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
+                rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
+                camera.mount.set_view_transform(rot);
                 break;
             }
+
             default:
             {
                 // a tumble that moves the focus_point
@@ -811,6 +846,11 @@ namespace lab {
             return transpose(rotation_transform());
         }
 
+        void Mount::set_view_transform(m44f const& m)
+        {
+            _view_transform = m;
+        }
+
         void Mount::set_view_transform_ypr_eye(quatf const& v, v3f const& eye)
         {
             v3f xaxis = {
@@ -839,7 +879,9 @@ namespace lab {
         void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)
         {
             v3f rot = { ypr.x, ypr.y, ypr.z };
-            _view_transform = transpose(lab::camera::rotation_xyz(rot));
+            //_view_transform = rotx(rot.y);// roty(rot.x);// transpose(lab::camera::rotation_xyz(rot));
+            _view_transform = mul(rotx(rot.y), roty(rot.x));
+
             m44f const& m = _view_transform;
             _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
             _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
@@ -901,35 +943,83 @@ namespace lab {
 
         v3f Mount::ypr() const
         {
-            m44f t = rotation_transform();
             v3f ypr;
 
+            // pitch. same algo as Imath
+            m44f m = rotation_transform();
+            float x = atan2f(m[2].y, m[2].z);
+            float x1 = x;
+            if (x1 > 0.5f * pi)
+                x1 -= pi;
+            else if (x1 < -0.5f * pi)
+                x1 += pi;
+            ypr.y = x1;
+
             v3f fwd = forward();
-            fwd.y = 0;
-            fwd = normalize(fwd);
+
+            bool flip = false;
+            flip = fwd.z < -0.0001f;
+
+            // if nearly vertical deduce yaw from the camera's right axis.
+            //v3f rt = right();
+            //float d = dot(rt, v3f{ 1,0,0 });
+            //ypr.x = acosf(d); // this works in one quadrant only
+            m44f r = rotx(-ypr.y); // remove the pitch
+            m = mul(r, m);
+
+            if (flip)
+            {
+                // swing it around into the positive half space so the math works
+                r = roty(pi);
+                m = mul(r, m);
+            }
+
+            fwd = normalize(
+                    v3f{ m[0].z,
+                         m[1].z,
+                         m[2].z });
 
             // yaw
+            fwd = normalize(fwd);
             ypr.x = atan2f(fwd.x, fwd.z);
             while (ypr.x < 0)
                 ypr.x += 2.f * pi;
             while (ypr.x > 2.f * pi)
                 ypr.x -= 2.f * pi;
 
+            if (flip)
+            {
+                ypr.x += pi;
+            }
+
+#if 0
             // pitch
-            ypr.y = atan2(t[2].y, t[2].z);
-            if (ypr.y > 0.5f * pi)
-            {
-                ypr.y = -pi + ypr.y;
-            }
-            else if (ypr.y < -0.5f * pi)
-            {
-                ypr.y = ypr.y + pi;
-            }
+            m44f rt = rotation_transform();
+            ypr.y = atan2(rt[2].y, rt[2].z) + 0.5f * pi;
+            m44f unrotate = transpose(roty(ypr.x));
+            rt = mul(rt, unrotate);
+            fwd = normalize(v3f { rt[0].z, rt[1].z, rt[2].z });
+            float d1 = acos(dot({ 0, 0, 1 }, fwd));
+            float d2 = asin(dot({ 0, 0, 1 }, fwd));
+            float d3 = 0;// dot({ 1, 0, 0 }, fwd);
+            printf("(%f, %f, %f) - truth (%f, %f)\n", d1, d2, d3, ypr.x, ypr.y);
+
+            float testy = ypr.y;
+            while (ypr.y < 0)
+                ypr.y += 2.f * pi;
+            while (ypr.y > 2.f * pi)
+                ypr.y -= 2.f * pi;
+            ypr.y -= 0.5f * pi;
+#endif
 
 #if 0
             // roll
             // @TODO Still haven't deduced a way to compute roll
             // that gives an intuitive result
+            //
+            // plan: construct a yaw pitch roll, invert it, multiply the forward
+            // vector, take the arccos of the y component to deduce roll
+            //
             quatf q = rotation();
             float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
             float cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
