@@ -39,6 +39,114 @@ namespace lab {
         quatf normalize(const quatf& a) { float l = 1.f / length(a); return { a.x * l, a.y * l, a.z * l, a.w * l }; }
         constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
 
+
+        //---- matrix ops
+
+        // adjugate from linalg
+        m44f adjugate(const m44f& a)
+        {
+            return m44f{
+                v4f{ a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w,
+                     a.x.y * a.w.z * a.z.w + a.z.y * a.x.z * a.w.w + a.w.y * a.z.z * a.x.w - a.w.y * a.x.z * a.z.w - a.z.y * a.w.z * a.x.w - a.x.y * a.z.z * a.w.w,
+                     a.x.y * a.y.z * a.w.w + a.w.y * a.x.z * a.y.w + a.y.y * a.w.z * a.x.w - a.x.y * a.w.z * a.y.w - a.y.y * a.x.z * a.w.w - a.w.y * a.y.z * a.x.w,
+                     a.x.y * a.z.z * a.y.w + a.y.y * a.x.z * a.z.w + a.z.y * a.y.z * a.x.w - a.x.y * a.y.z * a.z.w - a.z.y * a.x.z * a.y.w - a.y.y * a.z.z * a.x.w },
+                v4f{ a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x,
+                     a.x.z * a.z.w * a.w.x + a.w.z * a.x.w * a.z.x + a.z.z * a.w.w * a.x.x - a.x.z * a.w.w * a.z.x - a.z.z * a.x.w * a.w.x - a.w.z * a.z.w * a.x.x,
+                     a.x.z * a.w.w * a.y.x + a.y.z * a.x.w * a.w.x + a.w.z * a.y.w * a.x.x - a.x.z * a.y.w * a.w.x - a.w.z * a.x.w * a.y.x - a.y.z * a.w.w * a.x.x,
+                     a.x.z * a.y.w * a.z.x + a.z.z * a.x.w * a.y.x + a.y.z * a.z.w * a.x.x - a.x.z * a.z.w * a.y.x - a.y.z * a.x.w * a.z.x - a.z.z * a.y.w * a.x.x },
+                v4f{ a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y,
+                     a.x.w * a.w.x * a.z.y + a.z.w * a.x.x * a.w.y + a.w.w * a.z.x * a.x.y - a.x.w * a.z.x * a.w.y - a.w.w * a.x.x * a.z.y - a.z.w * a.w.x * a.x.y,
+                     a.x.w * a.y.x * a.w.y + a.w.w * a.x.x * a.y.y + a.y.w * a.w.x * a.x.y - a.x.w * a.w.x * a.y.y - a.y.w * a.x.x * a.w.y - a.w.w * a.y.x * a.x.y,
+                     a.x.w * a.z.x * a.y.y + a.y.w * a.x.x * a.z.y + a.z.w * a.y.x * a.x.y - a.x.w * a.y.x * a.z.y - a.z.w * a.x.x * a.y.y - a.y.w * a.z.x * a.x.y },
+                v4f{ a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z,
+                     a.x.x * a.z.y * a.w.z + a.w.x * a.x.y * a.z.z + a.z.x * a.w.y * a.x.z - a.x.x * a.w.y * a.z.z - a.z.x * a.x.y * a.w.z - a.w.x * a.z.y * a.x.z,
+                     a.x.x * a.w.y * a.y.z + a.y.x * a.x.y * a.w.z + a.w.x * a.y.y * a.x.z - a.x.x * a.y.y * a.w.z - a.w.x * a.x.y * a.y.z - a.y.x * a.w.y * a.x.z,
+                     a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
+        }
+
+        float determinant(m44f const& a)
+        {
+            return a.x.x * (a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w)
+                + a.x.y * (a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x)
+                + a.x.z * (a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y)
+                + a.x.w * (a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z);
+        }
+
+        m44f transpose(m44f const& a)
+        {
+            return {
+                a.x.x, a.y.x, a.z.x, a.w.x,
+                a.x.y, a.y.y, a.z.y, a.w.y,
+                a.x.z, a.y.z, a.z.z, a.w.z,
+                a.x.w, a.y.w, a.z.w, a.w.w
+            };
+        }
+
+        m44f invert(m44f const& mat)
+        {
+            m44f m = adjugate(mat);
+            float oo_det = 1.f / determinant(mat);
+            float* ptr = &m.x.x;
+            for (int i = 0; i < 16; i++)
+                ptr[i] *= oo_det;
+            return m;
+        }
+
+        m44f rotation_quat(quatf const& v)
+        {
+            v3f xaxis = {
+                    1 - 2 * (v.y * v.y + v.z * v.z),
+                    2 * (v.x * v.y + v.z * v.w),
+                    2 * (v.z * v.x - v.y * v.w),
+            };
+            v3f yaxis = {
+                2 * (v.x * v.y - v.z * v.w),
+                1 - 2 * (v.z * v.z + v.x * v.x),
+                2 * (v.y * v.z + v.x * v.w),
+            };
+            v3f zaxis = {
+                2 * (v.z * v.x + v.y * v.w),
+                2 * (v.y * v.z - v.x * v.w),
+                1 - 2 * (v.y * v.y + v.x * v.x),
+            };
+
+            return {
+                v4f{ xaxis.x, xaxis.y, xaxis.z, 0.f },
+                v4f{ yaxis.x, yaxis.y, yaxis.z, 0.f },
+                v4f{ zaxis.x, zaxis.y, zaxis.z, 0.f },
+                v4f{ 0.f, 0.f, 0.f, 1.f } };
+        }
+
+        m44f rotation_xyz(v3f e)
+        {
+            float cx = cosf(e.x);
+            float cy = cosf(e.y);
+            float cz = cosf(e.z);
+
+            float sx = sinf(e.x);
+            float sy = sinf(e.y);
+            float sz = sinf(e.z);
+
+            m44f m;
+            m[0].x = cx * cz;
+            m[0].y = cx * sz;
+            m[0].z = -sx;
+            m[0].w = 0;
+
+            m[1].x = sx * sy * cz - cy * sz;
+            m[1].y = sx * sy * sz + cy * cz;
+            m[1].z = cx * sy;
+            m[1].w = 0;
+
+            m[2].x = sx * cy * cz - sy * sz;
+            m[2].y = sx * cy * sz - sy * cz;
+            m[2].z = cx * cy;
+            m[2].w = 0;
+
+            m[3] = { 0,0,0,1 };
+            return m;
+        }
+
         m44f rotx(float r)
         {
             float c = cosf(r);
@@ -68,6 +176,61 @@ namespace lab {
                      0, 0, 1, 0,
                      0, 0, 0, 1 };
         }
+
+        m44f mat_from_axis_angle(const v3f& axis, float angle)
+        {
+            float length2 = dot(axis, axis);
+            if (length2 < FLT_EPSILON)
+                return m44f_identity;
+
+            v3f n = normalize(axis);
+            float s = sinf(angle);
+            float c = cosf(angle);
+            float k = 1.f - c;
+
+            float xx = n.x * n.x * k + c;
+            float yy = n.y * n.y * k + c;
+            float zz = n.z * n.z * k + c;
+            float xy = n.x * n.y * k;
+            float yz = n.y * n.z * k;
+            float zx = n.z * n.x * k;
+            float xs = n.x * s;
+            float ys = n.y * s;
+            float zs = n.z * s;
+
+            m44f m;
+            m.x.x = xx;
+            m.x.y = xy + zs;
+            m.x.z = zx - ys;
+            m.x.w = 0.f;
+            m.y.x = xy - zs;
+            m.y.y = yy;
+            m.y.z = yz + xs;
+            m.y.w = 0.f;
+            m.z.x = zx + ys;
+            m.z.y = yz - xs;
+            m.z.z = zz;
+            m.z.w = 0.f;
+            m.w.x = 0.f;
+            m.w.y = 0.f;
+            m.w.z = 0.f;
+            m.w.w = 1.f;
+
+            return m;
+        }
+
+        m44f make_lookat_transform(const v3f& eye, const v3f& target, const v3f& up)
+        {
+            v3f zaxis = normalize(eye - target);
+            v3f xaxis = normalize(cross(up, zaxis));
+            v3f yaxis = cross(zaxis, xaxis);
+            return m44f{ v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
+                         v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
+                         v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
+                         v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+        }
+
+        //---- quat ops
 
         inline quatf quat_from_axis_angle(v3f v, float a)
         {
@@ -151,23 +314,13 @@ namespace lab {
                 ypr.y *= -1.f;
             return ypr;
         }
-
-        float distance_point_to_plane(v3f const& a, v3f const& point, v3f const& normal)
-        {
-            v3f d = point - a;
-            return dot(d, normal);
-        }
         
-        // adapted from Imath
-
-
         inline quatf quat_set_rotation_internal(v3f const& f0, v3f const& t0)
         {
             v3f h0 = normalize(f0 + t0);
             v3f v = cross(f0, h0);
             return { v.x, v.y, v.z, dot(f0, h0) };
         }
-
 
         inline quatf quat_from_vector_to_vector(v3f const& from, v3f const& to)
         {
@@ -229,7 +382,6 @@ namespace lab {
             quatf q = quat_set_rotation_internal(f0, h0);
             return mul(q, quat_set_rotation_internal(h0, t0));
         }
-
 
         inline v3f quat_rotate_vector(quatf q, const v3f& v)
         {
@@ -300,158 +452,14 @@ namespace lab {
             return quat;
         }
 
-        inline m44f make_lookat_transform(const v3f& eye, const v3f& target, const v3f& up)
+        quatf invert(const quatf& q)
         {
-            v3f zaxis = normalize(eye - target);
-            v3f xaxis = normalize(cross(up, zaxis));
-            v3f yaxis = cross(zaxis, xaxis);
-            return m44f{ v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
-                         v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
-                         v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
-                         v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+            float len = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+            quatf result = { -q.x, -q.w, -q.z, q.w };
+            return mul(result, len);
         }
 
-        // from linalg
-        m44f adjugate(const m44f& a)
-        {
-            return m44f{ 
-                v4f{ a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w,
-                     a.x.y * a.w.z * a.z.w + a.z.y * a.x.z * a.w.w + a.w.y * a.z.z * a.x.w - a.w.y * a.x.z * a.z.w - a.z.y * a.w.z * a.x.w - a.x.y * a.z.z * a.w.w,
-                     a.x.y * a.y.z * a.w.w + a.w.y * a.x.z * a.y.w + a.y.y * a.w.z * a.x.w - a.x.y * a.w.z * a.y.w - a.y.y * a.x.z * a.w.w - a.w.y * a.y.z * a.x.w,
-                     a.x.y * a.z.z * a.y.w + a.y.y * a.x.z * a.z.w + a.z.y * a.y.z * a.x.w - a.x.y * a.y.z * a.z.w - a.z.y * a.x.z * a.y.w - a.y.y * a.z.z * a.x.w },
-                v4f{ a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x,
-                     a.x.z * a.z.w * a.w.x + a.w.z * a.x.w * a.z.x + a.z.z * a.w.w * a.x.x - a.x.z * a.w.w * a.z.x - a.z.z * a.x.w * a.w.x - a.w.z * a.z.w * a.x.x,
-                     a.x.z * a.w.w * a.y.x + a.y.z * a.x.w * a.w.x + a.w.z * a.y.w * a.x.x - a.x.z * a.y.w * a.w.x - a.w.z * a.x.w * a.y.x - a.y.z * a.w.w * a.x.x,
-                     a.x.z * a.y.w * a.z.x + a.z.z * a.x.w * a.y.x + a.y.z * a.z.w * a.x.x - a.x.z * a.z.w * a.y.x - a.y.z * a.x.w * a.z.x - a.z.z * a.y.w * a.x.x },
-                v4f{ a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y,
-                     a.x.w * a.w.x * a.z.y + a.z.w * a.x.x * a.w.y + a.w.w * a.z.x * a.x.y - a.x.w * a.z.x * a.w.y - a.w.w * a.x.x * a.z.y - a.z.w * a.w.x * a.x.y,
-                     a.x.w * a.y.x * a.w.y + a.w.w * a.x.x * a.y.y + a.y.w * a.w.x * a.x.y - a.x.w * a.w.x * a.y.y - a.y.w * a.x.x * a.w.y - a.w.w * a.y.x * a.x.y,
-                     a.x.w * a.z.x * a.y.y + a.y.w * a.x.x * a.z.y + a.z.w * a.y.x * a.x.y - a.x.w * a.y.x * a.z.y - a.z.w * a.x.x * a.y.y - a.y.w * a.z.x * a.x.y },
-                v4f{ a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z,
-                     a.x.x * a.z.y * a.w.z + a.w.x * a.x.y * a.z.z + a.z.x * a.w.y * a.x.z - a.x.x * a.w.y * a.z.z - a.z.x * a.x.y * a.w.z - a.w.x * a.z.y * a.x.z,
-                     a.x.x * a.w.y * a.y.z + a.y.x * a.x.y * a.w.z + a.w.x * a.y.y * a.x.z - a.x.x * a.y.y * a.w.z - a.w.x * a.x.y * a.y.z - a.y.x * a.w.y * a.x.z,
-                     a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
-        }
-
-        float determinant(m44f const& a)
-        {
-            return a.x.x * (a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w)
-                 + a.x.y * (a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x)
-                 + a.x.z * (a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y)
-                 + a.x.w * (a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z);
-        }
-
-        m44f transpose(m44f const& a)
-        {
-            return {
-                a.x.x, a.y.x, a.z.x, a.w.x,
-                a.x.y, a.y.y, a.z.y, a.w.y,
-                a.x.z, a.y.z, a.z.z, a.w.z,
-                a.x.w, a.y.w, a.z.w, a.w.w
-            };
-        }
-
-        m44f invert(m44f const& mat)
-        {
-            m44f m = adjugate(mat);
-            float oo_det = 1.f / determinant(mat);
-            float* ptr = &m.x.x;
-            for (int i = 0; i < 16; i++)
-                ptr[i] *= oo_det;
-            return m;
-        }
-
-        m44f rotation_quat(quatf const& v)
-        {
-            v3f xaxis = {
-                    1 - 2 * (v.y * v.y + v.z * v.z),
-                    2 * (v.x * v.y + v.z * v.w),
-                    2 * (v.z * v.x - v.y * v.w),
-            };
-            v3f yaxis = {
-                2 * (v.x * v.y - v.z * v.w),
-                1 - 2 * (v.z * v.z + v.x * v.x),
-                2 * (v.y * v.z + v.x * v.w),
-            };
-            v3f zaxis = {
-                2 * (v.z * v.x + v.y * v.w),
-                2 * (v.y * v.z - v.x * v.w),
-                1 - 2 * (v.y * v.y + v.x * v.x),
-            };
-
-            return {
-                v4f{ xaxis.x, xaxis.y, xaxis.z, 0.f },
-                v4f{ yaxis.x, yaxis.y, yaxis.z, 0.f },
-                v4f{ zaxis.x, zaxis.y, zaxis.z, 0.f },
-                v4f{ 0.f, 0.f, 0.f, 1.f } };
-        }
-
-
-#if 0
-
-        m44f rotation_xyz(v3f e)
-        {
-            float cx = cosf(-e.y);
-            float cy = cosf(-e.x);
-            float cz = cosf(e.z);
-
-            float sx = sinf(-e.y);
-            float sy = sinf(-e.x);
-            float sz = sinf(e.z);
-
-            m44f m;
-            
-            // zyx
-            m[0].x =  cy * cz;
-            m[0].y = -cy * sz;
-            m[0].z =  sy;
-            m[0].w = 0;
-
-            m[1].x =  sx * sy * cz + cx * sz;
-            m[1].y = -sx * sy * sz + cx * cz;
-            m[1].z = -sx * cy;
-            m[1].w = 0;
-
-            m[2].x = -cx * sy * cz + sx * sz;
-            m[2].y =  cx * sy * sz + sx * cz;
-            m[2].z =  cx * cy;
-            m[2].w = 0;
-            m[3] = { 0,0,0,1 };
-            return m;
-        }
-
-#endif
-
-        m44f rotation_xyz(v3f e)
-        {
-            float cx = cosf(e.x);
-            float cy = cosf(e.y);
-            float cz = cosf(e.z);
-
-            float sx = sinf(e.x);
-            float sy = sinf(e.y);
-            float sz = sinf(e.z);
-
-            m44f m;
-            m[0].x = cx * cz;
-            m[0].y = cx * sz;
-            m[0].z = -sx;
-            m[0].w = 0;
-
-            m[1].x = sx * sy * cz - cy * sz;
-            m[1].y = sx * sy * sz + cy * cz;
-            m[1].z = cx * sy;
-            m[1].w = 0;
-
-            m[2].x = sx * cy * cz - sy * sz;
-            m[2].y = sx * cy * sz - sy * cz;
-            m[2].z = cx * cy;
-            m[2].w = 0;
-
-            m[3] = { 0,0,0,1 };
-            return m;
-        }
-
+        //---- rays
 
         static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
             lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
@@ -501,6 +509,11 @@ namespace lab {
             return{ camera_position, normalize(v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
+        float distance_point_to_plane(v3f const& a, v3f const& point, v3f const& normal)
+        {
+            v3f d = point - a;
+            return dot(d, normal);
+        }
 
 
 //-----------------------------------------------------------------------------
@@ -532,14 +545,14 @@ namespace lab {
                 m44f m = camera.mount.view_transform();
                 quatf q = quat_from_matrix(m);
                 v3f e2 = ypr_from_quat(q);
-                printf("%f %f %f\n", e2.x, e2.y, e2.z);
+                //printf("%f %f %f\n", e2.x, e2.y, e2.z);
             }
 
             if (phase == InteractionPhase::Start)
             {
                 _initial_inv_projection = camera.inv_view_projection(1.f);
                 _initial_position_constraint = _position;
-                _initial_focus_point = _focus_point;
+                _initial_focus_point = _orbit_center;
             }
 
             // joystick mode controls
@@ -561,7 +574,7 @@ namespace lab {
                 delta.y = buffer * copysign(dy, delta.y);
             }
 
-            v3f camera_to_focus = _position - _focus_point;
+            v3f camera_to_focus = _position - _orbit_center;
             float distance_to_focus = length(camera_to_focus);
             const float feel = 0.02f;
             float scale = std::max(0.01f, logf(distance_to_focus) * feel);
@@ -575,8 +588,8 @@ namespace lab {
                 v3f deltaX = camRight * delta.x * scale;
                 v3f dP = camFwd * delta.y * scale - deltaX;
                 _position += dP;
-                _focus_point += dP;
-                camera.mount.look_at(_position, _focus_point, _world_up);
+                _orbit_center += dP;
+                camera.mount.look_at(_position, _orbit_center, _world_up);
                 break;
             }
             case InteractionMode::Crane:
@@ -585,8 +598,8 @@ namespace lab {
                 v3f camera_right = camera.mount.right();
                 v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
                 _position += dP;
-                _focus_point += dP;
-                camera.mount.look_at(_position, _focus_point, _world_up);
+                _orbit_center += dP;
+                camera.mount.look_at(_position, _orbit_center, _world_up);
                 break;
             }
             case InteractionMode::Gimbal:
@@ -612,13 +625,13 @@ namespace lab {
                 if (start_ypr.y > pi * 0.5f) {
                     start_ypr.y = pi * 0.5f;
                     if (orig_fwd.z < 0)
-                        start_ypr.y -= 1e-4f; // compensate for rounding error on pi/2 in the negative half space
+                        start_ypr.y -= 1e-4f; // compensate for rounding error on pi/2, which matters in the negative half space
                 }
                 if (start_ypr.y < -pi * 0.5f)
                 {
                     start_ypr.y = -pi * 0.5f;
                     if (orig_fwd.z < 0)
-                        start_ypr.y += 1e-4f; // compensate for rounding error on -pi/2 in the negative half space
+                        start_ypr.y += 1e-4f; // compensate for rounding error on -pi/2, which matters in the negative half space
                 }
 
                 m44f rot = lab::camera::rotation_xyz(start_ypr);
@@ -627,11 +640,11 @@ namespace lab {
 
                 if (mode == InteractionMode::TurnTableOrbit)
                 {
-                    _position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _focus_point;
+                    _position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _orbit_center;
                 }
                 else
                 {
-                    _focus_point = _position - mul(rot, v3f{ 0, 0, distance_to_focus });
+                    _orbit_center = _position - mul(rot, v3f{ 0, 0, distance_to_focus });
                 }
 
                 rot = transpose(rot);
@@ -652,8 +665,8 @@ namespace lab {
                 quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
                 quatf pitch = quat_from_axis_angle(right, feel * -0.125f * delta.y);
                 v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
-                _focus_point = _position + rotatedVec;
-                camera.mount.look_at(_position, _focus_point, _world_up);
+                _orbit_center = _position + rotatedVec;
+                camera.mount.look_at(_position, _orbit_center, _world_up);
                 break;
             }
             }
@@ -663,30 +676,89 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current)
+        void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_)
         {
             switch (mode)
             {
+            case InteractionMode::Arcball:
+            {
+                // flip y to match the arcball math
+                v2f current_mouse = current_mouse_;
+
+                if (phase == InteractionPhase::Start)
+                {
+                    _init_mouse = current_mouse;
+                    _quat_step = { 0, 0, 0, 1 };
+                    _current_quat = camera.mount.rotation();
+                }
+                else if (phase == InteractionPhase::Finish)
+                {
+                }
+
+                float w = _viewport_size.x * 0.5f;
+                float h = _viewport_size.y * 0.5f;
+                float min_dimension = 1.f / std::min(w, h);
+                auto mouse_to_vec = [w, h, min_dimension](v3f& v)
+                {
+                    v.x =   (v.x - w) * min_dimension;
+                    v.y =  -(v.y - h) * min_dimension;
+                    float len_squared = dot(v, v);
+                    if (len_squared <= 1.f)
+                        v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
+                    else
+                        v = normalize(v); // pick a point on the edge of the projected disc
+                };
+
+                v3f v0{ _init_mouse.x, _init_mouse.y, 0.f };
+                v3f v1{ current_mouse.x, current_mouse.y, 0.f };
+                mouse_to_vec(v0);
+                mouse_to_vec(v1);
+
+                printf("%f %f\n", v1.x, v1.y);
+
+                v3f axis = cross(v0, v1);
+                if (dot(axis, axis) > 1e-3f)
+                {
+                    axis = normalize(axis);
+                    float proj = dot(v0, v1);
+                    float angle = acosf(std::min(proj, 1.f));
+                    //printf("%f %f %f:%f\n", axis.x, axis.y, axis.z, angle);
+
+                    m44f r1 = rotation_quat(_quat_step);
+                    m44f r2 = camera.mount.rotation_transform();
+                    //axis = { 0,1,0 };
+                    axis = mul(transpose(r2), axis);
+                    _quat_step = quat_from_axis_angle(axis, _speed * angle);
+                    m44f rot = mul(r1, r2);
+
+                    float distance_to_focus = length(camera.mount.position() - _orbit_center);
+                    v3f pos = mul(transpose(rot), v3f{ 0, 0, distance_to_focus }) + _orbit_center;
+                    _current_quat = mul(_current_quat, _quat_step);
+                    camera.mount.set_view_transform_ypr_eye(_current_quat, pos);
+                }
+            }
+            break;
+
             case InteractionMode::Crane:
             case InteractionMode::Dolly:
             case InteractionMode::TurnTableOrbit:
             {
                 if (phase == InteractionPhase::Start)
                 {
-                    _init_mouse = current;
+                    _init_mouse = current_mouse_;
                 }
 
                 // Joystick mode
-                v2f dp = current - _init_mouse;
-                v2f prev_dp = current - _prev_mouse;
+                v2f dp = current_mouse_ - _init_mouse;
+                v2f prev_dp = current_mouse_ - _prev_mouse;
 
                 // reset the anchor if the interaction direction changes on either axis.
                 // this is to increase the feeling of responsiveness
                 if (dp.x * prev_dp.x < 0)
-                    _init_mouse.x = current.x;
+                    _init_mouse.x = current_mouse_.x;
                 if (dp.y * prev_dp.y < 0)
-                    _init_mouse.y = current.y;
-                dp = current - _init_mouse;
+                    _init_mouse.y = current_mouse_.y;
+                dp = current_mouse_ - _init_mouse;
 
                 const float speed_scale = 10.f;
                 dp.x *= speed_scale / _viewport_size.x;
@@ -694,14 +766,15 @@ namespace lab {
                 joystick_interaction(camera, tok, phase, mode, dp);
                 break;
             }
+
             case InteractionMode::Gimbal:
             {
                 if (phase == InteractionPhase::Start)
                 {
-                    _init_mouse = current;
+                    _init_mouse = current_mouse_;
                     _initial_inv_projection = camera.inv_view_projection(1.f);
                     _initial_position_constraint = _position;
-                    _initial_focus_point = _focus_point;
+                    _initial_focus_point = _orbit_center;
                 }
 
                 // Through the lens gimbal
@@ -709,18 +782,18 @@ namespace lab {
                     _initial_position_constraint, _init_mouse,
                     { 0, 0 }, _viewport_size);
                 Ray new_ray = get_ray(_initial_inv_projection,
-                    _position, current,
+                    _position, current_mouse_,
                     { 0, 0 }, _viewport_size);
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
                 v3f rel = _initial_focus_point - _initial_position_constraint;
                 rel = quat_rotate_vector(rotation, rel);
-                _focus_point = _position + rel;
-                camera.mount.look_at(_position, _focus_point, _world_up);
+                _orbit_center = _position + rel;
+                camera.mount.look_at(_position, _orbit_center, _world_up);
                 break;
             }
             }
 
-            _prev_mouse = current;
+            _prev_mouse = current_mouse_;
         }
 
         void PanTiltController::constrained_ttl_interaction(Camera& camera, InteractionToken tok,
@@ -743,7 +816,7 @@ namespace lab {
                 v3f delta = mul(camera.mount.right(), target_xy.x * 1.f);
                 delta += mul(camera.mount.up(), target_xy.y * -1.f);
                 _position += delta;
-                _focus_point += delta;
+                _orbit_center += delta;
                 camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
                 break;
             }
@@ -766,7 +839,7 @@ namespace lab {
                 if (dist < 0)
                 {
                     _position += delta + delta_fw;
-                    _focus_point += delta + delta_fw;
+                    _orbit_center += delta + delta_fw;
                     camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
                 }
                 break;
@@ -793,14 +866,14 @@ namespace lab {
             _position = pos;
         }
 
-        v3f PanTiltController::focus_constraint() const
+        v3f PanTiltController::orbit_center_constraint() const
         {
-            return _focus_point;
+            return _orbit_center;
         }
 
-        void PanTiltController::set_focus_constraint(v3f const& pos)
+        void PanTiltController::set_orbit_center_constraint(v3f const& pos)
         {
-            _focus_point = pos;
+            _orbit_center = pos;
         }
 
         void PanTiltController::set_world_up_constraint(v3f const& up)
@@ -808,6 +881,10 @@ namespace lab {
             _world_up = up;
         }
 
+        void PanTiltController::set_speed(float s)
+        {
+            _speed = s;
+        }
 
 
 //-----------------------------------------------------------------------------
@@ -851,29 +928,15 @@ namespace lab {
             _view_transform = m;
         }
 
-        void Mount::set_view_transform_ypr_eye(quatf const& v, v3f const& eye)
+        void Mount::set_view_transform_ypr_eye(quatf const& v_, v3f const& eye)
         {
-            v3f xaxis = {
-                1 - 2 * (v.y * v.y + v.z * v.z),
-                2 * (v.x * v.y + v.z * v.w),
-                2 * (v.z * v.x - v.y * v.w),
-            };
-            v3f yaxis = {
-                2 * (v.x * v.y - v.z * v.w),
-                1 - 2 * (v.z * v.z + v.x * v.x),
-                2 * (v.y * v.z + v.x * v.w),
-            };
-            v3f zaxis = {
-                2 * (v.z * v.x + v.y * v.w),
-                2 * (v.y * v.z - v.x * v.w),
-                1 - 2 * (v.y * v.y + v.x * v.x),
-            };
+            quatf v = normalize(v_);
+            _view_transform = rotation_quat(v);
 
-            _view_transform = { 
-                v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
-                v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
-                v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
-                v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+            m44f const& m = _view_transform;
+            _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
+            _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
+            _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
         }
 
         void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)

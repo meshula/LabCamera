@@ -447,7 +447,7 @@ void run_application_logic()
         // display look at
         if (gApp.show_look_at)
         {
-            lab::camera::v3f lookat = gApp.navigator_panel->pan_tilt.focus_constraint();
+            lab::camera::v3f lookat = gApp.navigator_panel->pan_tilt.orbit_center_constraint();
             m.w = { lookat.x, lookat.y, lookat.z, 1.f };
             draw_jack(1, m);
         }
@@ -655,7 +655,7 @@ void run_application_logic()
         run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
 
         // the navigator ran, so clone the constraints into the main panel
-        gApp.main_pan_tilt.set_focus_constraint(gApp.navigator_panel->pan_tilt.focus_constraint());
+        gApp.main_pan_tilt.set_orbit_center_constraint(gApp.navigator_panel->pan_tilt.orbit_center_constraint());
         gApp.main_pan_tilt.set_position_constraint(gApp.navigator_panel->pan_tilt.position_constraint());
         gApp.main_pan_tilt.set_world_up_constraint(gApp.navigator_panel->pan_tilt.world_up_constraint());
     }
@@ -753,7 +753,7 @@ void run_application_logic()
                     { mouse_pos.x, mouse_pos.y });
             }
             ptc.end_interaction(tok);
-            gApp.navigator_panel->pan_tilt.set_focus_constraint(gApp.main_pan_tilt.focus_constraint());
+            gApp.navigator_panel->pan_tilt.set_orbit_center_constraint(gApp.main_pan_tilt.orbit_center_constraint());
             gApp.navigator_panel->pan_tilt.set_position_constraint(gApp.main_pan_tilt.position_constraint());
             gApp.navigator_panel->pan_tilt.set_world_up_constraint(gApp.main_pan_tilt.world_up_constraint());
 

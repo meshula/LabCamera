@@ -19,6 +19,11 @@ enum LabCameraNavigatorPanelInteraction
     LCNav_TumbleInitiated, LCNav_TumbleContinued, LCNav_TumbleEnded
 };
 
+enum LCNav_PanelMode
+{
+    LCNav_Mode_PanTilt, LCNav_Mode_Arcball
+};
+
 class LCNav_PanelState
 {
 protected:

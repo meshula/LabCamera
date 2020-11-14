@@ -75,7 +75,7 @@ namespace camera {
 
     enum class InteractionMode
     {
-        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal
+        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal, Arcball
     };
 
     enum class InteractionPhase
@@ -111,6 +111,8 @@ namespace camera {
         v3f up() const;
         v3f forward() const;
         v3f position() const;
+
+        float mm_to_world() const { return 1000.f; } // multiply mm by this value to get world values
 
         // mutation
         void set_view_transform(m44f const&);
@@ -221,6 +223,7 @@ namespace camera {
         float fStop = 8.f;
         millimeters focal_length = { 50.f };
         millimeters focus_distance = { 2.e3f };
+
         float zfar = 1e5f;
         float znear = 0.1f;
         float squeeze = 1.f; // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
@@ -297,35 +300,36 @@ namespace camera {
     };
 
 
-
     class PanTiltController
     {
         // constraints
         v3f _position{ 0, 0.2f, 5 };
         v3f _world_up{ 0, 1, 0 };
-        v3f _focus_point{ 0, 0, 0 };
-
-        // working state
-        v2f _viewport_size = { 0, 0 };
-
-        v2f _init_mouse{ 0,0 };
-        v2f _prev_mouse{ 0,0 };
+        v3f _orbit_center{ 0, 0, 0 };
+        float _speed = 0.05f;
 
         float _initial_focus_distance = 5.f;
         v3f _initial_position_constraint = { 0,0,5 };
         v3f _initial_focus_point = { 0, 0, 0 };
+
+        // working state
+        v2f _viewport_size = { 0, 0 };
+        v2f _init_mouse{ 0,0 };
+        v2f _prev_mouse{ 0,0 };
         m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
+        quatf _current_quat = { 0, 0, 0, 1 };
+        quatf _quat_step = { 0, 0, 0, 1 };
 
     public:
-
         PanTiltController() = default;
 
         v3f position_constraint() const;
         v3f world_up_constraint() const;
-        v3f focus_constraint() const;
-        void set_focus_constraint(v3f const& pos);
+        v3f orbit_center_constraint() const;
+        void set_orbit_center_constraint(v3f const& pos);
         void set_world_up_constraint(v3f const& up);
         void set_position_constraint(v3f const& pos);
+        void set_speed(float);
 
         // begin_interaction
         //
@@ -370,7 +374,6 @@ namespace camera {
             InteractionPhase phase, InteractionMode mode,
             v2f const& current,
             v3f const& initial_hit_point);
-
     };
 
 

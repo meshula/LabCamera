@@ -36,6 +36,7 @@ struct LCNav_Panel : public LCNav_PanelState
         home();
     }
 
+    LCNav_PanelMode mode = LCNav_Mode_PanTilt;
     LCNav_MouseState mouse_state;
     const float size_x = 256;
     const float size_y = 160;
@@ -49,7 +50,7 @@ struct LCNav_Panel : public LCNav_PanelState
     {
         auto up = pan_tilt.world_up_constraint();
         pan_tilt.set_position_constraint({ 0.f, 0.2f, nav_radius });
-        pan_tilt.set_focus_constraint({ 0,0,0 });
+        pan_tilt.set_orbit_center_constraint({ 0,0,0 });
     }
 };
 
@@ -97,10 +98,10 @@ bool update_mouseStatus_in_current_imgui_window(LCNav_MouseState* mouse)
     ImGui::SetCursorScreenPos(edit_rect.Min);
 
     // detect that the mouse is in the content region
-    bool click_finished = ImGui::InvisibleButton("###GIZMOREGION", edit_rect.GetSize());
+    bool click_finished = ImGui::InvisibleButton("###NAVGIZMOREGION", edit_rect.GetSize());
     bool in_canvas = click_finished || ImGui::IsItemHovered();
 
-    ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos;
+    ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos - imgui_cursor_pos;
     LCNav_mouse_state_update(mouse, mouse_pos.x, mouse_pos.y, io.MouseDown[0] && io.MouseDownOwned[0]);
 
     // restore the ImGui state
@@ -130,6 +131,11 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
 
     bool mouse_in_viewport = update_mouseStatus_in_current_imgui_window(&navigator_panel->mouse_state);
     auto& ms = navigator_panel->mouse_state;
+
+    //printf("%f %f\n", navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey);
+    //printf("%f %f\n", cursor_screen_pos.x, cursor_screen_pos.y);
+    //ImVec2 foo = ImGui::GetWindowContentRegionMin();
+    //printf("%f %f\n", foo.x, foo.y);
 
     if (mouse_in_viewport)
     {
@@ -190,9 +196,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
     if (ImGui::Button("Home###NavHome")) {
         auto up = navigator_panel->pan_tilt.world_up_constraint();
         navigator_panel->pan_tilt.set_position_constraint({ 0.f, 0.2f, navigator_panel->nav_radius });
-        navigator_panel->pan_tilt.set_focus_constraint({ 0,0,0 });
+        navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
         camera.mount.look_at(navigator_panel->pan_tilt.position_constraint(),
-            navigator_panel->pan_tilt.focus_constraint(),
+            navigator_panel->pan_tilt.orbit_center_constraint(),
             navigator_panel->pan_tilt.world_up_constraint());
         result = LCNav_None;
     }
@@ -210,6 +216,10 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Gimbal ? "-Gimbal-" : " Gimbal ")) {
         navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Gimbal;
+        result = LCNav_ModeChange;
+    }
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball ? "-Arcball-" : " Arcball ")) {
+        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Arcball;
         result = LCNav_ModeChange;
     }
 
@@ -251,14 +261,25 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
 
         case LCNav_TumbleContinued:
         {
-            const float speed_scaler = 10.f;
-            float scale = speed_scaler / navigator_panel->size_x;
-            float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
-            float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
-
-            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
-            navigator_panel->pan_tilt.joystick_interaction(camera, tok, phase, navigator_panel->camera_interaction_mode, { dx, dy });
-            navigator_panel->pan_tilt.end_interaction(tok);
+            if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
+            {
+                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
+                navigator_panel->pan_tilt.ttl_interaction(camera, tok, phase, 
+                    navigator_panel->camera_interaction_mode, 
+                    { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey });
+                navigator_panel->pan_tilt.end_interaction(tok);
+            }
+            else
+            {
+                const float speed_scaler = 10.f;
+                float scale = speed_scaler / navigator_panel->size_x;
+                float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
+                float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
+                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
+                navigator_panel->pan_tilt.joystick_interaction(camera, tok, phase, 
+                    navigator_panel->camera_interaction_mode, { dx, dy });
+                navigator_panel->pan_tilt.end_interaction(tok);
+            }
         }
         break;
 
