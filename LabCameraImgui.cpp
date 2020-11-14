@@ -38,11 +38,8 @@ struct LCNav_Panel : public LCNav_PanelState
 
     LCNav_PanelMode mode = LCNav_Mode_PanTilt;
     LCNav_MouseState mouse_state;
-    const float size_x = 256;
-    const float size_y = 160;
-    const float trackball_width = size_x * 0.5f;
-    float trackball_size_w;
-    float trackball_size_h;
+    const lab::camera::v2f size = { 256, 170 };
+    const lab::camera::v2f trackball_size = { 128, 170 };
     float roll = 0;
     bool trackball_interacting = false;
 
@@ -111,13 +108,13 @@ bool update_mouseStatus_in_current_imgui_window(LCNav_MouseState* mouse)
 
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& viewport, lab::camera::Camera& camera)
+run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& camera)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
     LabCameraNavigatorPanelInteraction result = LCNav_None;
-    ImGui::SetNextWindowSize(ImVec2(navigator_panel->size_x, navigator_panel->size_y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(navigator_panel->size.x, navigator_panel->size.y), ImGuiCond_FirstUseEver);
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel->size_x, 10));
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel->size.x, 10));
 
     static bool visible = true;
     ImGui::Begin("Navigator###LCNav", &visible,
@@ -127,9 +124,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
 
     ImGui::Columns(2, "###NavCol", true);
-    ImGui::SetColumnWidth(0, navigator_panel->trackball_width);
+    ImGui::SetColumnWidth(0, navigator_panel->trackball_size.x);
 
-    bool mouse_in_viewport = update_mouseStatus_in_current_imgui_window(&navigator_panel->mouse_state);
+    bool mouse_in_panel = update_mouseStatus_in_current_imgui_window(&navigator_panel->mouse_state);
     auto& ms = navigator_panel->mouse_state;
 
     //printf("%f %f\n", navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey);
@@ -137,7 +134,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
     //ImVec2 foo = ImGui::GetWindowContentRegionMin();
     //printf("%f %f\n", foo.x, foo.y);
 
-    if (mouse_in_viewport)
+    if (mouse_in_panel)
     {
         if (ms.click_initiated)
         {
@@ -263,21 +260,23 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, const lab::camera::v2f& 
         {
             if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
             {
-                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
-                navigator_panel->pan_tilt.ttl_interaction(camera, tok, phase, 
-                    navigator_panel->camera_interaction_mode, 
+                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
+                navigator_panel->pan_tilt.ttl_interaction(
+                    camera, 
+                    tok, phase, navigator_panel->camera_interaction_mode, 
                     { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey });
                 navigator_panel->pan_tilt.end_interaction(tok);
             }
             else
             {
                 const float speed_scaler = 10.f;
-                float scale = speed_scaler / navigator_panel->size_x;
+                float scale = speed_scaler / navigator_panel->trackball_size.x;
                 float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
                 float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
-                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(viewport);
-                navigator_panel->pan_tilt.joystick_interaction(camera, tok, phase, 
-                    navigator_panel->camera_interaction_mode, { dx, dy });
+                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
+                navigator_panel->pan_tilt.joystick_interaction(
+                    camera, 
+                    tok, phase, navigator_panel->camera_interaction_mode, { dx, dy });
                 navigator_panel->pan_tilt.end_interaction(tok);
             }
         }

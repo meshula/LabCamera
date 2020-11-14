@@ -647,7 +647,7 @@ void run_application_logic()
     }
 
     LabCameraNavigatorPanelInteraction in = gApp.show_navigator ?
-        run_navigator_panel(gApp.navigator_panel, viewport, gApp.camera) : LCNav_None;
+        run_navigator_panel(gApp.navigator_panel, gApp.camera) : LCNav_None;
 
     if (in > LCNav_None)
     {
@@ -726,19 +726,19 @@ void run_application_logic()
 
             ImGui::CaptureMouseFromApp(true);
 
-            lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
             if (gApp.ui_state == UIStateMachine::TTLCamera)
             {
                 ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
                 ImGui::TextUnformatted("TTL+");
 
                 // through the lens mode
+                lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
                 ptc.constrained_ttl_interaction(
                     gApp.camera,
-                    tok,
-                    phase, gApp.navigator_panel->camera_interaction_mode,
+                    tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point);
+                ptc.end_interaction(tok);
             }
             else
             {
@@ -746,17 +746,17 @@ void run_application_logic()
                 ImGui::TextUnformatted("TTL");
 
                 // virtual joystick mode
+                lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
                 ptc.ttl_interaction(
                     gApp.camera,
-                    tok,
-                    phase, gApp.navigator_panel->camera_interaction_mode,
+                    tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y });
+                ptc.end_interaction(tok);
             }
-            ptc.end_interaction(tok);
+
             gApp.navigator_panel->pan_tilt.set_orbit_center_constraint(gApp.main_pan_tilt.orbit_center_constraint());
             gApp.navigator_panel->pan_tilt.set_position_constraint(gApp.main_pan_tilt.position_constraint());
             gApp.navigator_panel->pan_tilt.set_world_up_constraint(gApp.main_pan_tilt.world_up_constraint());
-
 
             if (gApp.mouse.click_ended)
             {
