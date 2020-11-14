@@ -713,8 +713,7 @@ namespace lab {
                 v3f v1{ current_mouse.x, current_mouse.y, 0.f };
                 mouse_to_vec(v0);
                 mouse_to_vec(v1);
-
-                printf("%f %f\n", v1.x, v1.y);
+                //printf("%f %f\n", v1.x, v1.y);
 
                 v3f axis = cross(v0, v1);
                 if (dot(axis, axis) > 1e-3f)

@@ -33,6 +33,7 @@ struct LCNav_Panel : public LCNav_PanelState
 {
     LCNav_Panel()
     {
+        pan_tilt.set_speed(0.01f);
         home();
     }
 
@@ -235,7 +236,12 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
 
     if (navigator_panel->trackball_interacting)
     {
-        lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::None;
+        lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+        if (ms.click_initiated)
+            phase = lab::camera::InteractionPhase::Start;
+        else if (ms.click_ended)
+            phase = lab::camera::InteractionPhase::Finish;
+
         switch (result)
         {
         case LCNav_RollUpdated:
@@ -248,14 +254,8 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         break;
 
         case LCNav_TumbleInitiated:
-            phase = lab::camera::InteractionPhase::Start;
             ImGui::CaptureMouseFromApp(true);
-            break;
-
         case LCNav_TumbleEnded:
-            phase = lab::camera::InteractionPhase::Finish;
-            break;
-
         case LCNav_TumbleContinued:
         {
             if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
