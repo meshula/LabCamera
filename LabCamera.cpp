@@ -540,14 +540,6 @@ namespace lab {
         //
         void PanTiltController::joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in)
         {
-            if (0)
-            {
-                m44f m = camera.mount.view_transform();
-                quatf q = quat_from_matrix(m);
-                v3f e2 = ypr_from_quat(q);
-                //printf("%f %f %f\n", e2.x, e2.y, e2.z);
-            }
-
             if (phase == InteractionPhase::Start)
             {
                 _initial_inv_projection = camera.inv_view_projection(1.f);
@@ -583,35 +575,39 @@ namespace lab {
             {
             case InteractionMode::Dolly:
             {
+                // roll works? Y
                 v3f camFwd = camera.mount.forward();
                 v3f camRight = camera.mount.right();
+                v3f camUp = camera.mount.up();
                 v3f deltaX = camRight * delta.x * scale;
                 v3f dP = camFwd * delta.y * scale - deltaX;
                 _position += dP;
                 _orbit_center += dP;
-                camera.mount.look_at(_position, _orbit_center, _world_up);
+                camera.mount.look_at(_position, _orbit_center, camUp);
                 break;
             }
             case InteractionMode::Crane:
             {
+                // roll works? Y
                 v3f camera_up = camera.mount.up();
                 v3f camera_right = camera.mount.right();
+                v3f camUp = camera.mount.up();
                 v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
                 _position += dP;
                 _orbit_center += dP;
-                camera.mount.look_at(_position, _orbit_center, _world_up);
+                camera.mount.look_at(_position, _orbit_center, camUp);
                 break;
             }
             case InteractionMode::Gimbal:
             case InteractionMode::TurnTableOrbit:
             {
+                // roll works? Y
                 if (mode == InteractionMode::Gimbal)
                     delta.y *= -1.f;   // to feel like the camera is moving in the gesture direction
                 else
                     delta.x *= -1.f;   // to feel like the object is moving in the gesture direction
 
                 v3f start_ypr = camera.mount.ypr();
-                start_ypr.z = 0;
                 v3f orig_fwd = camera.mount.forward();
 
                 // azimuth
@@ -634,7 +630,9 @@ namespace lab {
                         start_ypr.y += 1e-4f; // compensate for rounding error on -pi/2, which matters in the negative half space
                 }
 
-                m44f rot = lab::camera::rotation_xyz(start_ypr);
+                m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
+                rot = mul(rot, rotz(start_ypr.z));
+                rot = transpose(rot);
 
                 v3f pos_temp = _position;
 
@@ -682,6 +680,7 @@ namespace lab {
             {
             case InteractionMode::Arcball:
             {
+                // roll works? Y
                 // flip y to match the arcball math
                 v2f current_mouse = current_mouse_;
 
@@ -742,6 +741,7 @@ namespace lab {
             case InteractionMode::Dolly:
             case InteractionMode::TurnTableOrbit:
             {
+                // roll works? Y
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse_;
@@ -768,6 +768,7 @@ namespace lab {
 
             case InteractionMode::Gimbal:
             {
+                // roll works? N
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse_;
@@ -783,11 +784,16 @@ namespace lab {
                 Ray new_ray = get_ray(_initial_inv_projection,
                     _position, current_mouse_,
                     { 0, 0 }, _viewport_size);
-                quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate in opposite direction
+                quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
                 v3f rel = _initial_focus_point - _initial_position_constraint;
                 rel = quat_rotate_vector(rotation, rel);
                 _orbit_center = _position + rel;
-                camera.mount.look_at(_position, _orbit_center, _world_up);
+
+                // snap the up back to world up ~ to incorporate roll, 
+                // 1. remove roll for the initial inv_projection, save the roll for reapplication
+                // 2. do the calculations as above
+                // 3. reintroduce roll by rotating the world_up_constraint in the view direction
+                camera.mount.look_at(_position, _orbit_center, world_up_constraint());//  camera.mount.up());
                 break;
             }
             }
@@ -804,6 +810,7 @@ namespace lab {
             {
             case InteractionMode::Crane:
             {
+                // roll works? Y
                 if (phase == InteractionPhase::Start)
                 {
                     _initial_focus_point = initial_hit_point;
@@ -816,11 +823,23 @@ namespace lab {
                 delta += mul(camera.mount.up(), target_xy.y * -1.f);
                 _position += delta;
                 _orbit_center += delta;
+
+#if 1
+                v3f start_ypr = camera.mount.ypr();
+                m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
+                rot = mul(rot, rotz(start_ypr.z));
+                rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
+                rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
+                rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
+                camera.mount.set_view_transform(rot);
+#else
                 camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
+#endif
                 break;
             }
             case InteractionMode::Dolly:
             {
+                // roll works? Y
                 if (phase == InteractionPhase::Start)
                 {
                     _initial_focus_point = initial_hit_point;
@@ -839,7 +858,17 @@ namespace lab {
                 {
                     _position += delta + delta_fw;
                     _orbit_center += delta + delta_fw;
+#if 1
+                    v3f start_ypr = camera.mount.ypr();
+                    m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
+                    rot = mul(rot, rotz(start_ypr.z));
+                    rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
+                    rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
+                    rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
+                    camera.mount.set_view_transform(rot);
+#else
                     camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
+#endif
                 }
                 break;
             }
@@ -941,7 +970,7 @@ namespace lab {
         void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)
         {
             v3f rot = { ypr.x, ypr.y, ypr.z };
-            //_view_transform = rotx(rot.y);// roty(rot.x);// transpose(lab::camera::rotation_xyz(rot));
+            //_view_transform = transpose(lab::camera::rotation_xyz(rot));
             _view_transform = mul(rotx(rot.y), roty(rot.x));
 
             m44f const& m = _view_transform;
@@ -1022,10 +1051,6 @@ namespace lab {
             bool flip = false;
             flip = fwd.z < -0.0001f;
 
-            // if nearly vertical deduce yaw from the camera's right axis.
-            //v3f rt = right();
-            //float d = dot(rt, v3f{ 1,0,0 });
-            //ypr.x = acosf(d); // this works in one quadrant only
             m44f r = rotx(-ypr.y); // remove the pitch
             m = mul(r, m);
 
@@ -1054,41 +1079,20 @@ namespace lab {
                 ypr.x += pi;
             }
 
-#if 0
-            // pitch
-            m44f rt = rotation_transform();
-            ypr.y = atan2(rt[2].y, rt[2].z) + 0.5f * pi;
-            m44f unrotate = transpose(roty(ypr.x));
-            rt = mul(rt, unrotate);
-            fwd = normalize(v3f { rt[0].z, rt[1].z, rt[2].z });
-            float d1 = acos(dot({ 0, 0, 1 }, fwd));
-            float d2 = asin(dot({ 0, 0, 1 }, fwd));
-            float d3 = 0;// dot({ 1, 0, 0 }, fwd);
-            printf("(%f, %f, %f) - truth (%f, %f)\n", d1, d2, d3, ypr.x, ypr.y);
+            r = roty(-ypr.x); // remove the yaw
+            m = mul(r, m);
 
-            float testy = ypr.y;
-            while (ypr.y < 0)
-                ypr.y += 2.f * pi;
-            while (ypr.y > 2.f * pi)
-                ypr.y -= 2.f * pi;
-            ypr.y -= 0.5f * pi;
-#endif
+            v3f right = normalize(
+                v3f{ m[0].x,
+                     m[1].x,
+                     m[2].x });
 
-#if 0
-            // roll
-            // @TODO Still haven't deduced a way to compute roll
-            // that gives an intuitive result
-            //
-            // plan: construct a yaw pitch roll, invert it, multiply the forward
-            // vector, take the arccos of the y component to deduce roll
-            //
-            quatf q = rotation();
-            float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
-            float cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
-            ypr.z = atan2f(siny_cosp, cosy_cosp);
-#else
-            ypr.z = 0;
-#endif
+            ypr.z = atan2f(right.y, right.x);
+            if (flip)
+            {
+                ypr.z += pi;
+            }
+
             return ypr;
         }
 
