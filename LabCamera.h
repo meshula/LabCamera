@@ -33,6 +33,8 @@
 #ifndef LAB_CAMERA_H
 #define LAB_CAMERA_H
 
+#include <stdint.h>
+
 namespace lab {
 namespace camera {
 
@@ -70,17 +72,27 @@ namespace camera {
         return r.value * 57.2957795131f;
     }
 
-    typedef int InteractionToken;
-
-
-    enum class InteractionMode
+    struct rigid_transform
     {
-        Static = 0, Dolly, Crane, TurnTableOrbit, Gimbal, Arcball
-    };
+        rigid_transform() {}
+        rigid_transform(const quatf& orientation, const v3f& position, const v3f& scale) : orientation(orientation), position(position), scale(scale) {}
+        rigid_transform(const quatf& orientation, const v3f& position, float scale) : orientation(orientation), position(position), scale{ scale, scale, scale } {}
+        rigid_transform(const quatf& orientation, const v3f& position) : orientation(orientation), position(position) {}
 
-    enum class InteractionPhase
-    {
-        None = 0, Restart, Start, Continue, Finish
+        quatf orientation{ 0,0,0,1 };
+        v3f   position{ 0,0,0 };
+        v3f   scale{ 1,1,1 };
+
+        v3f   right() const;
+        v3f   up() const;
+        v3f   forward() const;
+
+        bool  is_uniform_scale() const { return scale.x == scale.y && scale.x == scale.z; }
+        m44f  matrix() const;
+        v3f   transform_vector(const v3f& vec) const;
+        v3f   transform_point(const v3f& p) const;
+        v3f   detransform_point(const v3f& p) const;
+        v3f   detransform_vector(const v3f& vec) const;
     };
 
 
@@ -90,35 +102,30 @@ namespace camera {
     //
     class Mount
     {
-        m44f _view_transform;
+        rigid_transform _transform;
 
     public:
         Mount();
         ~Mount();
 
         // matrix
-        m44f view_transform() const;
-        m44f view_transform_inv() const;
+        m44f gl_view_transform() const;
+        m44f gl_view_transform_inv() const;
         m44f model_view_transform(m44f const& view_matrix) const;
         m44f model_view_transform(float const* const view_matrix) const;
-        m44f rotation_transform() const { m44f j = view_transform(); j[3] = { 0,0,0,1 }; return j; }
+        m44f rotation_transform() const;
         m44f inv_rotation_transform() const;
 
         // components
-        quatf rotation() const;
+        const rigid_transform& transform() const { return _transform; }
         v3f ypr() const;
-        v3f right() const;
-        v3f up() const;
-        v3f forward() const;
-        v3f position() const;
 
         float mm_to_world() const { return 1000.f; } // multiply mm by this value to get world values
 
         // mutation
         void set_view_transform(m44f const&);
-        void set_view_transform_ypr_eye(quatf const& q, v3f const& eye);
+        void set_view_transform_quat_pos(quatf const& q, v3f const& eye);
         void set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye);
-        void set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos);
         void look_at(v3f const& eye, v3f const& target, v3f const& up);
     };
 
@@ -300,20 +307,34 @@ namespace camera {
     };
 
 
+    typedef uint64_t InteractionToken;
+
+    enum class InteractionMode
+    {
+        Static = 0, Dolly, Crane, TurnTableOrbit, PanTilt, Arcball
+    };
+
+    enum class InteractionPhase
+    {
+        None = 0, Restart, Start, Continue, Finish
+    };
+
     class PanTiltController
     {
+        uint64_t _epoch = 0;
+
         // constraints
-        v3f _position{ 0, 0.2f, 5 };
         v3f _world_up{ 0, 1, 0 };
         v3f _orbit_center{ 0, 0, 0 };
-        float _speed = 0.05f;
 
-        float _initial_focus_distance = 5.f;
-        v3f _initial_position_constraint = { 0,0,5 };
-        v3f _initial_focus_point = { 0, 0, 0 };
+        // local settings
+        float _speed = 0.5f;
+        bool _roll_override = false;
 
         // working state
         v2f _viewport_size = { 0, 0 };
+        v3f _initial_focus_point = { 0, 0, 0 };
+        float _initial_focus_distance = 5.f;
         v2f _init_mouse{ 0,0 };
         v2f _prev_mouse{ 0,0 };
         m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
@@ -323,12 +344,10 @@ namespace camera {
     public:
         PanTiltController() = default;
 
-        v3f position_constraint() const;
         v3f world_up_constraint() const;
         v3f orbit_center_constraint() const;
         void set_orbit_center_constraint(v3f const& pos);
         void set_world_up_constraint(v3f const& up);
-        void set_position_constraint(v3f const& pos);
         void set_speed(float);
 
         // begin_interaction
@@ -337,8 +356,12 @@ namespace camera {
         // multitouch, multidevice interactions on the same camera
         //
         InteractionToken begin_interaction(v2f const& viewport_size);
-
         void end_interaction(InteractionToken);
+
+        // Synchronize constraints and epoch to the most recent of this and controller.
+        void sync_constraints(PanTiltController& controller);
+
+        void set_roll(Camera& camera, InteractionToken, radians roll);
 
         // cameraRig_interact
         //
@@ -349,7 +372,8 @@ namespace camera {
         // explicit neutral zero point. For example, delta could be computed as
         // delta = mousePos - mouseClickPos;
         //
-        void joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in);
+        void joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, 
+            InteractionMode mode, v2f const& delta_in);
 
         // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current

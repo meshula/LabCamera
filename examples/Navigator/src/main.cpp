@@ -213,7 +213,7 @@ static void draw_grid(float y, const lab::camera::m44f& m)
     lab::camera::m44f proj = gApp.camera.perspective();
     sgl_load_matrix(&proj.x.x);
 
-    lab::camera::m44f view = gApp.camera.mount.view_transform();
+    lab::camera::m44f view = gApp.camera.mount.gl_view_transform();
     lab::camera::m44f mv = gApp.camera.mount.model_view_transform(m);
 
     sgl_matrix_mode_modelview();
@@ -342,9 +342,10 @@ static GizmoTriangles gizmo_triangles;
 // return true if the gizmo was interacted
 bool run_gizmo(MouseState* ms, float width, float height)
 {
-    lab::camera::v3f camera_pos = gApp.camera.mount.position();
+    auto& cmt = gApp.camera.mount.transform();
+    lab::camera::v3f camera_pos = cmt.position;
     lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
-    lab::camera::quatf camera_orientation = gApp.camera.mount.rotation();
+    lab::camera::quatf camera_orientation = cmt.orientation;
 
     gApp.gizmo_state.mouse_left = ms->dragging;
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
@@ -425,11 +426,12 @@ void run_application_logic()
     gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
     gApp.camera.optics.squeeze = w / h;
     lab::camera::m44f proj = gApp.camera.perspective();
-    lab::camera::m44f view = gApp.camera.mount.view_transform();
-    lab::camera::m44f view_t = gApp.camera.mount.view_transform_inv();
+    lab::camera::m44f view = gApp.camera.mount.gl_view_transform();
+    lab::camera::m44f view_t = gApp.camera.mount.gl_view_transform_inv();
     lab::camera::m44f view_proj = gApp.camera.view_projection(1.f);
 
-    lab::camera::v3f pos = gApp.camera.mount.position();
+    auto& cmt = gApp.camera.mount.transform();
+    lab::camera::v3f pos = cmt.position;
 
     sg_begin_default_pass(&gApp.pass_action, window_width, window_height);
 
@@ -474,8 +476,8 @@ void run_application_logic()
         // intersection of mouse ray with image plane at 1 unit distance
         if (gApp.show_view_plane_intersect)
         {
-            lab::camera::v3f cam_pos = gApp.camera.mount.position();
-            lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+            lab::camera::v3f cam_pos = cmt.position;
+            lab::camera::v3f cam_nrm = cmt.forward();
             cam_nrm.x *= -1.f;
             cam_nrm.y *= -1.f;
             cam_nrm.z *= -1.f;
@@ -600,8 +602,8 @@ void run_application_logic()
 
     // show where the 2d projected 3d projected 2d hit point is
     {
-        lab::camera::v3f cam_pos = gApp.camera.mount.position();
-        lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+        lab::camera::v3f cam_pos = cmt.position;
+        lab::camera::v3f cam_nrm = cmt.forward();
         cam_nrm.x *= -1.f;
         cam_nrm.y *= -1.f;
         cam_nrm.z *= -1.f;
@@ -637,7 +639,7 @@ void run_application_logic()
         ImGui::Text("state: %s", name_state(gApp.ui_state));
         lab::camera::v3f ypr = gApp.camera.mount.ypr();
         ImGui::Text("ypr: (%f, %f, %f)", ypr.x, ypr.y, ypr.z);
-        lab::camera::v3f pos = gApp.camera.mount.position();
+        lab::camera::v3f pos = cmt.position;
         ImGui::Text("pos: (%f, %f, %f)", pos.x, pos.y, pos.z);
         ImGui::Separator();
         ImGui::Text("imouse: %f, %f", gApp.mouse.initial_mousex, gApp.mouse.initial_mousey);
@@ -646,18 +648,21 @@ void run_application_logic()
         ImGui::End();
     }
 
-    LabCameraNavigatorPanelInteraction in = gApp.show_navigator ?
-        run_navigator_panel(gApp.navigator_panel, gApp.camera) : LCNav_None;
+    LabCameraNavigatorPanelInteraction in = LCNav_None;
+    if (gApp.show_navigator)
+    {
+        ptc.sync_constraints(gApp.navigator_panel->pan_tilt);
+        in = run_navigator_panel(gApp.navigator_panel, gApp.camera);
+    }
+
+    const lab::camera::rigid_transform rt = gApp.camera.mount.transform();
+    camera_minimap(320, 240, &rt, gApp.main_pan_tilt.orbit_center_constraint());
+
 
     if (in > LCNav_None)
     {
         gApp.ui_state = UIStateMachine::None;
         run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
-
-        // the navigator ran, so clone the constraints into the main panel
-        gApp.main_pan_tilt.set_orbit_center_constraint(gApp.navigator_panel->pan_tilt.orbit_center_constraint());
-        gApp.main_pan_tilt.set_position_constraint(gApp.navigator_panel->pan_tilt.position_constraint());
-        gApp.main_pan_tilt.set_world_up_constraint(gApp.navigator_panel->pan_tilt.world_up_constraint());
     }
     else if (mouse_in_viewport)
     {
@@ -693,8 +698,8 @@ void run_application_logic()
                     }
                     else
                     {
-                        lab::camera::v3f cam_pos = gApp.camera.mount.position();
-                        lab::camera::v3f cam_nrm = gApp.camera.mount.forward();
+                        lab::camera::v3f cam_pos = cmt.position;
+                        lab::camera::v3f cam_nrm = cmt.forward();
                         cam_nrm.x *= -1.f;
                         cam_nrm.y *= -1.f;
                         cam_nrm.z *= -1.f;
@@ -753,10 +758,6 @@ void run_application_logic()
                     { mouse_pos.x, mouse_pos.y });
                 ptc.end_interaction(tok);
             }
-
-            gApp.navigator_panel->pan_tilt.set_orbit_center_constraint(gApp.main_pan_tilt.orbit_center_constraint());
-            gApp.navigator_panel->pan_tilt.set_position_constraint(gApp.main_pan_tilt.position_constraint());
-            gApp.navigator_panel->pan_tilt.set_world_up_constraint(gApp.main_pan_tilt.world_up_constraint());
 
             if (gApp.mouse.click_ended)
             {

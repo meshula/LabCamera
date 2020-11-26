@@ -48,4 +48,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel, lab::camera::Camera& came
 LCNav_PanelState* create_navigator_panel();
 void release_navigator_panel(LCNav_PanelState*);
 
+
+void camera_minimap(int w, int h, const lab::camera::rigid_transform* cam, const lab::camera::v3f lookat);
+
+
+
 #endif

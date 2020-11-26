@@ -18,6 +18,7 @@ namespace lab {
         constexpr v3f xyz(const v4f& a) { return { a.x, a.y, a.z }; }
         constexpr v3f cross(const v3f& a, const v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
         constexpr float dot(const v3f& a, const v3f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z; }
+        constexpr float dot(const v4f& a, const v4f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
         constexpr v2f operator + (const v2f& a, const v2f& b) { return v2f{ a.x + b.x, a.y + b.y }; }
         constexpr v2f operator - (const v2f& a, const v2f& b) { return v2f{ a.x - b.x, a.y - b.y }; }
         constexpr v3f operator + (const v3f& a, const v3f& b) { return v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
@@ -92,7 +93,7 @@ namespace lab {
             return m;
         }
 
-        m44f rotation_quat(quatf const& v)
+        m44f rotation_matrix_from_quat(quatf const& v)
         {
             v3f xaxis = {
                     1 - 2 * (v.y * v.y + v.z * v.z),
@@ -129,11 +130,11 @@ namespace lab {
 
             m44f m;
             m[0].x = cx * cz;
-            m[0].y = cx * sz;
+            m[0].y = cx * -sz;
             m[0].z = -sx;
             m[0].w = 0;
 
-            m[1].x = sx * sy * cz - cy * sz;
+            m[1].x = sx * sy * cz + cy * sz;
             m[1].y = sx * sy * sz + cy * cz;
             m[1].z = cx * sy;
             m[1].w = 0;
@@ -232,6 +233,14 @@ namespace lab {
 
         //---- quat ops
 
+        inline quatf quat_inverse(const quatf& q)
+        { 
+            quatf q1 = { -q.x,-q.y,-q.z,q.w };
+            float d = 1.f / dot(q1, q1);
+            return { q1.x * d, q1.y * d, q1.z * d, q1.w * d };
+        }
+
+
         inline quatf quat_from_axis_angle(v3f v, float a)
         {
             quatf Result;
@@ -251,6 +260,14 @@ namespace lab {
             ypr.y = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
             ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
             return ypr;
+        }
+
+        inline quatf quat_from_euler(const v3f& e)
+        {
+            quatf x = { 1, 0, 0, e.x };
+            quatf y = { 0, 1, 0, e.y };
+            quatf z = { 0, 0, 1, e.z };
+            return mul(mul(x, y), z);
         }
 
         // swing twist decomposition.
@@ -490,7 +507,8 @@ namespace lab {
                     return true;
                 }
             }
-            if (outT) *outT = std::numeric_limits<float>::max();
+            if (outT) 
+                *outT = std::numeric_limits<float>::max();
             return false;
         }
 
@@ -506,7 +524,7 @@ namespace lab {
 
             p1 = mul(p1, 1.f / p1.w);
             p0 = mul(p0, 1.f / p0.w);
-            return{ camera_position, normalize(v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+            return { camera_position, normalize(v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
         }
 
         float distance_point_to_plane(v3f const& a, v3f const& point, v3f const& normal)
@@ -521,18 +539,63 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-
         InteractionToken PanTiltController::begin_interaction(v2f const& viewport_size)
         {
-            // nb: in the future the InteractionToken will be used to manage
-            // multitouch and multidevice interactions.
-
             _viewport_size = viewport_size;
-            return 0;
+            _roll_override = false;
+            ++_epoch;
+            return _epoch;
+        }
+
+        void PanTiltController::sync_constraints(PanTiltController& ptc)
+        {
+            if (ptc._epoch == _epoch)
+                return;
+
+            if (ptc._epoch > _epoch)
+            {
+                // update constarints from incoming controller
+                _world_up = ptc._world_up;
+                _orbit_center = ptc._orbit_center;
+                _epoch = ptc._epoch;
+            }
+            else
+            {
+                // update constarints from incoming controller
+                ptc._world_up = _world_up;
+                ptc._orbit_center = _orbit_center;
+                ptc._epoch = _epoch;
+            }
         }
 
         void PanTiltController::end_interaction(InteractionToken)
         {
+        }
+
+        void PanTiltController::set_roll(Camera& camera, InteractionToken, radians r)
+        {
+            _initial_inv_projection = camera.inv_view_projection(1.f);
+            _initial_focus_point = _orbit_center;
+            v3f pos = camera.mount.transform().position;
+            v3f camera_to_focus = pos - _orbit_center;
+            float distance_to_focus = length(camera_to_focus);
+            const float feel = 0.02f;
+
+            auto& cmt = camera.mount.transform();
+
+            v3f start_ypr = camera.mount.ypr();
+            start_ypr.z = r.value;
+            v3f orig_fwd = cmt.forward();
+
+            m44f rot = mul(mul(rotx(start_ypr.y), roty(start_ypr.x)), rotz(start_ypr.z));
+            rot = transpose(rot);
+            pos = mul(rot, v3f{ 0, 0, distance_to_focus }) + _orbit_center;
+            rot = transpose(rot);
+
+            rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, pos);
+            rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, pos);
+            rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, pos);
+            camera.mount.set_view_transform(rot);
         }
 
         // delta is the 2d motion of a mouse or gesture in the screen plane,
@@ -543,9 +606,10 @@ namespace lab {
             if (phase == InteractionPhase::Start)
             {
                 _initial_inv_projection = camera.inv_view_projection(1.f);
-                _initial_position_constraint = _position;
                 _initial_focus_point = _orbit_center;
             }
+
+            auto& cmt = camera.mount.transform();
 
             // joystick mode controls
             v2f delta = delta_in;
@@ -566,7 +630,8 @@ namespace lab {
                 delta.y = buffer * copysign(dy, delta.y);
             }
 
-            v3f camera_to_focus = _position - _orbit_center;
+            v3f pos = camera.mount.transform().position;
+            v3f camera_to_focus = pos - _orbit_center;
             float distance_to_focus = length(camera_to_focus);
             const float feel = 0.02f;
             float scale = std::max(0.01f, logf(distance_to_focus) * feel);
@@ -576,95 +641,56 @@ namespace lab {
             case InteractionMode::Dolly:
             {
                 // roll works? Y
-                v3f camFwd = camera.mount.forward();
-                v3f camRight = camera.mount.right();
-                v3f camUp = camera.mount.up();
-                v3f deltaX = camRight * delta.x * scale;
-                v3f dP = camFwd * delta.y * scale - deltaX;
-                _position += dP;
+                v3f deltaX = cmt.right() * delta.x * scale;
+                v3f dP =cmt.forward() * delta.y * scale - deltaX;
                 _orbit_center += dP;
-                camera.mount.look_at(_position, _orbit_center, camUp);
+                camera.mount.look_at(cmt.position + dP, _orbit_center, cmt.up());
                 break;
             }
             case InteractionMode::Crane:
             {
                 // roll works? Y
-                v3f camera_up = camera.mount.up();
-                v3f camera_right = camera.mount.right();
-                v3f camUp = camera.mount.up();
-                v3f dP = camera_up * -delta.y * scale - camera_right * delta.x * scale;
-                _position += dP;
+                v3f camera_up = cmt.up();
+                v3f dP = camera_up * -delta.y * scale - cmt.right() * delta.x * scale;
                 _orbit_center += dP;
-                camera.mount.look_at(_position, _orbit_center, camUp);
+                camera.mount.look_at(cmt.position + dP, _orbit_center, camera_up);
                 break;
             }
-            case InteractionMode::Gimbal:
+
+            case InteractionMode::PanTilt:
+            {
+                v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+                v3f rt = cmt.right(); // turntable tilts about the camera right axis
+                quatf rx = quat_from_axis_angle(up, delta.x * _speed * 2.f);
+                quatf ry = quat_from_axis_angle(rt, -delta.y * _speed * 2.f);
+                quatf quat_step = mul(rx, ry);
+                quatf new_quat = mul(cmt.orientation, quat_step);
+
+                v3f pos = _orbit_center - cmt.position;
+                pos = quat_rotate_vector(quat_step, pos) + cmt.position;
+
+                // because the orientation is synthesized from a motion in world space
+                // and a rotation in camera space, recompose the camera orientation by
+                // constraining the camera's direction to face the orbit center.
+                camera.mount.look_at(cmt.position, pos, v3f{ 0,1,0 });
+                break;
+            }
             case InteractionMode::TurnTableOrbit:
             {
-                // roll works? Y
-                if (mode == InteractionMode::Gimbal)
-                    delta.y *= -1.f;   // to feel like the camera is moving in the gesture direction
-                else
-                    delta.x *= -1.f;   // to feel like the object is moving in the gesture direction
+                v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+                v3f rt = cmt.right(); // turntable tilts about the camera right axis
+                quatf rx = quat_from_axis_angle(up, -delta.x * _speed * 2.f);
+                quatf ry = quat_from_axis_angle(rt, delta.y * _speed * 2.f);
+                quatf quat_step = mul(ry, rx);
+                quatf new_quat = mul(cmt.orientation, quat_step);
 
-                v3f start_ypr = camera.mount.ypr();
-                v3f orig_fwd = camera.mount.forward();
+                v3f pos = cmt.position - _orbit_center;
+                pos = quat_rotate_vector(quat_step, pos) + _orbit_center;
 
-                // azimuth
-                start_ypr.x += 0.01f * delta.x;
-                while (start_ypr.x > 2.f * pi)
-                    start_ypr.x -= 2.f * pi;
-                while (start_ypr.x < 0)
-                    start_ypr.x += 2.f * pi;
-
-                start_ypr.y += 0.02f * delta.y; // this value has to be great enough to escape the pole threshold.
-                if (start_ypr.y > pi * 0.5f) {
-                    start_ypr.y = pi * 0.5f;
-                    if (orig_fwd.z < 0)
-                        start_ypr.y -= 1e-4f; // compensate for rounding error on pi/2, which matters in the negative half space
-                }
-                if (start_ypr.y < -pi * 0.5f)
-                {
-                    start_ypr.y = -pi * 0.5f;
-                    if (orig_fwd.z < 0)
-                        start_ypr.y += 1e-4f; // compensate for rounding error on -pi/2, which matters in the negative half space
-                }
-
-                m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
-                rot = mul(rot, rotz(start_ypr.z));
-                rot = transpose(rot);
-
-                v3f pos_temp = _position;
-
-                if (mode == InteractionMode::TurnTableOrbit)
-                {
-                    _position = mul(rot, v3f{ 0, 0, distance_to_focus }) + _orbit_center;
-                }
-                else
-                {
-                    _orbit_center = _position - mul(rot, v3f{ 0, 0, distance_to_focus });
-                }
-
-                rot = transpose(rot);
-                rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
-                rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
-                rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
-                camera.mount.set_view_transform(rot);
-                break;
-            }
-
-            default:
-            {
-                // a tumble that moves the focus_point
-                v3f camera_forward = camera.mount.forward();
-                v3f right = normalize(cross(_world_up, camera_forward));
-
-                v3f rel = mul(camera_to_focus, -1.f);
-                quatf yaw = quat_from_axis_angle(v3f{ 0.f, 1.f, 0.f }, feel * 0.5f * delta.x);
-                quatf pitch = quat_from_axis_angle(right, feel * -0.125f * delta.y);
-                v3f rotatedVec = quat_rotate_vector(yaw, quat_rotate_vector(pitch, rel));
-                _orbit_center = _position + rotatedVec;
-                camera.mount.look_at(_position, _orbit_center, _world_up);
+                // because the orientation is synthesized from a motion in world space
+                // and a rotation in camera space, recompose the camera orientation by
+                // constraining the camera's direction to face the orbit center.
+                camera.mount.look_at(pos, _orbit_center, v3f{ 0,1,0 });
                 break;
             }
             }
@@ -676,19 +702,19 @@ namespace lab {
         //
         void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_)
         {
+            auto& cmt = camera.mount.transform();
             switch (mode)
             {
             case InteractionMode::Arcball:
             {
                 // roll works? Y
-                // flip y to match the arcball math
                 v2f current_mouse = current_mouse_;
 
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse;
                     _quat_step = { 0, 0, 0, 1 };
-                    _current_quat = camera.mount.rotation();
+                    _current_quat = cmt.orientation;
                 }
                 else if (phase == InteractionPhase::Finish)
                 {
@@ -697,43 +723,48 @@ namespace lab {
                 float w = _viewport_size.x * 0.5f;
                 float h = _viewport_size.y * 0.5f;
                 float min_dimension = 1.f / std::min(w, h);
-                auto mouse_to_vec = [w, h, min_dimension](v3f& v)
-                {
-                    v.x =   (v.x - w) * min_dimension;
-                    v.y =  -(v.y - h) * min_dimension;
-                    float len_squared = dot(v, v);
-                    if (len_squared <= 1.f)
-                        v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
-                    else
-                        v = normalize(v); // pick a point on the edge of the projected disc
-                };
-
                 v3f v0{ _init_mouse.x, _init_mouse.y, 0.f };
                 v3f v1{ current_mouse.x, current_mouse.y, 0.f };
+
+                bool roll_override = _roll_override;
+                auto mouse_to_vec = [w, h, min_dimension, &roll_override](v3f& v)
+                {
+                    v.x = -(v.x - w) * min_dimension;
+                    v.y = (v.y - h) * min_dimension;
+                    float len_squared = dot(v, v);
+                    if (len_squared <= 1.f && !roll_override)
+                        v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
+                    else
+                    {
+                        roll_override = true;
+                        v.y *= -1.f; // flip so that dragging up or down on the edge of the screen induces the intuitive roll
+                        v = normalize(v); // pick a point on the edge of the projected disc
+                    }
+                };
                 mouse_to_vec(v0);
                 mouse_to_vec(v1);
-                //printf("%f %f\n", v1.x, v1.y);
 
                 v3f axis = cross(v0, v1);
-                if (dot(axis, axis) > 1e-3f)
+
+                if (dot(axis, axis) > 1e-5f)
                 {
                     axis = normalize(axis);
                     float proj = dot(v0, v1);
-                    float angle = acosf(std::min(proj, 1.f));
-                    //printf("%f %f %f:%f\n", axis.x, axis.y, axis.z, angle);
+                    float angle = acosf(std::min(proj, 1.f)) * _speed * 0.1f;
+                    _quat_step = quat_from_axis_angle(axis, angle);
 
-                    m44f r1 = rotation_quat(_quat_step);
-                    m44f r2 = camera.mount.rotation_transform();
-                    //axis = { 0,1,0 };
-                    axis = mul(transpose(r2), axis);
-                    _quat_step = quat_from_axis_angle(axis, _speed * angle);
-                    m44f rot = mul(r1, r2);
+                    // if the block ends here, then the previous step could be recycled to implement
+                    // momentum, but it currently feels rather staccato.
+                //}
 
-                    float distance_to_focus = length(camera.mount.position() - _orbit_center);
-                    v3f pos = mul(transpose(rot), v3f{ 0, 0, distance_to_focus }) + _orbit_center;
-                    _current_quat = mul(_current_quat, _quat_step);
-                    camera.mount.set_view_transform_ypr_eye(_current_quat, pos);
+                    _current_quat = mul(cmt.orientation, _quat_step);
+
+                    float distance_to_focus = length(cmt.position - _orbit_center);
+                    v3f pos = cmt.transform_vector(v3f{ 0, 0, distance_to_focus }) + _orbit_center;
+                    camera.mount.set_view_transform_quat_pos(_current_quat, pos);
                 }
+                // in order to implement continuous updating, including the "traditional" feel of 
+                //_init_mouse = current_mouse;
             }
             break;
 
@@ -766,37 +797,35 @@ namespace lab {
                 break;
             }
 
-            case InteractionMode::Gimbal:
+            case InteractionMode::PanTilt:
             {
                 // roll works? N
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse_;
                     _initial_inv_projection = camera.inv_view_projection(1.f);
-                    _initial_position_constraint = _position;
                     _initial_focus_point = _orbit_center;
                 }
 
+                v3f pos = camera.mount.transform().position;
+
                 // Through the lens gimbal
                 Ray original_ray = get_ray(_initial_inv_projection,
-                    _initial_position_constraint, _init_mouse,
-                    { 0, 0 }, _viewport_size);
-                Ray new_ray = get_ray(_initial_inv_projection,
-                    _position, current_mouse_,
-                    { 0, 0 }, _viewport_size);
-                quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
-                v3f rel = _initial_focus_point - _initial_position_constraint;
-                rel = quat_rotate_vector(rotation, rel);
-                _orbit_center = _position + rel;
+                                           pos, _init_mouse,
+                                           { 0, 0 }, _viewport_size);
+                Ray new_ray =      get_ray(_initial_inv_projection,
+                                           pos, current_mouse_,
+                                           { 0, 0 }, _viewport_size);
 
-                // snap the up back to world up ~ to incorporate roll, 
-                // 1. remove roll for the initial inv_projection, save the roll for reapplication
-                // 2. do the calculations as above
-                // 3. reintroduce roll by rotating the world_up_constraint in the view direction
-                camera.mount.look_at(_position, _orbit_center, world_up_constraint());//  camera.mount.up());
+                quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
+
+                v3f rel = _initial_focus_point - pos;
+                rel = quat_rotate_vector(rotation, rel);
+                _orbit_center = pos + rel;
+                camera.mount.look_at(pos, _orbit_center, world_up_constraint());//  camera.mount.up());
                 break;
             }
-            }
+            } // switch
 
             _prev_mouse = current_mouse_;
         }
@@ -806,6 +835,7 @@ namespace lab {
             v2f const& current,
             v3f const& initial_hit_point)
         {
+            auto& cmt = camera.mount.transform();
             switch (mode)
             {
             case InteractionMode::Crane:
@@ -819,22 +849,10 @@ namespace lab {
                 // Through the lens crane
                 v2f target_xy = camera.project_to_viewport(v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _viewport_size.x);
-                v3f delta = mul(camera.mount.right(), target_xy.x * 1.f);
-                delta += mul(camera.mount.up(), target_xy.y * -1.f);
-                _position += delta;
+                v3f delta = mul(cmt.right(), target_xy.x * 1.f);
+                delta += mul(cmt.up(), target_xy.y * -1.f);
                 _orbit_center += delta;
-
-#if 1
-                v3f start_ypr = camera.mount.ypr();
-                m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
-                rot = mul(rot, rotz(start_ypr.z));
-                rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
-                rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
-                rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
-                camera.mount.set_view_transform(rot);
-#else
-                camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
-#endif
+                camera.mount.set_view_transform_quat_pos(camera.mount.transform().orientation, cmt.position + delta);
                 break;
             }
             case InteractionMode::Dolly:
@@ -848,27 +866,16 @@ namespace lab {
                 // Through the lens crane
                 v2f target_xy = camera.project_to_viewport(v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _viewport_size.x);
-                v3f delta = mul(camera.mount.right(), target_xy.x * 1.f);
-                v3f delta_fw = mul(camera.mount.forward(), target_xy.y * -1.f);
+                v3f delta = mul(cmt.right(), target_xy.x * 1.f);
+                v3f delta_fw = mul(cmt.forward(), target_xy.y * -1.f);
 
-                // would moving forward by delta_fw push past the plane (focus_point, mount.forward())?
-                v3f test_pos = _position + delta_fw;
-                float dist = distance_point_to_plane(test_pos, _initial_focus_point, camera.mount.forward());
+                v3f test_pos = cmt.position + delta_fw;
+                float dist = distance_point_to_plane(test_pos, _initial_focus_point, cmt.forward());
                 if (dist < 0)
                 {
-                    _position += delta + delta_fw;
+                    // moving forward would not push past the plane (focus_point, mount.forward())?
                     _orbit_center += delta + delta_fw;
-#if 1
-                    v3f start_ypr = camera.mount.ypr();
-                    m44f rot = mul(rotx(start_ypr.y), roty(start_ypr.x));
-                    rot = mul(rot, rotz(start_ypr.z));
-                    rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, _position);
-                    rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, _position);
-                    rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, _position);
-                    camera.mount.set_view_transform(rot);
-#else
-                    camera.mount.set_view_transform_ypr_eye(camera.mount.ypr(), _position);
-#endif
+                    camera.mount.set_view_transform_quat_pos(camera.mount.transform().orientation, test_pos + delta);
                 }
                 break;
             }
@@ -882,16 +889,6 @@ namespace lab {
         v3f PanTiltController::world_up_constraint() const
         {
             return _world_up;
-        }
-
-        v3f PanTiltController::position_constraint() const
-        {
-            return _position;
-        }
-
-        void PanTiltController::set_position_constraint(v3f const& pos)
-        {
-            _position = pos;
         }
 
         v3f PanTiltController::orbit_center_constraint() const
@@ -914,6 +911,49 @@ namespace lab {
             _speed = s;
         }
 
+        m44f rigid_transform::matrix() const
+        {
+            v3f x = mul(qxdir(orientation), scale.x);
+            v3f y = mul(qxdir(orientation), scale.y);
+            v3f z = mul(qxdir(orientation), scale.z);
+            m44f result = { x.x, x.y, x.z, 0.f,
+                            y.x, y.y, y.z, 0.f,
+                            z.x, z.y, z.z, 0.f,
+                            position.x, position.y, position.z, 1.f };
+            return result;
+        }
+
+        v3f rigid_transform::transform_vector(const v3f& vec) const 
+        { 
+            v3f v = { vec.x * scale.x, vec.y * scale.y, vec.z * scale.z };
+            return quat_rotate_vector(orientation, v);
+        }
+
+        v3f rigid_transform::detransform_vector(const v3f& vec) const 
+        {
+            quatf o = quat_inverse(orientation);
+            v3f r = quat_rotate_vector(o, vec);
+            return { r.x / scale.x, r.y / scale.y, r.z / scale.z };
+        }
+
+        v3f rigid_transform::transform_point(const v3f& p) const { return position + transform_vector(p); }
+        v3f rigid_transform::detransform_point(const v3f& p) const { return detransform_vector(p - position); }
+
+        v3f rigid_transform::right() const
+        {
+            return qxdir(orientation);
+        }
+
+        v3f rigid_transform::up() const
+        {
+            return qydir(orientation);
+        }
+
+        v3f rigid_transform::forward() const
+        {
+            return qzdir(orientation);
+        }
+
 
 //-----------------------------------------------------------------------------
 // Mount
@@ -922,7 +962,6 @@ namespace lab {
 
 
         Mount::Mount()
-        : _view_transform(m44f_identity)
         {
             look_at({ 0, 0.2f, 5 }, { 0,0,0 }, { 0,1,0 });
         }
@@ -931,19 +970,33 @@ namespace lab {
         {
         }
 
-        m44f Mount::view_transform_inv() const
+        m44f Mount::gl_view_transform() const
         {
-            return invert(view_transform());
+            m44f m = inv_rotation_transform();
+            m.w.x = -dot({ m.x.x, m.y.x, m.z.x }, _transform.position);
+            m.w.y = -dot({ m.x.y, m.y.y, m.z.y }, _transform.position);
+            m.w.z = -dot({ m.x.z, m.y.z, m.z.z }, _transform.position);
+            return m;
+        }
+
+        m44f Mount::gl_view_transform_inv() const
+        {
+            return invert(gl_view_transform());
         }
 
         m44f Mount::model_view_transform(float const* const view_matrix) const
         {
-            return mul(view_transform(), *(m44f*)view_matrix);
+            return mul(gl_view_transform(), *(m44f*)view_matrix);
         }
 
         m44f Mount::model_view_transform(m44f const& view_matrix) const
         {
-            return mul(view_transform(), view_matrix);
+            return mul(gl_view_transform(), view_matrix);
+        }
+
+        m44f Mount::rotation_transform() const
+        {
+            return rotation_matrix_from_quat(_transform.orientation);
         }
 
         m44f Mount::inv_rotation_transform() const
@@ -953,87 +1006,38 @@ namespace lab {
 
         void Mount::set_view_transform(m44f const& m)
         {
-            _view_transform = m;
+            v3f p = mul(xyz(m[3]), -1.f);
+            m44f m2 = m;
+            m2.w = { 0, 0, 0, 1 };
+            m2 = transpose(m2);
+            _transform.position = mul(m2, p);
+            _transform.orientation = quat_from_matrix(m);
         }
 
-        void Mount::set_view_transform_ypr_eye(quatf const& v_, v3f const& eye)
+        void Mount::set_view_transform_quat_pos(quatf const& v_, v3f const& eye)
         {
-            quatf v = normalize(v_);
-            _view_transform = rotation_quat(v);
-
-            m44f const& m = _view_transform;
-            _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
-            _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
-            _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
+            _transform.position = eye;
+            _transform.orientation = normalize(v_);
         }
 
         void Mount::set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye)
         {
-            v3f rot = { ypr.x, ypr.y, ypr.z };
-            //_view_transform = transpose(lab::camera::rotation_xyz(rot));
-            _view_transform = mul(rotx(rot.y), roty(rot.x));
-
-            m44f const& m = _view_transform;
-            _view_transform.w.x = -dot({ m.x.x, m.y.x, m.z.x }, eye);
-            _view_transform.w.y = -dot({ m.x.y, m.y.y, m.z.y }, eye);
-            _view_transform.w.z = -dot({ m.x.z, m.y.z, m.z.z }, eye);
+            _transform.orientation = quat_from_euler(ypr);
+            _transform.position = eye;
         }
 
-        void Mount::set_view_transform_ypr_pos(v3f const& ypr, v3f const& pos)
-        {
-            v3f rot = { ypr.x, ypr.y, ypr.z };
-            _view_transform = transpose(lab::camera::rotation_xyz(rot));
-            _view_transform.w.x = pos.x;
-            _view_transform.w.y = pos.y;
-            _view_transform.w.z = pos.z;
-        }
-
-        v3f Mount::right() const {
-            m44f m = view_transform();
-            return normalize(
-                v3f{ m[0].x,
-                     m[1].x,
-                     m[2].x });
-        }
-        v3f Mount::up() const {
-            m44f m = view_transform();
-            return normalize(
-                v3f{ m[0].y,
-                     m[1].y,
-                     m[2].y });
-        }
-        v3f Mount::forward() const {
-            m44f m = view_transform();
-            return normalize(
-                v3f{ m[0].z,
-                     m[1].z,
-                     m[2].z });
-        }
-        v3f Mount::position() const {
-            m44f m = view_transform();
-            v3f p = mul(xyz(m[3]), -1.f);
-            m = inv_rotation_transform();
-            p = mul(m, p);
-            return p;
-        }
-
-        m44f Mount::view_transform() const 
-        { 
-            return _view_transform;
-        }
 
         void Mount::look_at(v3f const& eye, v3f const& target, v3f const& up)
         {
-            _view_transform = make_lookat_transform(eye, target, up);
-        }
-
-        quatf Mount::rotation() const
-        {
-            return quat_from_matrix(_view_transform);
+            _transform.position = eye;
+            m44f m = make_lookat_transform(eye, target, up);
+            _transform.orientation = quat_from_matrix(transpose(m));
         }
 
         v3f Mount::ypr() const
         {
+            auto& cmt = transform();
+
             v3f ypr;
 
             // pitch. same algo as Imath
@@ -1046,7 +1050,7 @@ namespace lab {
                 x1 += pi;
             ypr.y = x1;
 
-            v3f fwd = forward();
+            v3f fwd = cmt.forward();
 
             bool flip = false;
             flip = fwd.z < -0.0001f;
@@ -1079,6 +1083,10 @@ namespace lab {
                 ypr.x += pi;
             }
 
+            ypr.z = 0;
+            return ypr;
+#if 0
+            // roll
             r = roty(-ypr.x); // remove the yaw
             m = mul(r, m);
 
@@ -1087,13 +1095,15 @@ namespace lab {
                      m[1].x,
                      m[2].x });
 
-            ypr.z = atan2f(right.y, right.x);
+            x1 = atan2f(right.y, right.x);
             if (flip)
             {
-                ypr.z += pi;
+                x1 += pi;
             }
+            ypr.z = x1;
 
             return ypr;
+#endif
         }
 
 
@@ -1193,11 +1203,12 @@ namespace lab {
 
         void Camera::frame(v3f const& bound1, v3f const& bound2)
         {
+            auto& cmt = mount.transform();
             float r = 0.5f * length(bound2 - bound1);
             float g = (1.1f * r) / sinf(vertical_FOV().value * 0.5f);
             v3f focus_point = (bound2 + bound1) * 0.5f;
-            v3f position = normalize(mount.position() - focus_point) * g;
-            mount.look_at(position, focus_point, mount.up());
+            v3f position = normalize(cmt.position - focus_point) * g;
+            mount.look_at(position, focus_point, cmt.up());
         }
 
         void Camera::set_clipping_planes_within_bounds(float min_near, float max_far, v3f const& bound1, v3f const& bound2)
@@ -1217,7 +1228,7 @@ namespace lab {
 
             for (int p = 0; p < 8; ++p)
             {
-                v4f dp = mul(mount.view_transform(), points[p]);
+                v4f dp = mul(mount.gl_view_transform(), points[p]);
                 clip_near = std::min(dp.z, clip_near);
                 clip_far = std::max(dp.z, clip_far);
             }
@@ -1238,9 +1249,10 @@ namespace lab {
 
         float Camera::distance_to_plane(v3f const& plane_point, v3f const& plane_normal) const
         {
-            float denom = dot(plane_normal, mount.forward());
+            auto& cmt = mount.transform();
+            float denom = dot(plane_normal, cmt.forward());
             if (denom > 1.e-6f) {
-                v3f p0 = plane_point - mount.position();
+                v3f p0 = plane_point - cmt.position;
                 return dot(p0, plane_normal) / denom;
             }
             return FLT_MAX; // ray and plane are parallel
@@ -1249,21 +1261,22 @@ namespace lab {
         m44f Camera::view_projection(float aspect) const
         {
             m44f proj = perspective(aspect);
-            m44f view = mount.view_transform();
+            m44f view = mount.gl_view_transform();
             return mul(proj, view);
         }
 
         m44f Camera::inv_view_projection(float aspect) const
         {
             m44f proj = perspective(aspect);
-            m44f view = mount.view_transform();
+            m44f view = mount.gl_view_transform();
             return invert(mul(proj, view));
         }
 
         Ray Camera::get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const
         {
+            auto& cmt = mount.transform();
             m44f inv_projection = inv_view_projection(1.f);
-            return get_ray(inv_projection, mount.position(), pixel, viewport_origin, viewport_size);
+            return get_ray(inv_projection, cmt.position, pixel, viewport_origin, viewport_size);
         }
 
         HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const
