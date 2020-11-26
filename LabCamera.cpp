@@ -750,7 +750,7 @@ namespace lab {
                 {
                     axis = normalize(axis);
                     float proj = dot(v0, v1);
-                    float angle = acosf(std::min(proj, 1.f)) * _speed * 0.1f;
+                    float angle = acosf(std::min(proj, 1.f)) * _speed * 0.5f;
                     _quat_step = quat_from_axis_angle(axis, angle);
 
                     // if the block ends here, then the previous step could be recycled to implement
@@ -763,8 +763,8 @@ namespace lab {
                     v3f pos = cmt.transform_vector(v3f{ 0, 0, distance_to_focus }) + _orbit_center;
                     camera.mount.set_view_transform_quat_pos(_current_quat, pos);
                 }
-                // in order to implement continuous updating, including the "traditional" feel of 
-                //_init_mouse = current_mouse;
+                // in order to implement continuous updating, including the "traditional" feel of the arcball algorithm
+                _init_mouse = current_mouse;
             }
             break;
 
@@ -790,9 +790,8 @@ namespace lab {
                     _init_mouse.y = current_mouse_.y;
                 dp = current_mouse_ - _init_mouse;
 
-                const float speed_scale = 10.f;
-                dp.x *= speed_scale / _viewport_size.x;
-                dp.y *= -speed_scale / _viewport_size.y;
+                dp.x /=  _viewport_size.x;
+                dp.y /= -_viewport_size.y;
                 joystick_interaction(camera, tok, phase, mode, dp);
                 break;
             }
