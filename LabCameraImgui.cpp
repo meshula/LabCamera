@@ -145,7 +145,7 @@ bool update_mouseStatus_in_current_imgui_window(LCNav_MouseState* mouse, const I
 
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& camera)
+run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& camera, float dt)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
     LabCameraNavigatorPanelInteraction result = LCNav_None;
@@ -314,7 +314,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
                 navigator_panel->pan_tilt.ttl_interaction(
                     camera, 
                     tok, phase, navigator_panel->camera_interaction_mode, 
-                    { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey });
+                    { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey }, dt);
                 navigator_panel->pan_tilt.end_interaction(tok);
             }
             else
@@ -326,7 +326,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
                 lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
                 navigator_panel->pan_tilt.joystick_interaction(
                     camera, 
-                    tok, phase, navigator_panel->camera_interaction_mode, { dx, dy });
+                    tok, phase, navigator_panel->camera_interaction_mode, { dx, dy }, dt);
                 navigator_panel->pan_tilt.end_interaction(tok);
             }
         }

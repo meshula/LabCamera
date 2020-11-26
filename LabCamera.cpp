@@ -542,7 +542,6 @@ namespace lab {
         InteractionToken PanTiltController::begin_interaction(v2f const& viewport_size)
         {
             _viewport_size = viewport_size;
-            _roll_override = false;
             ++_epoch;
             return _epoch;
         }
@@ -601,7 +600,8 @@ namespace lab {
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void PanTiltController::joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, InteractionMode mode, v2f const& delta_in)
+        void PanTiltController::joystick_interaction(Camera& camera, InteractionToken, 
+            InteractionPhase phase, InteractionMode mode, v2f const& delta_in, float dt)
         {
             if (phase == InteractionPhase::Start)
             {
@@ -700,7 +700,8 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_)
+        void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, 
+            InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_, float dt)
         {
             auto& cmt = camera.mount.transform();
             switch (mode)
@@ -714,7 +715,6 @@ namespace lab {
                 {
                     _init_mouse = current_mouse;
                     _quat_step = { 0, 0, 0, 1 };
-                    _current_quat = cmt.orientation;
                 }
                 else if (phase == InteractionPhase::Finish)
                 {
@@ -726,44 +726,38 @@ namespace lab {
                 v3f v0{ _init_mouse.x, _init_mouse.y, 0.f };
                 v3f v1{ current_mouse.x, current_mouse.y, 0.f };
 
-                bool roll_override = _roll_override;
-                auto mouse_to_vec = [w, h, min_dimension, &roll_override](v3f& v)
+                auto mouse_to_vec = [w, h, min_dimension](v3f& v)
                 {
                     v.x = -(v.x - w) * min_dimension;
                     v.y = (v.y - h) * min_dimension;
                     float len_squared = dot(v, v);
-                    if (len_squared <= 1.f && !roll_override)
-                        v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
-                    else
-                    {
-                        roll_override = true;
-                        v.y *= -1.f; // flip so that dragging up or down on the edge of the screen induces the intuitive roll
-                        v = normalize(v); // pick a point on the edge of the projected disc
-                    }
+                    v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
                 };
                 mouse_to_vec(v0);
                 mouse_to_vec(v1);
+                v3f axis = cross(normalize(v0), normalize(v1));
 
-                v3f axis = cross(v0, v1);
-
-                if (dot(axis, axis) > 1e-5f)
+                if (dot(v0, v0) > 1e-4f && dot(v1, v1) > 1e-4f)
                 {
-                    axis = normalize(axis);
-                    float proj = dot(v0, v1);
-                    float angle = acosf(std::min(proj, 1.f)) * _speed * 0.5f;
-                    _quat_step = quat_from_axis_angle(axis, angle);
+                    v3f axis = cross(normalize(v0), normalize(v1));
+                    if (dot(axis, axis) > 1e-4f)
+                    {
+                        axis = quat_rotate_vector(quat_inverse(cmt.orientation), axis);
+                        float sa = std::sqrt(dot(axis, axis));
+                        float ca = dot(v0, v1);
+                        float angle = std::atan2(sa, ca);
 
-                    // if the block ends here, then the previous step could be recycled to implement
-                    // momentum, but it currently feels rather staccato.
-                //}
+                        if (v1.x * v1.x + v1.y * v1.y > 1.0f)
+                            angle *= 1.0f + 0.2f * (std::sqrt(v1.x * v1.x + v1.y * v1.y) - 1.0f);
 
-                    _current_quat = mul(cmt.orientation, _quat_step);
-
-                    float distance_to_focus = length(cmt.position - _orbit_center);
-                    v3f pos = cmt.transform_vector(v3f{ 0, 0, distance_to_focus }) + _orbit_center;
-                    camera.mount.set_view_transform_quat_pos(_current_quat, pos);
+                        _quat_step = quat_from_axis_angle(normalize(axis), angle);
+                    }
                 }
-                // in order to implement continuous updating, including the "traditional" feel of the arcball algorithm
+
+                v3f fwd = { 0, 0, length(cmt.position - _orbit_center) };
+                quatf orientation = mul(cmt.orientation, mul(_quat_step, dt / 60.f));
+                v3f pos = quat_rotate_vector(normalize(orientation), fwd) + _orbit_center;
+                camera.mount.set_view_transform_quat_pos(orientation, pos);
                 _init_mouse = current_mouse;
             }
             break;
@@ -792,7 +786,7 @@ namespace lab {
 
                 dp.x /=  _viewport_size.x;
                 dp.y /= -_viewport_size.y;
-                joystick_interaction(camera, tok, phase, mode, dp);
+                joystick_interaction(camera, tok, phase, mode, dp, dt);
                 break;
             }
 
@@ -832,7 +826,8 @@ namespace lab {
         void PanTiltController::constrained_ttl_interaction(Camera& camera, InteractionToken tok,
             InteractionPhase phase, InteractionMode mode,
             v2f const& current,
-            v3f const& initial_hit_point)
+            v3f const& initial_hit_point,
+            float dt)
         {
             auto& cmt = camera.mount.transform();
             switch (mode)
@@ -880,7 +875,7 @@ namespace lab {
             }
 
             default:
-                ttl_interaction(camera, tok, phase, mode, current);
+                ttl_interaction(camera, tok, phase, mode, current, dt);
                 break;
             }
         }

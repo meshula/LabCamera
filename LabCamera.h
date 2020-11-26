@@ -329,7 +329,6 @@ namespace camera {
 
         // local settings
         float _speed = 0.5f;
-        bool _roll_override = false;
 
         // working state
         v2f _viewport_size = { 0, 0 };
@@ -338,7 +337,6 @@ namespace camera {
         v2f _init_mouse{ 0,0 };
         v2f _prev_mouse{ 0,0 };
         m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
-        quatf _current_quat = { 0, 0, 0, 1 };
         quatf _quat_step = { 0, 0, 0, 1 };
 
     public:
@@ -358,6 +356,8 @@ namespace camera {
         InteractionToken begin_interaction(v2f const& viewport_size);
         void end_interaction(InteractionToken);
 
+        void idle_interaction(Camera& camera, float dt);
+
         // Synchronize constraints and epoch to the most recent of this and controller.
         void sync_constraints(PanTiltController& controller);
 
@@ -373,7 +373,7 @@ namespace camera {
         // delta = mousePos - mouseClickPos;
         //
         void joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, 
-            InteractionMode mode, v2f const& delta_in);
+            InteractionMode mode, v2f const& delta_in, float dt);
 
         // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current
@@ -386,7 +386,8 @@ namespace camera {
         //
         // Gimbal: The camera will be panned and tilted to keep initial under current
         //
-        void ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, InteractionMode mode, v2f const& current);
+        void ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, 
+            InteractionMode mode, v2f const& current, float dt);
 
         // through the lens, with a point in world space to keep under the mouse.
         // dolly: hit_point will be constrained to stay under the mouse
@@ -397,7 +398,8 @@ namespace camera {
         void constrained_ttl_interaction(Camera& camera, InteractionToken tok,
             InteractionPhase phase, InteractionMode mode,
             v2f const& current,
-            v3f const& initial_hit_point);
+            v3f const& initial_hit_point,
+            float dt);
     };
 
 

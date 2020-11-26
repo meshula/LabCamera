@@ -652,12 +652,11 @@ void run_application_logic()
     if (gApp.show_navigator)
     {
         ptc.sync_constraints(gApp.navigator_panel->pan_tilt);
-        in = run_navigator_panel(gApp.navigator_panel, gApp.camera);
+        in = run_navigator_panel(gApp.navigator_panel, gApp.camera, static_cast<float>(delta_time));
     }
 
     const lab::camera::rigid_transform rt = gApp.camera.mount.transform();
     camera_minimap(320, 240, &rt, gApp.main_pan_tilt.orbit_center_constraint());
-
 
     if (in > LCNav_None)
     {
@@ -742,7 +741,7 @@ void run_application_logic()
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
-                    gApp.initial_hit_point);
+                    gApp.initial_hit_point, static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
             else
@@ -755,7 +754,7 @@ void run_application_logic()
                 ptc.ttl_interaction(
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
-                    { mouse_pos.x, mouse_pos.y });
+                    { mouse_pos.x, mouse_pos.y }, static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
 
