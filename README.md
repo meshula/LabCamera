@@ -1,17 +1,35 @@
 # LabCamera
 
- Copyright (c) 2013 Nick Porcino, All rights reserved.
+Copyright (c) 2013 Nick Porcino, All rights reserved.
 
- License is MIT: http://opensource.org/licenses/MIT
+License is MIT: http://opensource.org/licenses/MIT
 
- LabCamera has no external dependencies. Include LabCamera.cpp in your project.
+LabCamera has no external dependencies. Include LabCamera.cpp in your project.
 
- LabCameraImgui is a convenient panel implementing a pan-tilt controller to
- manipulate the camera.
+LabCameraImgui is a convenient panel implementing a pan-tilt controller to
+manipulate the camera.
 
- examples/Navigator is a small demo app that demonstrates the use of LabCamera.
+examples/Navigator is a small demo app that demonstrates the use of LabCamera.
 
-________________________________________________________________________________
+_________
+
+### Goals
+
+- Physical camera modeling
+- Support for offset frustums for sensor shift and image tiling
+- Cinematic interaction controls; pan, dolly, crane
+- Through the lens and joystick style interaction
+- Modeling controls; arcball and turntable
+- No dependencies on a UI toolkit or graphics library or event model
+- Trivial math types compatible with other libraries via static casting or copy
+- No leakage of implementation details, including a math library
+- Camera raycast helpers
+- Sample Dear Imgui camera control panel for easy drop in usage
+- Convenience functions to create view and projection matrices
+
+_________
+
+### Model
 
 
 LabCamera models a physical camera.
