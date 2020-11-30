@@ -96,9 +96,9 @@ namespace lab {
         m44f rotation_matrix_from_quat(quatf const& v)
         {
             v3f xaxis = {
-                    1 - 2 * (v.y * v.y + v.z * v.z),
-                    2 * (v.x * v.y + v.z * v.w),
-                    2 * (v.z * v.x - v.y * v.w),
+                1 - 2 * (v.y * v.y + v.z * v.z),
+                2 * (v.x * v.y + v.z * v.w),
+                2 * (v.z * v.x - v.y * v.w),
             };
             v3f yaxis = {
                 2 * (v.x * v.y - v.z * v.w),
@@ -241,35 +241,6 @@ namespace lab {
         }
 
 
-        inline quatf quat_from_axis_angle(v3f v, float a)
-        {
-            quatf Result;
-            float s = std::sin(a * 0.5f);
-            Result.w = std::cos(a * 0.5f);
-            Result.x = v.x * s;
-            Result.y = v.y * s;
-            Result.z = v.z * s;
-            return Result;
-        }
-
-        inline v3f euler_from_quat(const quatf& q)
-        {
-            v3f ypr;
-            const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
-            ypr.x = float(asin(2. * q1 * q3 - 2. * q0 * q2));
-            ypr.y = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
-            ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
-            return ypr;
-        }
-
-        inline quatf quat_from_euler(const v3f& e)
-        {
-            quatf x = { 1, 0, 0, e.x };
-            quatf y = { 0, 1, 0, e.y };
-            quatf z = { 0, 0, 1, e.z };
-            return mul(mul(x, y), z);
-        }
-
         // swing twist decomposition.
         // cf. https://stackoverflow.com/questions/3684269/component-of-a-quaternion-rotation-around-an-axis/4341489
         // assumes dir is normailzed
@@ -302,34 +273,6 @@ namespace lab {
                 // Rotation angle `twist.angle()` is now reliable
             }
             return twist;
-        }
-
-        // returns a ypr vector consistent with the ypr being used throughout this API
-        // ypr is distinct from an Euler angle in that it is the specific pair of angles
-        // of azimuth and declination, as opposed to an arbitrary but otherwise correct
-        // Euler angle tuple.
-        inline v3f ypr_from_quat(const quatf& q)
-        {
-            quatf yaw_rot = rotation_about_dir(q, v3f{ 0, 1, 0 });
-            quatf pitch_rot = rotation_about_dir(q, v3f{ 1, 0, 0 });
-
-            // get local roll about the composed yaw an pitch
-            //quatf yaw_pitch = mul(yaw_rot, pitch_rot);
-            //float n = 1.f / sqrtf(1.f - yaw_pitch.w * yaw_pitch.w);
-            //quatf roll_rot = rotation_about_dir(q, v3f{ yaw_pitch.x * n, yaw_pitch.y * n, yaw_pitch.z * n });
-            v3f ypr = {
-                2.f * acosf(yaw_rot.w),
-                2.f * acosf(pitch_rot.w),
-                0 //2.f * acosf(roll_rot.w)
-            };
-
-            ypr.x = 2.f * pi - ypr.x;
-
-            if (ypr.y > pi)
-                ypr.y = 2.f * pi - ypr.y;
-            else
-                ypr.y *= -1.f;
-            return ypr;
         }
         
         inline quatf quat_set_rotation_internal(v3f const& f0, v3f const& t0)
@@ -400,15 +343,80 @@ namespace lab {
             return mul(q, quat_set_rotation_internal(h0, t0));
         }
 
+        inline quatf quat_from_axis_angle(v3f v, float a)
+        {
+            quatf Result;
+            float s = std::sin(a * 0.5f);
+            Result.w = std::cos(a * 0.5f);
+            Result.x = v.x * s;
+            Result.y = v.y * s;
+            Result.z = v.z * s;
+            return Result;
+        }
+
+        inline v3f euler_from_quat(const quatf& q)
+        {
+            v3f ypr;
+            const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
+            ypr.x = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
+            ypr.y = float(asin(2. * q1 * q3 - 2. * q0 * q2));
+            ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
+            return ypr;
+        }
+
+        inline quatf quat_from_euler(const v3f& e)
+        {
+            quatf x = quat_from_axis_angle({ 1, 0, 0 }, e.x);
+            quatf y = quat_from_axis_angle({ 0, 1, 0 }, e.y);
+            quatf z = quat_from_axis_angle({ 0, 0, 1 }, e.z);
+            quatf result = normalize(mul(mul(x, y), z));
+            return result;
+        }
+
+        inline quatf quat_from_ypr(const v3f& ypr)
+        {
+            v3f e = { ypr.y, ypr.x, ypr.z };
+            return quat_from_euler(e);
+        }
+
+        // returns a ypr vector consistent with the ypr being used throughout this API
+        // ypr is distinct from an Euler angle in that it is the specific pair of angles
+        // of azimuth and declination, as opposed to an arbitrary but otherwise correct
+        // Euler angle tuple.
+
+        inline v3f ypr_from_quat(const quatf& q)
+        {
+            quatf yaw_rot = rotation_about_dir(q, v3f{ 0, 1, 0 });
+            quatf pitch_rot = rotation_about_dir(q, v3f{ 1, 0, 0 });
+
+            // get local roll about the composed yaw an pitch
+            //quatf yaw_pitch = mul(yaw_rot, pitch_rot);
+            //float n = 1.f / sqrtf(1.f - yaw_pitch.w * yaw_pitch.w);
+            //quatf roll_rot = rotation_about_dir(q, v3f{ yaw_pitch.x * n, yaw_pitch.y * n, yaw_pitch.z * n });
+            v3f ypr = {
+                2.f * acosf(yaw_rot.w),
+                2.f * acosf(pitch_rot.w),
+                0 //2.f * acosf(roll_rot.w)
+            };
+
+            ypr.x = 2.f * pi - ypr.x;
+
+            if (ypr.y > pi)
+                ypr.y = 2.f * pi - ypr.y;
+            else
+                ypr.y *= -1.f;
+            return ypr;
+        }
+
         inline v3f quat_rotate_vector(quatf q, const v3f& v)
         {
             // https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
             v3f u{ q.x, q.y, q.z };
             float s = q.w;
 
-            return  u * 2.f * dot(u, v)
-                  + v * (s * s - dot(u, u))
-                  + cross(u, v) * 2.f * s;
+            return    u * 2.f * dot(u, v)
+                    + v * (s * s - dot(u, u))
+                    + cross(u, v) * 2.f * s;
         }
 
         quatf quat_from_matrix(const m44f& mat)
@@ -597,18 +605,88 @@ namespace lab {
             camera.mount.set_view_transform(rot);
         }
 
+
+        void PanTiltController::_dolly(Camera& camera, const v3f& delta)
+        {
+            auto& cmt = camera.mount.transform();
+            v3f pos = cmt.position;
+            v3f camera_to_focus = pos - _orbit_center;
+            float distance_to_focus = length(camera_to_focus);
+            const float feel = 0.02f;
+            float scale = std::max(0.01f, logf(distance_to_focus) * feel);
+            v3f deltaX = cmt.right() * -delta.x * scale;
+            v3f dP = cmt.forward() * -delta.z * scale - deltaX - cmt.up() * -delta.y * scale;
+            _orbit_center += dP;
+            camera.mount.set_view_transform_quat_pos(cmt.orientation, cmt.position + dP);
+        };
+
+        void PanTiltController::_turntable(Camera& camera, const v2f& delta)
+        {
+            auto& cmt = camera.mount.transform();
+            v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+            v3f fwd = cmt.forward();
+            bool test_inversion = fabsf(dot(up, fwd)) > (1.f - 1.e-5);
+
+            v3f rt = cmt.right(); // turntable tilts about the camera right axis
+            quatf rx = quat_from_axis_angle(up, delta.x * _orbit_speed);
+            quatf ry = quat_from_axis_angle(rt, -delta.y * _orbit_speed * 0.25f);
+            quatf quat_step = mul(ry, rx);
+            quatf new_quat = mul(cmt.orientation, quat_step);
+
+            v3f pos_pre = cmt.position;
+            v3f pos = pos_pre - _orbit_center;
+            pos = quat_rotate_vector(quat_step, pos) + _orbit_center;
+
+            // because the orientation is synthesized from a motion in world space
+            // and a rotation in camera space, recompose the camera orientation by
+            // constraining the camera's direction to face the orbit center.
+            v3f local_up = { 0, 1, 0 };
+            camera.mount.look_at(pos, _orbit_center, local_up);
+
+            v3f rt_post = cmt.right();
+            if (dot(rt_post, rt) < -0.5f)
+            {
+                // if the input rotation causes motion past the pole, reset it.
+                camera.mount.look_at(pos_pre, _orbit_center, local_up);
+            }
+        }
+
+        void PanTiltController::_pantilt(Camera& camera, const v2f& delta)
+        {
+            auto& cmt = camera.mount.transform();
+            v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+            v3f rt = cmt.right(); // turntable tilts about the camera right axis
+            quatf rx = quat_from_axis_angle(up, -delta.x * _pan_tilt_speed);
+            quatf ry = quat_from_axis_angle(rt, delta.y * _pan_tilt_speed * 0.25f);
+            quatf quat_step = mul(rx, ry);
+            quatf new_quat = mul(cmt.orientation, quat_step);
+
+            v3f orbit_pre = _orbit_center;
+            v3f pos = orbit_pre - cmt.position;
+            _orbit_center = quat_rotate_vector(quat_step, pos) + cmt.position;
+
+            // because the orientation is synthesized from a motion in world space
+            // and a rotation in camera space, recompose the camera orientation by
+            // constraining the camera's direction to face the orbit center.
+            camera.mount.look_at(cmt.position, _orbit_center, v3f{ 0,1,0 });
+
+            v3f rt_post = cmt.right();
+            if (dot(rt_post, rt) < -0.5f)
+            {
+                // if the input rotation causes motion past the pole, reset it.
+                camera.mount.look_at(cmt.position, orbit_pre, v3f{ 0,1,0 });
+            }
+        };
+
+
+
+
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void PanTiltController::joystick_interaction(Camera& camera, InteractionToken, 
-            InteractionPhase phase, InteractionMode mode, v2f const& delta_in, float dt)
+        void PanTiltController::single_stick_interaction(Camera& camera, InteractionToken, 
+            InteractionMode mode, v2f const& delta_in, float dt)
         {
-            if (phase == InteractionPhase::Start)
-            {
-                _initial_inv_projection = camera.inv_view_projection(1.f);
-                _initial_focus_point = _orbit_center;
-            }
-
             auto& cmt = camera.mount.transform();
 
             // joystick mode controls
@@ -630,67 +708,75 @@ namespace lab {
                 delta.y = buffer * copysign(dy, delta.y);
             }
 
-            v3f pos = camera.mount.transform().position;
-            v3f camera_to_focus = pos - _orbit_center;
-            float distance_to_focus = length(camera_to_focus);
-            const float feel = 0.02f;
-            float scale = std::max(0.01f, logf(distance_to_focus) * feel);
+            switch (mode)
+            {
+            case InteractionMode::Dolly:
+                _dolly(camera, { delta.x, 0, delta.y });
+                break;
+
+            case InteractionMode::Crane:
+                _dolly(camera, { delta.x, delta.y, 0 });
+                break;
+
+            case InteractionMode::PanTilt:
+                _pantilt(camera, { delta.x, delta.y });
+                break;
+
+            case InteractionMode::TurnTableOrbit:
+                _turntable(camera, delta);
+                break;
+            }
+        }
+
+
+        void PanTiltController::dual_stick_interaction(Camera& camera, InteractionToken,
+            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, float dt)
+        {
+            v3f pos_delta = pos_delta_in;
+            v3f rotation_delta = rotation_delta_in;
+            auto curve = [&](float& x)
+            {
+                const float buffer = 4.f;
+                if (fabsf(x) < buffer)
+                {
+                    float dx = fabsf(x) / buffer;
+                    dx *= dx;
+                    x = buffer * copysign(dx, x);
+                }
+            };
+
+            // make control less sensitive within the buffer 
+            curve(pos_delta.x);
+            curve(pos_delta.y);
+            curve(rotation_delta.x);
+            curve(rotation_delta.y);
 
             switch (mode)
             {
             case InteractionMode::Dolly:
             {
-                // roll works? Y
-                v3f deltaX = cmt.right() * delta.x * scale;
-                v3f dP =cmt.forward() * delta.y * scale - deltaX;
-                _orbit_center += dP;
-                camera.mount.look_at(cmt.position + dP, _orbit_center, cmt.up());
+                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
+                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
                 break;
             }
             case InteractionMode::Crane:
             {
-                // roll works? Y
-                v3f camera_up = cmt.up();
-                v3f dP = camera_up * -delta.y * scale - cmt.right() * delta.x * scale;
-                _orbit_center += dP;
-                camera.mount.look_at(cmt.position + dP, _orbit_center, camera_up);
+                _dolly(camera, { pos_delta.x, pos_delta.z, 0 });
+                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
                 break;
             }
 
             case InteractionMode::PanTilt:
             {
-                v3f up = { 0,1,0 };   // turntable orbits about the world up axis
-                v3f rt = cmt.right(); // turntable tilts about the camera right axis
-                quatf rx = quat_from_axis_angle(up, delta.x * _speed * 2.f);
-                quatf ry = quat_from_axis_angle(rt, -delta.y * _speed * 2.f);
-                quatf quat_step = mul(rx, ry);
-                quatf new_quat = mul(cmt.orientation, quat_step);
-
-                v3f pos = _orbit_center - cmt.position;
-                pos = quat_rotate_vector(quat_step, pos) + cmt.position;
-
-                // because the orientation is synthesized from a motion in world space
-                // and a rotation in camera space, recompose the camera orientation by
-                // constraining the camera's direction to face the orbit center.
-                camera.mount.look_at(cmt.position, pos, v3f{ 0,1,0 });
+                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
+                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
                 break;
             }
+
             case InteractionMode::TurnTableOrbit:
             {
-                v3f up = { 0,1,0 };   // turntable orbits about the world up axis
-                v3f rt = cmt.right(); // turntable tilts about the camera right axis
-                quatf rx = quat_from_axis_angle(up, -delta.x * _speed * 2.f);
-                quatf ry = quat_from_axis_angle(rt, delta.y * _speed * 2.f);
-                quatf quat_step = mul(ry, rx);
-                quatf new_quat = mul(cmt.orientation, quat_step);
-
-                v3f pos = cmt.position - _orbit_center;
-                pos = quat_rotate_vector(quat_step, pos) + _orbit_center;
-
-                // because the orientation is synthesized from a motion in world space
-                // and a rotation in camera space, recompose the camera orientation by
-                // constraining the camera's direction to face the orbit center.
-                camera.mount.look_at(pos, _orbit_center, v3f{ 0,1,0 });
+                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
+                _turntable(camera, { rotation_delta.x, rotation_delta.z });
                 break;
             }
             }
@@ -786,7 +872,7 @@ namespace lab {
 
                 dp.x /=  _viewport_size.x;
                 dp.y /= -_viewport_size.y;
-                joystick_interaction(camera, tok, phase, mode, dp, dt);
+                single_stick_interaction(camera, tok, mode, dp, dt);
                 break;
             }
 
@@ -900,9 +986,10 @@ namespace lab {
             _world_up = up;
         }
 
-        void PanTiltController::set_speed(float s)
+        void PanTiltController::set_speed(float o, float pt)
         {
-            _speed = s;
+            _orbit_speed = o;
+            _pan_tilt_speed = pt;
         }
 
         m44f rigid_transform::matrix() const
@@ -932,21 +1019,9 @@ namespace lab {
 
         v3f rigid_transform::transform_point(const v3f& p) const { return position + transform_vector(p); }
         v3f rigid_transform::detransform_point(const v3f& p) const { return detransform_vector(p - position); }
-
-        v3f rigid_transform::right() const
-        {
-            return qxdir(orientation);
-        }
-
-        v3f rigid_transform::up() const
-        {
-            return qydir(orientation);
-        }
-
-        v3f rigid_transform::forward() const
-        {
-            return qzdir(orientation);
-        }
+        v3f rigid_transform::right() const { return qxdir(orientation); }
+        v3f rigid_transform::up() const { return qydir(orientation); }
+        v3f rigid_transform::forward() const { return qzdir(orientation); }
 
 
 //-----------------------------------------------------------------------------
@@ -1030,74 +1105,7 @@ namespace lab {
 
         v3f Mount::ypr() const
         {
-            auto& cmt = transform();
-
-            v3f ypr;
-
-            // pitch. same algo as Imath
-            m44f m = rotation_transform();
-            float x = atan2f(m[2].y, m[2].z);
-            float x1 = x;
-            if (x1 > 0.5f * pi)
-                x1 -= pi;
-            else if (x1 < -0.5f * pi)
-                x1 += pi;
-            ypr.y = x1;
-
-            v3f fwd = cmt.forward();
-
-            bool flip = false;
-            flip = fwd.z < -0.0001f;
-
-            m44f r = rotx(-ypr.y); // remove the pitch
-            m = mul(r, m);
-
-            if (flip)
-            {
-                // swing it around into the positive half space so the math works
-                r = roty(pi);
-                m = mul(r, m);
-            }
-
-            fwd = normalize(
-                    v3f{ m[0].z,
-                         m[1].z,
-                         m[2].z });
-
-            // yaw
-            fwd = normalize(fwd);
-            ypr.x = atan2f(fwd.x, fwd.z);
-            while (ypr.x < 0)
-                ypr.x += 2.f * pi;
-            while (ypr.x > 2.f * pi)
-                ypr.x -= 2.f * pi;
-
-            if (flip)
-            {
-                ypr.x += pi;
-            }
-
-            ypr.z = 0;
-            return ypr;
-#if 0
-            // roll
-            r = roty(-ypr.x); // remove the yaw
-            m = mul(r, m);
-
-            v3f right = normalize(
-                v3f{ m[0].x,
-                     m[1].x,
-                     m[2].x });
-
-            x1 = atan2f(right.y, right.x);
-            if (flip)
-            {
-                x1 += pi;
-            }
-            ypr.z = x1;
-
-            return ypr;
-#endif
+            return ypr_from_quat(transform().orientation);
         }
 
 
@@ -1293,25 +1301,6 @@ namespace lab {
             pnt.y -= viewport_origin.y;
             return { pnt.x, pnt.y };
         }
-
-        v3f Camera::arcball_vector(v2f const& viewport_origin, v2f const& viewport_size, const v2f& point) const
-        {
-            /// @todo take origin into account
-
-            v3f p{ 1.f * point.x / viewport_size.x * 2.f - 1.f,
-                   1.f * point.y / viewport_size.y * 2.f - 1.f,
-                   0.f };
-
-            p.y = -p.y;
-
-            float OP_squared = p.x * p.x + p.y * p.y;
-            if (OP_squared <= 1)
-                p.z = sqrtf(1 - OP_squared);  // Pythagoras
-            else
-                p = normalize(p);  // nearest point
-            return p;
-        }
-
 
 
     } // camera

@@ -300,8 +300,6 @@ namespace camera {
 
         v2f project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point) const;
 
-        v3f arcball_vector(v2f const& viewport_origin, v2f const& viewport_size, const v2f& point) const;
-
         m44f view_projection(float aspect = 1.f) const;
         m44f inv_view_projection(float aspect = 1.f) const;
     };
@@ -328,7 +326,8 @@ namespace camera {
         v3f _orbit_center{ 0, 0, 0 };
 
         // local settings
-        float _speed = 0.5f;
+        float _orbit_speed = 0.5f;
+        float _pan_tilt_speed = 0.25f;
 
         // working state
         v2f _viewport_size = { 0, 0 };
@@ -339,6 +338,10 @@ namespace camera {
         m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
         quatf _quat_step = { 0, 0, 0, 1 };
 
+        void _dolly(Camera& camera, const v3f& delta);
+        void _turntable(Camera& camera, const v2f& delta);
+        void _pantilt(Camera& camera, const v2f& delta);
+
     public:
         PanTiltController() = default;
 
@@ -346,7 +349,7 @@ namespace camera {
         v3f orbit_center_constraint() const;
         void set_orbit_center_constraint(v3f const& pos);
         void set_world_up_constraint(v3f const& up);
-        void set_speed(float);
+        void set_speed(float orbit, float pan_tilt);
 
         // begin_interaction
         //
@@ -356,15 +359,11 @@ namespace camera {
         InteractionToken begin_interaction(v2f const& viewport_size);
         void end_interaction(InteractionToken);
 
-        void idle_interaction(Camera& camera, float dt);
-
         // Synchronize constraints and epoch to the most recent of this and controller.
         void sync_constraints(PanTiltController& controller);
 
         void set_roll(Camera& camera, InteractionToken, radians roll);
 
-        // cameraRig_interact
-        //
         // delta is the 2d motion of a mouse or gesture in the screen plane, or
         // the absolute value of an analog joystick position.
         //
@@ -372,8 +371,10 @@ namespace camera {
         // explicit neutral zero point. For example, delta could be computed as
         // delta = mousePos - mouseClickPos;
         //
-        void joystick_interaction(Camera& camera, InteractionToken, InteractionPhase phase, 
+        void single_stick_interaction(Camera& camera, InteractionToken, 
             InteractionMode mode, v2f const& delta_in, float dt);
+        void dual_stick_interaction(Camera& camera, InteractionToken,
+            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, float dt);
 
         // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current

@@ -79,7 +79,7 @@ struct LCNav_Panel : public LCNav_PanelState
 {
     LCNav_Panel()
     {
-        pan_tilt.set_speed(0.01f);
+        pan_tilt.set_speed(0.01f, 0.005f);
     }
 
     LCNav_PanelMode mode = LCNav_Mode_PanTilt;
@@ -324,9 +324,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
                 float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
                 float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
                 lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-                navigator_panel->pan_tilt.joystick_interaction(
+                navigator_panel->pan_tilt.single_stick_interaction(
                     camera, 
-                    tok, phase, navigator_panel->camera_interaction_mode, { dx, dy }, dt);
+                    tok, navigator_panel->camera_interaction_mode, { dx, dy }, dt);
                 navigator_panel->pan_tilt.end_interaction(tok);
             }
         }
