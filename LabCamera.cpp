@@ -800,7 +800,6 @@ namespace lab {
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse;
-                    _quat_step = { 0, 0, 0, 1 };
                 }
                 else if (phase == InteractionPhase::Finish)
                 {
@@ -821,30 +820,16 @@ namespace lab {
                 };
                 mouse_to_vec(v0);
                 mouse_to_vec(v1);
-                v3f axis = cross(normalize(v0), normalize(v1));
 
                 if (dot(v0, v0) > 1e-4f && dot(v1, v1) > 1e-4f)
                 {
-                    v3f axis = cross(normalize(v0), normalize(v1));
-                    if (dot(axis, axis) > 1e-4f)
-                    {
-                        axis = quat_rotate_vector(quat_inverse(cmt.orientation), axis);
-                        float sa = std::sqrt(dot(axis, axis));
-                        float ca = dot(v0, v1);
-                        float angle = std::atan2(sa, ca);
-
-                        if (v1.x * v1.x + v1.y * v1.y > 1.0f)
-                            angle *= 1.0f + 0.2f * (std::sqrt(v1.x * v1.x + v1.y * v1.y) - 1.0f);
-
-                        _quat_step = quat_from_axis_angle(normalize(axis), angle);
-                    }
+                    quatf rot = quat_from_vector_to_vector(v0, v1);
+                    rot = mul(cmt.orientation, rot);
+                    v3f fwd = { 0, 0, length(cmt.position - _orbit_center) };
+                    v3f pos = quat_rotate_vector(normalize(rot), fwd) + _orbit_center;
+                    camera.mount.set_view_transform_quat_pos(normalize(rot), pos);
+                    _init_mouse = current_mouse;
                 }
-
-                v3f fwd = { 0, 0, length(cmt.position - _orbit_center) };
-                quatf orientation = mul(cmt.orientation, mul(_quat_step, dt / 60.f));
-                v3f pos = quat_rotate_vector(normalize(orientation), fwd) + _orbit_center;
-                camera.mount.set_view_transform_quat_pos(orientation, pos);
-                _init_mouse = current_mouse;
             }
             break;
 

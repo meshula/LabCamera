@@ -336,7 +336,6 @@ namespace camera {
         v2f _init_mouse{ 0,0 };
         v2f _prev_mouse{ 0,0 };
         m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
-        quatf _quat_step = { 0, 0, 0, 1 };
 
         void _dolly(Camera& camera, const v3f& delta);
         void _turntable(Camera& camera, const v2f& delta);
