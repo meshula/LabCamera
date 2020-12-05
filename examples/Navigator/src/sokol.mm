@@ -18,6 +18,7 @@
 #include "sokol_gl.h"
 #include "sokol_imgui.h"
 #include "sokol_gfx_imgui.h"
+#include "sokol_gamepad.h"
 
 #ifdef SOKOL_GL_IMPL_INCLUDED
 #endif

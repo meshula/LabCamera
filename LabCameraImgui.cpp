@@ -82,6 +82,9 @@ struct LCNav_Panel : public LCNav_PanelState
         pan_tilt.set_speed(0.01f, 0.005f);
     }
 
+    // this camera is for displaying a little gimbal in the trackball widget
+    lab::camera::Camera trackball_camera;
+
     LCNav_PanelMode mode = LCNav_Mode_PanTilt;
     LCNav_MouseState mouse_state;
     const lab::camera::v2f size = { 256, 256 };
@@ -125,8 +128,10 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
 }
 
 
-bool update_mouseStatus_in_current_imgui_window(LCNav_MouseState* mouse, const ImVec2& sz)
+bool run_navigator_joystick_control(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera)
 {
+    ImVec2 sz{ navigator_panel->trackball_size.x, navigator_panel->trackball_size.y };
+
     // assuming the 3d viewport is the current window, fetch the content region
     ImGuiWindow* win = ImGui::GetCurrentWindow();
     ImRect edit_rect = win->ContentRegionRect;
@@ -136,10 +141,52 @@ bool update_mouseStatus_in_current_imgui_window(LCNav_MouseState* mouse, const I
 
     // detect that the mouse is in the content region
     bool click_finished = ImGui::InvisibleButton("###NAVGIZMOREGION", sz);
+
+    ImVec2 p0 = ImGui::GetItemRectMin();
+    ImVec2 p1 = ImGui::GetItemRectMax();
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->PushClipRect(p0, p1);
+    {
+        float width = p1.x - p0.x;
+        draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
+
+        const lab::camera::rigid_transform& tr = camera.mount.transform();
+        navigator_panel->trackball_camera.mount.set_view_transform_quat_pos(tr.orientation, tr.position);
+
+        lab::camera::v3f pnt{ 0, 1, 0 };
+        lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ 0, -1, 0 };
+        lab::camera::v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+
+        ImVec2 v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        ImVec2 v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xffffffff);
+
+        pnt = lab::camera::v3f{ 1, 0, 0 };
+        xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ -1, 0, 0 };
+        xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+
+        v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xffffffff);
+
+        pnt = lab::camera::v3f{ 0, 0, 1 };
+        xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ 0, 0, -1 };
+        xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
+
+        v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xffffffff);
+    }
+    draw_list->PopClipRect();
+
     bool in_canvas = click_finished || ImGui::IsItemHovered();
 
     ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos - imgui_cursor_pos;
-    LCNav_mouse_state_update(mouse, mouse_pos.x, mouse_pos.y, io.MouseDown[0] && io.MouseDownOwned[0]);
+    LCNav_mouse_state_update(&navigator_panel->mouse_state, mouse_pos.x, mouse_pos.y, io.MouseDown[0] && io.MouseDownOwned[0]);
     return in_canvas;
 }
 
@@ -161,10 +208,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
 
     ImGui::Columns(2, "###NavCol", true);
-    ImGui::SetColumnWidth(0, navigator_panel->trackball_size.x);
+    ImGui::SetColumnWidth(0, navigator_panel->trackball_size.x + 16);
 
-    bool mouse_in_panel = update_mouseStatus_in_current_imgui_window(&navigator_panel->mouse_state,
-        { navigator_panel->trackball_size.x, navigator_panel->trackball_size.y });
+    bool mouse_in_panel = run_navigator_joystick_control(navigator_panel, camera);
     auto& ms = navigator_panel->mouse_state;
 
     //printf("%f %f\n", navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey);

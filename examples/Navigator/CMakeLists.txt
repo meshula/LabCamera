@@ -80,6 +80,7 @@ endif()
 
 set(SOKOL_HEADERS
     src/lab_sokol_config.h
+    src/sokol_gamepad.h
     third/sokol/sokol_app.h
     third/sokol/sokol_args.h
     third/sokol/sokol_audio.h
