@@ -386,18 +386,10 @@ namespace lab {
 
         inline v3f ypr_from_quat(const quatf& q)
         {
-            quatf yaw_rot = rotation_about_dir(q, v3f{ 0, 1, 0 });
-            quatf pitch_rot = rotation_about_dir(q, v3f{ 1, 0, 0 });
-
-            // get local roll about the composed yaw an pitch
-            //quatf yaw_pitch = mul(yaw_rot, pitch_rot);
-            //float n = 1.f / sqrtf(1.f - yaw_pitch.w * yaw_pitch.w);
-            //quatf roll_rot = rotation_about_dir(q, v3f{ yaw_pitch.x * n, yaw_pitch.y * n, yaw_pitch.z * n });
-            v3f ypr = {
-                2.f * acosf(yaw_rot.w),
-                2.f * acosf(pitch_rot.w),
-                0 //2.f * acosf(roll_rot.w)
-            };
+            v3f d = qzdir(q);
+            v3f ypr = { atan2f(d.x, d.z),
+                        atan2f(d.y, sqrtf(d.x*d.x + d.z*d.z)),
+                        0 };
 
             ypr.x = 2.f * pi - ypr.x;
 
@@ -405,6 +397,7 @@ namespace lab {
                 ypr.y = 2.f * pi - ypr.y;
             else
                 ypr.y *= -1.f;
+            
             return ypr;
         }
 
@@ -725,6 +718,13 @@ namespace lab {
             case InteractionMode::TurnTableOrbit:
                 _turntable(camera, delta);
                 break;
+                    
+            case InteractionMode::Static:
+                // do nothing
+                break;
+            case InteractionMode::Arcball:
+                //not supported
+                break;
             }
         }
 
@@ -779,6 +779,13 @@ namespace lab {
                 _turntable(camera, { rotation_delta.x, rotation_delta.z });
                 break;
             }
+
+            case InteractionMode::Static:
+                // do nothing
+                break;
+            case InteractionMode::Arcball:
+                //not supported
+                break;
             }
         }
 
@@ -889,6 +896,10 @@ namespace lab {
                 camera.mount.look_at(pos, _orbit_center, world_up_constraint());//  camera.mount.up());
                 break;
             }
+                    
+            case InteractionMode::Static:
+                // do nothing
+                break;
             } // switch
 
             _prev_mouse = current_mouse_;

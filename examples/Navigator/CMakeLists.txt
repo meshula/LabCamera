@@ -207,6 +207,7 @@ target_link_libraries(Navigator
     "-framework AppKit"
     "-framework CoreGraphics"
     "-framework Foundation"
+    "-framework GameController"
     "-framework Metal"
     "-framework MetalKit"
     "-framework QuartzCore"

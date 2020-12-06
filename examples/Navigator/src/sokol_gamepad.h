@@ -367,7 +367,8 @@ _SOKOL_PRIVATE void _sgamepad_record_state() {
 
     ++target_index;
     for ( ; target_index < SGAMEPAD_MAX_SUPPORTED_GAMEPADS; ++target_index) {
-        target_index->connected = false;
+        sgamepad_gamepad_state* target = _sgamepad.gamepad_states + target_index;
+        target->connected = false;
     }
 }
 
