@@ -130,6 +130,8 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
 
 bool run_navigator_joystick_control(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera)
 {
+    using lab::camera::v3f;
+
     ImVec2 sz{ navigator_panel->trackball_size.x, navigator_panel->trackball_size.y };
 
     // assuming the 3d viewport is the current window, fetch the content region
@@ -152,7 +154,7 @@ bool run_navigator_joystick_control(LCNav_Panel* navigator_panel, const lab::cam
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
 
         const lab::camera::rigid_transform& tr = camera.mount.transform();
-        navigator_panel->trackball_camera.mount.set_view_transform_quat_pos(tr.orientation, tr.position);
+        navigator_panel->trackball_camera.mount.look_at(5.f, tr.orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
 
         lab::camera::v3f pnt{ 0, 1, 0 };
         lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);

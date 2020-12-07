@@ -127,6 +127,7 @@ namespace camera {
         void set_view_transform_quat_pos(quatf const& q, v3f const& eye);
         void set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye);
         void look_at(v3f const& eye, v3f const& target, v3f const& up);
+        void look_at(float distance, quatf const& orientation, v3f const& target, v3f const& up);
     };
 
     //-------------------------------------------------------------------------

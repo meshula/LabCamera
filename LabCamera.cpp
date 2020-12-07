@@ -391,8 +391,6 @@ namespace lab {
                         atan2f(d.y, sqrtf(d.x*d.x + d.z*d.z)),
                         0 };
 
-            ypr.x = 2.f * pi - ypr.x;
-
             if (ypr.y > pi)
                 ypr.y = 2.f * pi - ypr.y;
             else
@@ -647,6 +645,11 @@ namespace lab {
         void PanTiltController::_pantilt(Camera& camera, const v2f& delta)
         {
             auto& cmt = camera.mount.transform();
+
+            quatf restore_quat = cmt.orientation;
+            v3f restore_pos = cmt.position;
+            v3f restore_orbit = _orbit_center;
+
             v3f up = { 0,1,0 };   // turntable orbits about the world up axis
             v3f rt = cmt.right(); // turntable tilts about the camera right axis
             quatf rx = quat_from_axis_angle(up, -delta.x * _pan_tilt_speed);
@@ -654,8 +657,7 @@ namespace lab {
             quatf quat_step = mul(rx, ry);
             quatf new_quat = mul(cmt.orientation, quat_step);
 
-            v3f orbit_pre = _orbit_center;
-            v3f pos = orbit_pre - cmt.position;
+            v3f pos = restore_orbit - cmt.position;
             _orbit_center = quat_rotate_vector(quat_step, pos) + cmt.position;
 
             // because the orientation is synthesized from a motion in world space
@@ -667,7 +669,8 @@ namespace lab {
             if (dot(rt_post, rt) < -0.5f)
             {
                 // if the input rotation causes motion past the pole, reset it.
-                camera.mount.look_at(cmt.position, orbit_pre, v3f{ 0,1,0 });
+                camera.mount.set_view_transform_quat_pos(restore_quat, restore_pos);
+                _orbit_center = restore_orbit;
             }
         };
 
@@ -1098,6 +1101,14 @@ namespace lab {
             m44f m = make_lookat_transform(eye, target, up);
             _transform.orientation = quat_from_matrix(transpose(m));
         }
+
+        void Mount::look_at(float distance, quatf const& orientation, v3f const& target, v3f const& up)
+        {
+            v3f eye = { 0, 0, distance };
+            eye = quat_rotate_vector(orientation, eye);
+            look_at(eye, target, up);
+        }
+
 
         v3f Mount::ypr() const
         {
