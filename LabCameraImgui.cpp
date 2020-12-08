@@ -20,6 +20,48 @@
 #include <stdio.h>
 
 
+
+struct LCNav_MouseState
+{
+    float initial_mousex{ 0 };          // set when mouse transitions from not dragging to dragging
+    float initial_mousey{ 0 };
+    float mousex{ 0 };                  // current mouse position in window space
+    float mousey{ 0 };
+    bool  click_initiated{ false };     // true only on the frame when the mouse transitioned from not dragging to dragging
+    bool  dragging{ false };            // true as long as the button is held
+    bool  click_ended{ false };         // true only on the frame when the mouse transitioned from dragging to not dragging
+};
+
+struct LCNav_Panel : public LCNav_PanelState
+{
+    LCNav_Panel()
+    {
+        pan_tilt.set_speed(0.01f, 0.005f);
+    }
+
+    // this camera is for displaying a little gimbal in the trackball widget
+    lab::camera::Camera trackball_camera;
+
+    LCNav_PanelMode mode = LCNav_Mode_PanTilt;
+    LCNav_MouseState mouse_state;
+    const lab::camera::v2f size = { 372, 256 };
+    const lab::camera::v2f trackball_size = { 128, 128 };
+    float roll = 0;
+    bool trackball_interacting = false;
+    bool roll_interacting = false;
+};
+
+LCNav_PanelState* create_navigator_panel()
+{
+    return new LCNav_Panel();
+}
+
+void release_navigator_panel(LCNav_PanelState* p)
+{
+    LCNav_Panel* ptr = reinterpret_cast<LCNav_Panel*>(p);
+    delete ptr;
+}
+
 static bool DialControl(const char* label, float* p_value)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -63,47 +105,54 @@ static bool DialControl(const char* label, float* p_value)
     return value_changed;
 }
 
-
-struct LCNav_MouseState
+static bool LensKit(const char* label, float* p_value, float* lenses, int lens_count, ImVec2 const& sz)
 {
-    float initial_mousex{ 0 };          // set when mouse transitions from not dragging to dragging
-    float initial_mousey{ 0 };
-    float mousex{ 0 };                  // current mouse position in window space
-    float mousey{ 0 };
-    bool  click_initiated{ false };     // true only on the frame when the mouse transitioned from not dragging to dragging
-    bool  dragging{ false };            // true as long as the button is held
-    bool  click_ended{ false };         // true only on the frame when the mouse transitioned from dragging to not dragging
-};
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiStyle& style = ImGui::GetStyle();
 
-struct LCNav_Panel : public LCNav_PanelState
-{
-    LCNav_Panel()
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float line_height = ImGui::GetTextLineHeight();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    ImGui::InvisibleButton(label, sz);
+    bool clicked = ImGui::IsItemClicked();
+
+    float offset = sz.x * 0.5f;
+    float scale = (sz.y - offset * 2.f) / (lenses[lens_count - 1] - lenses[0]);
+    float radius = 6.f;
+
+    draw_list->AddLine({ pos.x + offset, pos.y + offset }, { pos.x + offset, pos.y + sz.y - offset }, 0xffffffff, 2.f);
+
+    const uint32_t col_active = 0xffffffff;
+    const uint32_t col_hovered = 0xffffff00;
+    const uint32_t col_inactive = 0xffc02000;
+
+    ImVec2 mouse_pos = io.MousePos;
+
+    int hovered_element = lens_count;
+    for (int i = 0; i < lens_count; ++i)
     {
-        pan_tilt.set_speed(0.01f, 0.005f);
+        ImVec2 p0 = { pos.x + offset, pos.y + (lenses[i] - lenses[0]) * scale + offset };
+        bool is_active = fabsf(*p_value - lenses[i]) < 1.f;
+        bool is_hovered = (fabsf(p0.x - mouse_pos.x) < radius * 0.5f) && (fabsf(p0.y - mouse_pos.y) < radius * 0.5f);
+
+        draw_list->AddCircleFilled(p0, radius, 
+            ImGui::GetColorU32(is_active ? col_active : is_hovered ? col_hovered : col_inactive), 8);
+        draw_list->AddCircle(p0, radius, 0xffcccccc, 8);
+
+        if (is_hovered)
+            hovered_element = i;
     }
 
-    // this camera is for displaying a little gimbal in the trackball widget
-    lab::camera::Camera trackball_camera;
+    if (clicked && hovered_element < lens_count)
+    {
+        *p_value = lenses[hovered_element];
+        return true;
+    }
 
-    LCNav_PanelMode mode = LCNav_Mode_PanTilt;
-    LCNav_MouseState mouse_state;
-    const lab::camera::v2f size = { 256, 256 };
-    const lab::camera::v2f trackball_size = { 128, 128 };
-    float roll = 0;
-    bool trackball_interacting = false;
-    bool roll_interacting = false;
-};
-
-LCNav_PanelState* create_navigator_panel()
-{
-    return new LCNav_Panel();
+    return false;
 }
 
-void release_navigator_panel(LCNav_PanelState* p)
-{
-    LCNav_Panel* ptr = reinterpret_cast<LCNav_Panel*>(p);
-    delete ptr;
-}
 
 
 void LCNav_mouse_state_update(LCNav_MouseState* ms,
@@ -209,7 +258,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
 
     ImVec2 cursor_screen_pos = ImGui::GetCursorScreenPos();
 
-    ImGui::Columns(2, "###NavCol", true);
+    ImGui::Columns(3, "###NavCol", true);
     ImGui::SetColumnWidth(0, navigator_panel->trackball_size.x + 16);
 
     bool mouse_in_panel = run_navigator_joystick_control(navigator_panel, camera);
@@ -332,6 +381,20 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball ? "-Arcball-" : " Arcball ")) {
         navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Arcball;
         result = LCNav_ModeChange;
+    }
+
+    ImGui::NextColumn();
+    static float focal_length = 50.f;
+    static float focal_min = 4.f;
+    static float focal_max = 200.f;
+    static float lenses[] = { 8, 16, 24, 35, 50, 80, 100, 120, 200 };
+    static int lens_count = sizeof(lenses) / sizeof(float);
+
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorPosY(pos.y + 8);
+    if (LensKit("Lens###NavHome", &focal_length, lenses, lens_count, ImVec2{ 16, 200 }))
+    {
+        camera.optics.focal_length = lab::camera::millimeters{ focal_length };
     }
 
 

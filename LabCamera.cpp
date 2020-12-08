@@ -1031,7 +1031,7 @@ namespace lab {
 
         Mount::Mount()
         {
-            look_at({ 0, 0.2f, 5 }, { 0,0,0 }, { 0,1,0 });
+            look_at({ 0, 1.f, 10.f }, { 0,0,0 }, { 0,1,0 });
         }
 
         Mount::~Mount()

@@ -463,8 +463,6 @@ void run_application_logic()
 
     lab::camera::PanTiltController& ptc = gApp.main_pan_tilt;
 
-    float fovy = lab::camera::degrees_from_radians(gApp.camera.vertical_FOV());
-    gApp.camera.optics.focal_length = gApp.camera.sensor.focal_length_from_vertical_FOV(lab::camera::radians_from_degrees(60));
     gApp.camera.optics.squeeze = w / h;
     m44f proj = gApp.camera.perspective();
     m44f view = gApp.camera.mount.gl_view_transform();
