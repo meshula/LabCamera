@@ -32,6 +32,13 @@ struct LCNav_MouseState
     bool  click_ended{ false };         // true only on the frame when the mouse transitioned from dragging to not dragging
 };
 
+
+enum LCNav_Component
+{
+    LCNav_None, LCNav_Roll, LCNav_Joystick, LCNav_Vernier, LCNav_LensKit, LCNav_Zoom
+};
+
+
 struct LCNav_Panel : public LCNav_PanelState
 {
     LCNav_Panel()
@@ -42,13 +49,14 @@ struct LCNav_Panel : public LCNav_PanelState
     // this camera is for displaying a little gimbal in the trackball widget
     lab::camera::Camera trackball_camera;
 
-    LCNav_PanelMode mode = LCNav_Mode_PanTilt;
+    LCNav_Component component = LCNav_None;
     LCNav_MouseState mouse_state;
-    const lab::camera::v2f size = { 372, 256 };
+    const lab::camera::v2f size = { 512, 256 };
     const lab::camera::v2f trackball_size = { 128, 128 };
+    const lab::camera::v2f lenskit_size = { 120, 200 };
     float roll = 0;
-    bool trackball_interacting = false;
-    bool roll_interacting = false;
+
+
 };
 
 LCNav_PanelState* create_navigator_panel()
@@ -105,8 +113,15 @@ static bool DialControl(const char* label, float* p_value)
     return value_changed;
 }
 
-static bool LensKit(const char* label, float* p_value, float* lenses, int lens_count, ImVec2 const& sz)
+static bool LensKit_FocalSlider(const char* label, float* p_value, float* lenses, int lens_count, ImVec2 const& sz)
 {
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = window->GetID(label);
+
     ImGuiIO& io = ImGui::GetIO();
     ImGuiStyle& style = ImGui::GetStyle();
 
@@ -114,43 +129,254 @@ static bool LensKit(const char* label, float* p_value, float* lenses, int lens_c
     float line_height = ImGui::GetTextLineHeight();
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
-    ImGui::InvisibleButton(label, sz);
-    bool clicked = ImGui::IsItemClicked();
+    ImGui::InvisibleButton(label, ImVec2{ sz.x, sz.y });
+    bool is_clicked = ImGui::IsItemClicked();
+    bool is_active = ImGui::IsItemActive();
 
     float offset = sz.x * 0.5f;
+    float mid_x = pos.x + offset;
     float scale = (sz.y - offset * 2.f) / (lenses[lens_count - 1] - lenses[0]);
     float radius = 6.f;
-
-    draw_list->AddLine({ pos.x + offset, pos.y + offset }, { pos.x + offset, pos.y + sz.y - offset }, 0xffffffff, 2.f);
 
     const uint32_t col_active = 0xffffffff;
     const uint32_t col_hovered = 0xffffff00;
     const uint32_t col_inactive = 0xffc02000;
 
     ImVec2 mouse_pos = io.MousePos;
+    bool is_hovered = false;
 
+    ImVec2 p0;
+
+    draw_list->AddLine({ mid_x, pos.y + offset }, { mid_x, pos.y + sz.y - offset }, 0xffffffff, 2.f);
+
+    radius = 10.f;
+    p0 = { mid_x, pos.y + (*p_value - lenses[0]) * scale + offset };
+    bool thumb_is_hovered = !is_hovered && (fabsf(p0.x - mouse_pos.x) < radius * 0.5f) && (fabsf(p0.y - mouse_pos.y) < radius * 0.5f);
+    is_hovered = !is_hovered && (fabsf(p0.x - mouse_pos.x) < radius * 0.5f) && (mouse_pos.y >= pos.y + offset) && (mouse_pos.y <= pos.y + sz.y - offset);
+
+    is_active = g.ActiveId == id;
+
+    draw_list->AddCircleFilled(p0, radius,
+        ImGui::GetColorU32((is_hovered || is_active) ? col_hovered : col_inactive), 8);
+    draw_list->AddCircle(p0, radius, 0xffcccccc, 8);
+
+    float possible_value = (mouse_pos.y - (pos.y + offset)) / scale + lenses[0];
+    possible_value = std::min(std::max(possible_value, lenses[0]), lenses[lens_count-1]);
+
+    bool ret = false;
+    if (is_active)
+    {
+        *p_value = possible_value;
+        ret = true;
+    }
+
+    if (is_hovered || is_active)
+    {
+        ImGui::BeginTooltip();
+        char str[16];
+        snprintf(str, 16, "%d", static_cast<int>(possible_value));
+        ImGui::TextUnformatted(str);
+        ImGui::EndTooltip();
+    }
+
+    return ret;
+}
+
+
+static bool LensKit_Picker(const char* label, float* p_value, float* lenses, int lens_count, ImVec2 const& sz)
+{
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = window->GetID(label);
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float line_height = ImGui::GetTextLineHeight();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    ImGui::InvisibleButton(label, ImVec2{ sz.x, sz.y });
+    bool is_clicked = ImGui::IsItemClicked();
+    bool is_active = ImGui::IsItemActive();
+
+    float offset = sz.x * 0.5f;
+    float mid_x = pos.x + offset;
+    float scale = (sz.y - offset * 2.f) / (lenses[lens_count - 1] - lenses[0]);
+    float radius = 6.f;
+
+    draw_list->AddLine({ mid_x, pos.y + offset }, { mid_x, pos.y + sz.y - offset }, 0xffffffff, 2.f);
+
+    const uint32_t col_active = 0xffffffff;
+    const uint32_t col_hovered = 0xffffff00;
+    const uint32_t col_inactive = 0xff000000;
+
+    ImVec2 mouse_pos = io.MousePos;
+    bool is_hovered = false;
+
+    ImVec2 p0;
     int hovered_element = lens_count;
+
+    float dist_min = 1e4f;
     for (int i = 0; i < lens_count; ++i)
     {
-        ImVec2 p0 = { pos.x + offset, pos.y + (lenses[i] - lenses[0]) * scale + offset };
-        bool is_active = fabsf(*p_value - lenses[i]) < 1.f;
-        bool is_hovered = (fabsf(p0.x - mouse_pos.x) < radius * 0.5f) && (fabsf(p0.y - mouse_pos.y) < radius * 0.5f);
+        p0 = { mid_x, pos.y + (lenses[i] - lenses[0]) * scale + offset };
+        bool is_kit_active = fabsf(*p_value - lenses[i]) < 1.f;
+        float test_dist = fabsf(p0.x - mouse_pos.x);
+        is_hovered = (test_dist < radius * 0.5f) && (fabsf(p0.y - mouse_pos.y) < radius * 0.5f);
+        if (is_hovered && (test_dist < dist_min))
+        {
+            dist_min = test_dist;
+            hovered_element = i;
+        }
+    }
 
-        draw_list->AddCircleFilled(p0, radius, 
-            ImGui::GetColorU32(is_active ? col_active : is_hovered ? col_hovered : col_inactive), 8);
+    for (int i = 0; i < lens_count; ++i)
+    {
+        p0 = { mid_x, pos.y + (lenses[i] - lenses[0]) * scale + offset };
+        bool is_kit_active = fabsf(*p_value - lenses[i]) < 1.f;
+        is_hovered = i == hovered_element;
+
+        draw_list->AddCircleFilled(p0, radius,
+            ImGui::GetColorU32(is_kit_active ? col_active : is_hovered ? col_hovered : col_inactive), 8);
         draw_list->AddCircle(p0, radius, 0xffcccccc, 8);
 
         if (is_hovered)
-            hovered_element = i;
+        {
+            ImGui::BeginTooltip();
+            char str[16];
+            snprintf(str, 16, "%d", static_cast<int>(lenses[i]));
+            ImGui::TextUnformatted(str);
+            ImGui::EndTooltip();
+        }
     }
 
-    if (clicked && hovered_element < lens_count)
+    bool ret = false;
+    if (is_clicked && hovered_element < lens_count)
     {
         *p_value = lenses[hovered_element];
-        return true;
+        ret = true;
+    }
+    return ret;
+}
+
+static bool LensKit_Vernier(const char* label, float* p_value, 
+                            const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
+{
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiID id = window->GetID(label);
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float line_height = ImGui::GetTextLineHeight();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    float radius_outer = sz.x * 0.5f;
+    ImVec2 center = ImVec2(pos.x + radius_outer, pos.y + radius_outer);
+
+    ImGui::InvisibleButton(label, ImVec2(radius_outer * 2, radius_outer * 2 + line_height + style.ItemInnerSpacing.y));
+    bool is_clicked = ImGui::IsItemClicked();
+    bool is_active = ImGui::IsItemActive();
+    bool is_hovered = ImGui::IsItemHovered();
+    ImVec2 mouse_pos = io.MousePos - center;
+
+    float fov_h = camera.horizontal_FOV().rad * 0.5f;
+
+    bool value_changed = false;
+    if (is_active && (io.MouseDelta.x != 0.f || io.MouseDelta.y != 0.f))
+    {
+        //*p_value = atan2f(mouse_pos.x, -mouse_pos.y);
+        value_changed = true;
     }
 
-    return false;
+    float radius_inner = radius_outer * 0.40f;
+    draw_list->AddCircleFilled(center, radius_outer, ImGui::GetColorU32(ImGuiCol_FrameBg), 16);
+
+    float angle_cos, angle_sin;
+    float a = -fov_h;
+    for (; a < fov_h; a += 0.2f)
+    {
+        angle_cos = cosf(a - 3.141592f * 0.5f);
+        angle_sin = sinf(a - 3.141592f * 0.5f);
+        draw_list->AddLine(ImVec2(center.x + angle_cos * radius_inner, center.y + angle_sin * radius_inner),
+            ImVec2(center.x + angle_cos * (radius_outer - 2), center.y + angle_sin * (radius_outer - 2)),
+            ImGui::GetColorU32(ImGuiCol_SliderGrabActive), 2.0f);
+    }
+    angle_cos = cosf(fov_h - 3.141592f * 0.5f);
+    angle_sin = sinf(fov_h - 3.141592f * 0.5f);
+    draw_list->AddLine(ImVec2(center.x + angle_cos * radius_inner, center.y + angle_sin * radius_inner),
+        ImVec2(center.x + angle_cos * (radius_outer - 2), center.y + angle_sin * (radius_outer - 2)),
+        ImGui::GetColorU32(ImGuiCol_SliderGrabActive), 2.0f);
+
+
+    draw_list->AddCircleFilled(center, radius_inner, 
+        ImGui::GetColorU32(is_active ? ImGuiCol_FrameBgActive : is_active ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg), 16);
+
+    static ImVec2 initial_click = { 0,0 };
+    if (is_clicked)
+    {
+        initial_click = mouse_pos;
+    }
+    if (is_active)
+    {
+        float dy = (initial_click.y - mouse_pos.y) * 0.0125f;
+        float val = *p_value - dy;
+        *p_value = std::min(std::max(val, lenses[0]), lenses[lens_count - 1]);
+        value_changed = true;
+    }
+
+
+    if (is_hovered)
+    {
+        ImGui::SetNextWindowPos(ImVec2(pos.x - style.WindowPadding.x, pos.y - line_height - style.ItemInnerSpacing.y - style.WindowPadding.y));
+        ImGui::BeginTooltip();
+        ImGui::Text("%d", (int)(fov_h * 2.f * 180.f / 3.141592f));
+        ImGui::EndTooltip();
+    }
+
+    return value_changed;
+}
+
+
+static bool LensKit(const char* label, float* p_value, 
+                    const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
+{
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+
+    bool ret = false;
+
+    ImGui::BeginChild("###LensKitChld"); // to nest columns
+
+    ImGui::Columns(3, "###LensKitCols", true);
+    ImGui::SetColumnWidth(0, sz.x / 3);
+
+    // kit bar
+    ret |= LensKit_Picker("###LensKitKit", p_value, lenses, lens_count, ImVec2{ sz.x / 3, sz.y });
+
+    ImGui::NextColumn();
+
+    // focal length slider
+    ret |= LensKit_FocalSlider("###LensKitFL", p_value, lenses, lens_count, ImVec2{ sz.x / 3, sz.y });
+
+    ImGui::NextColumn();
+
+    // vernier slider
+    ret |= LensKit_Vernier("###LensKitVrn", p_value, camera, lenses, lens_count, ImVec2{ sz.x / 3, sz.y });
+
+    ImGui::EndChild();
+
+    return ret;
 }
 
 
@@ -173,14 +399,92 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
     if (TRACE_INTERACTION && ms->click_ended)
         printf("button released\n");
     if (TRACE_INTERACTION && ms->click_initiated)
-        printf("button clicked\n");
+        printf("button is_clicked\n");
 }
 
 
-bool run_navigator_joystick_control(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera)
+const float roll_track_sz = 8.f;
+
+void
+draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera, 
+    ImVec2 const& p0, ImVec2 const& p1)
+{
+    using lab::camera::v3f;
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    bool roll_active = false;
+    draw_list->PushClipRect(p0, p1);
+    {
+        const float roll_track_sz = 8.f;
+        float width = p1.x - p0.x - 2.f * roll_track_sz;
+        draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
+        draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f + roll_track_sz, 0xffffffff, 24, 1.f);
+
+        v3f ypr = camera.mount.ypr();
+        float roll = navigator_panel->roll; // ypr.z
+        float s = sinf(roll) * ((width + roll_track_sz) * 0.5f);
+        float c = cosf(roll) * ((width + roll_track_sz) * 0.5f);
+        ImVec2 p_roll = { s, -c };
+        ImVec2 roll_indicator = ((p0 + p1) * 0.5f) + p_roll;
+        ImVec2 roll_dist = roll_indicator - io.MousePos;
+        float roll_hovered = roll_dist.x * roll_dist.x + roll_dist.y * roll_dist.y;
+        roll_active = roll_hovered < 36.f;
+        if (roll_active)
+            draw_list->AddCircleFilled(roll_indicator, roll_track_sz * 0.5f, 0xffffffff, 6);
+        else
+            draw_list->AddCircle(roll_indicator, roll_track_sz * 0.5f, 0xffffffff, 6, 2.f);
+    }
+    draw_list->PopClipRect();
+}
+
+void
+draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera, 
+    ImVec2 const& p0, ImVec2 const& p1)
 {
     using lab::camera::v3f;
 
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    bool roll_active = false;
+    draw_list->PushClipRect(p0, p1);
+    {
+        float width = p1.x - p0.x - 2.f * roll_track_sz;
+
+        const lab::camera::rigid_transform& tr = camera.mount.transform();
+        navigator_panel->trackball_camera.mount.look_at(5.f, tr.orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
+
+        lab::camera::v3f pnt{ 0, 1, 0 };
+        lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ 0, -1, 0 };
+        lab::camera::v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+
+        ImVec2 v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        ImVec2 v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xff00ff00);
+
+        pnt = lab::camera::v3f{ 1, 0, 0 };
+        xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ -1, 0, 0 };
+        xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+
+        v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xff0000ff);
+
+        pnt = lab::camera::v3f{ 0, 0, 1 };
+        xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lab::camera::v3f{ 0, 0, -1 };
+        xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+
+        v0 = p0 + ImVec2{ xy0.x, xy0.y };
+        v1 = p0 + ImVec2{ xy1.x, xy1.y };
+        draw_list->AddLine(v0, v1, 0xffffBB00);
+    }
+    draw_list->PopClipRect();
+}
+
+bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
+{
     ImVec2 sz{ navigator_panel->trackball_size.x, navigator_panel->trackball_size.y };
 
     // assuming the 3d viewport is the current window, fetch the content region
@@ -189,64 +493,29 @@ bool run_navigator_joystick_control(LCNav_Panel* navigator_panel, const lab::cam
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 imgui_cursor_pos = ImGui::GetCursorPos();
     ImGui::SetCursorScreenPos(edit_rect.Min);
+    ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos - imgui_cursor_pos;
 
-    // detect that the mouse is in the content region
+    // detect that the mouse is clicked in the content region
     bool click_finished = ImGui::InvisibleButton("###NAVGIZMOREGION", sz);
 
-    ImVec2 p0 = ImGui::GetItemRectMin();
-    ImVec2 p1 = ImGui::GetItemRectMax();
-
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    draw_list->PushClipRect(p0, p1);
-    {
-        float width = p1.x - p0.x;
-        draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
-
-        const lab::camera::rigid_transform& tr = camera.mount.transform();
-        navigator_panel->trackball_camera.mount.look_at(5.f, tr.orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
-
-        lab::camera::v3f pnt{ 0, 1, 0 };
-        lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ 0, -1, 0 };
-        lab::camera::v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-
-        ImVec2 v0 = p0 + ImVec2{ xy0.x, xy0.y };
-        ImVec2 v1 = p0 + ImVec2{ xy1.x, xy1.y };
-        draw_list->AddLine(v0, v1, 0xffffffff);
-
-        pnt = lab::camera::v3f{ 1, 0, 0 };
-        xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ -1, 0, 0 };
-        xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-
-        v0 = p0 + ImVec2{ xy0.x, xy0.y };
-        v1 = p0 + ImVec2{ xy1.x, xy1.y };
-        draw_list->AddLine(v0, v1, 0xffffffff);
-
-        pnt = lab::camera::v3f{ 0, 0, 1 };
-        xy0 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ 0, 0, -1 };
-        xy1 = navigator_panel->trackball_camera.project_to_viewport({ 0,0 }, { width, p1.y - p0.y }, pnt);
-
-        v0 = p0 + ImVec2{ xy0.x, xy0.y };
-        v1 = p0 + ImVec2{ xy1.x, xy1.y };
-        draw_list->AddLine(v0, v1, 0xffffffff);
-    }
-    draw_list->PopClipRect();
-
-    bool in_canvas = click_finished || ImGui::IsItemHovered();
-
-    ImVec2 mouse_pos = io.MousePos - ImGui::GetCurrentWindow()->Pos - imgui_cursor_pos;
-    LCNav_mouse_state_update(&navigator_panel->mouse_state, mouse_pos.x, mouse_pos.y, io.MouseDown[0] && io.MouseDownOwned[0]);
-    return in_canvas;
+    p0 = ImGui::GetItemRectMin();
+    p1 = ImGui::GetItemRectMax();
+    return click_finished;
 }
+
+
+#ifndef DEBUG_TRACKBALL_MODE
+#define DebugTrack(a) ImGui::SetCursorScreenPos(cursor_screen_pos); ImGui::TextUnformatted(a);
+#else
+#define DebugTrack(a)
+#endif
 
 
 LabCameraNavigatorPanelInteraction
 run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& camera, float dt)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
-    LabCameraNavigatorPanelInteraction result = LCNav_None;
+    LabCameraNavigatorPanelInteraction result = LCNav_Inactive;
     ImGui::SetNextWindowSize(ImVec2(navigator_panel->size.x, navigator_panel->size.y), ImGuiCond_FirstUseEver);
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - navigator_panel->size.x, 10));
@@ -261,106 +530,55 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     ImGui::Columns(3, "###NavCol", true);
     ImGui::SetColumnWidth(0, navigator_panel->trackball_size.x + 16);
 
-    bool mouse_in_panel = run_navigator_joystick_control(navigator_panel, camera);
     auto& ms = navigator_panel->mouse_state;
+    LCNav_mouse_state_update(&ms, io.MousePos.x, io.MousePos.y, io.MouseDown[0]);
 
-    //printf("%f %f\n", navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey);
-    //printf("%f %f\n", cursor_screen_pos.x, cursor_screen_pos.y);
-    //ImVec2 foo = ImGui::GetWindowContentRegionMin();
-    //printf("%f %f\n", foo.x, foo.y);
+    ImVec2 p0, p1;
+    bool joystick_gizmo_clicked = check_joystick_gizmo(navigator_panel, p0, p1);
+    bool joystick_gizmo_hovered = ImGui::IsItemHovered();
+    draw_roll_widget(navigator_panel, camera, p0, p1);
+    draw_joystick_widget(navigator_panel, camera, p0, p1);
 
-    if (mouse_in_panel)
+    if (!(ms.click_initiated || ms.dragging))
+        navigator_panel->component = LCNav_None;
+
+
+    if (joystick_gizmo_hovered && navigator_panel->component == LCNav_None && ms.click_initiated)
     {
-        if (ms.click_initiated)
-        {
-            navigator_panel->trackball_interacting = true;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("CLICKED");
-            result = LCNav_TumbleInitiated;
-        }
-        else if (ms.dragging)
-        {
-            navigator_panel->trackball_interacting = true;
-            result = LCNav_TumbleContinued;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("DRAGGING");
-        }
-        else if (ms.click_ended)
-        {
-            result = LCNav_TumbleEnded;
-            navigator_panel->trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("RELEASED");
-        }
+        ImVec2 center = (p0 + p1) * 0.5f;
+        ImVec2 center_dist = center - io.MousePos;
+        float radius = (p1.x - p0.x) * 0.5f - roll_track_sz;
+        float r2 = radius * radius;
+        if (center_dist.x * center_dist.x + center_dist.y * center_dist.y > r2)
+            navigator_panel->component = LCNav_Roll;
         else
-        {
-            result = LCNav_None;
-            navigator_panel->trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("HOVERED");
-        }
+            navigator_panel->component = LCNav_Joystick;
     }
-    else if (navigator_panel->trackball_interacting)
+
+    float roll_hint = 0.f;
+    if (navigator_panel->component == LCNav_Roll)
     {
-        if (ms.dragging)
-        {
-            result = LCNav_TumbleContinued;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("DRAGGING OUTSIDE");
-        }
-        else if (ms.click_ended)
-        {
-            result = LCNav_TumbleEnded;
-            navigator_panel->trackball_interacting = false;
-            ImGui::SetCursorScreenPos(cursor_screen_pos);
-            ImGui::TextUnformatted("RELEASED OUTSIDE");
-        }
+        ImVec2 center = (p0 + p1) * 0.5f;
+        ImVec2 center_dist = center - io.MousePos;
+        float radius = (p1.x - p0.x) * 0.5f - roll_track_sz;
+        float r2 = radius * radius;
+        r2 = sqrtf(r2);
+        center_dist *= 1.f / r2;
+        roll_hint = -atan2f(center_dist.x, center_dist.y);
     }
-    else
-    {
-        navigator_panel->trackball_interacting = false;
-        ImGui::SetCursorScreenPos(cursor_screen_pos);
-        ImGui::TextUnformatted("IDLE");
-    }
+
 
     ImGui::SetCursorScreenPos({ cursor_screen_pos.x, cursor_screen_pos.y + navigator_panel->trackball_size.y });
 
-    lab::camera::v3f ypr = camera.mount.ypr();
-    static float roll = 0.f;
-    if (DialControl("Roll", &roll))
-    {
-#if 0
-        if (!navigator_panel->trackball_interacting)
-            result = LCNav_TumbleInitiated;
-        else
-            result = LCNav_TumbleContinued;
-
-        navigator_panel->roll_interacting = true;
-        navigator_panel->roll = roll;
-        lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-        navigator_panel->pan_tilt.set_roll(camera, tok, lab::camera::radians{ roll });
-        navigator_panel->pan_tilt.end_interaction(tok);
-
-        navigator_panel->trackball_interacting = false;
-#endif
-    }
-    else
-    {
-#if 0
-        if (navigator_panel->trackball_interacting)
-            result = LCNav_TumbleEnded;
-        navigator_panel->roll_interacting = false;
-        roll = ypr.z;
-#endif
-    }
-
     ImGui::NextColumn();
+    ImGui::SetColumnWidth(1, 100);
 
     if (ImGui::Button("Home###NavHome")) {
         auto up = navigator_panel->pan_tilt.world_up_constraint();
         camera.mount.look_at({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
         navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
-        result = LCNav_None;
+        navigator_panel->roll = 0;
+        result = LCNav_Inactive;
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
         navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Crane;
@@ -384,6 +602,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     }
 
     ImGui::NextColumn();
+
     static float focal_length = 50.f;
     static float focal_min = 4.f;
     static float focal_max = 200.f;
@@ -391,8 +610,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     static int lens_count = sizeof(lenses) / sizeof(float);
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2 sz = { navigator_panel->lenskit_size.x, navigator_panel->lenskit_size.y };
     ImGui::SetCursorPosY(pos.y + 8);
-    if (LensKit("Lens###NavHome", &focal_length, lenses, lens_count, ImVec2{ 16, 200 }))
+    if (LensKit("Lens###NavHome", &focal_length, camera, lenses, lens_count, sz))
     {
         camera.optics.focal_length = lab::camera::millimeters{ focal_length };
     }
@@ -402,7 +622,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
 
     ImGui::End();
 
-    if (navigator_panel->trackball_interacting)
+    if (navigator_panel->component == LCNav_Joystick)
     {
         lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
         if (ms.click_initiated)
@@ -410,43 +630,55 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         else if (ms.click_ended)
             phase = lab::camera::InteractionPhase::Finish;
 
-        switch (result)
-        {
-
-        case LCNav_TumbleInitiated:
+        if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
-        case LCNav_TumbleEnded:
-            [[fallthrough]];
-        case LCNav_TumbleContinued:
-        {
-            if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
-            {
-                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-                navigator_panel->pan_tilt.ttl_interaction(
-                    camera, 
-                    tok, phase, navigator_panel->camera_interaction_mode, 
-                    { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey }, dt);
-                navigator_panel->pan_tilt.end_interaction(tok);
-            }
-            else
-            {
-                const float speed_scaler = 10.f;
-                float scale = speed_scaler / navigator_panel->trackball_size.x;
-                float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
-                float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
-                lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-                navigator_panel->pan_tilt.single_stick_interaction(
-                    camera, 
-                    tok, navigator_panel->camera_interaction_mode, { dx, dy }, dt);
-                navigator_panel->pan_tilt.end_interaction(tok);
-            }
-        }
-        break;
 
-        default:
-            break;
+        if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
+        {
+            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
+            navigator_panel->pan_tilt.ttl_interaction(
+                camera, 
+                tok, phase, navigator_panel->camera_interaction_mode, 
+                { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey },
+                lab::camera::radians{ navigator_panel->roll }, dt);
+            navigator_panel->pan_tilt.end_interaction(tok);
+        }
+        else
+        {
+            const float speed_scaler = 10.f;
+            float scale = speed_scaler / navigator_panel->trackball_size.x;
+            float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
+            float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
+            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
+            navigator_panel->pan_tilt.single_stick_interaction(
+                camera, 
+                tok, navigator_panel->camera_interaction_mode, { dx, dy }, 
+                lab::camera::radians{ navigator_panel->roll }, dt);
+            navigator_panel->pan_tilt.end_interaction(tok);
         }
     }
+
+    if (navigator_panel->component == LCNav_Roll)
+    {
+        lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+        if (ms.click_initiated)
+            phase = lab::camera::InteractionPhase::Start;
+        else if (ms.click_ended)
+            phase = lab::camera::InteractionPhase::Finish;
+
+        if (ms.click_initiated)
+            ImGui::CaptureMouseFromApp(true);
+
+        navigator_panel->roll = roll_hint;
+
+        // renormalize transform, then apply the camera roll
+        camera.mount.look_at(camera.mount.transform().position,
+            navigator_panel->pan_tilt.orbit_center_constraint(), navigator_panel->pan_tilt.world_up_constraint());
+        lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
+        navigator_panel->pan_tilt.set_roll(camera, tok, lab::camera::radians{ roll_hint });
+        navigator_panel->pan_tilt.end_interaction(tok);
+    }
+
 
     return result;
 }

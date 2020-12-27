@@ -30,6 +30,7 @@
 // the environment
 //
 
+
 #ifndef LAB_CAMERA_H
 #define LAB_CAMERA_H
 
@@ -60,17 +61,31 @@ namespace camera {
 
     // wrapping of a float value to communicate the unit of the value
     //
-    struct millimeters { float value; };
-    struct radians { float value; };
+    struct millimeters;
+    struct meters {
+        float m;
+        constexpr millimeters as_mm() const;
+    };
+    struct millimeters 
+    { 
+        float mm; 
+        constexpr meters as_m() const { return { mm * 1.e-3f }; }
+    };
+    constexpr millimeters meters::as_mm() const { return { m * 1.e3f }; }
 
-    constexpr radians radians_from_degrees(float degrees)
+    struct degrees;
+    struct radians
+    { 
+        float rad; 
+        constexpr degrees as_degrees();
+    };
+    struct degrees
     {
-        return { degrees * 0.01745329251f };
-    }
-    constexpr float degrees_from_radians(radians r)
-    {
-        return r.value * 57.2957795131f;
-    }
+        float deg;
+        constexpr radians radians_from_degrees() { return { deg * 0.01745329251f }; };
+    };
+    constexpr degrees radians::as_degrees() { return { rad * 57.2957795131f }; }
+
 
     struct rigid_transform
     {
@@ -154,7 +169,7 @@ namespace camera {
         float handedness = -1.f; // left handed
         millimeters aperture_x = { 35.f };
         millimeters aperture_y = { 24.5f };
-        v2f enlarge = { 1, 1 };        
+        v2f enlarge = { 1, 1 };
         Shift shift = { millimeters{0}, millimeters{0} };
 
         // Utility function to derive a focal length for this sensor
@@ -223,21 +238,60 @@ namespace camera {
     the hyperfocal distance can be determined.
 
         h = f^2/(fstop * CoC)
+
+    @TODO PBRT has complex lens model, see RealisticCamera. Consider it for adoption here,
+    perhaps as a secondary structure in Optics, or as a subclass.
+
+    https://github.com/mmp/pbrt-v4/blob/master/src/pbrt/cameras.h 
+
+    PBRT defines Orthographic, Perspective, Spherical, and Realistic cameras.
+
+    @TODO introduce at least Orthographic, in addtion to the present model which wuold
+    be Perspective.
+
     */
 
     class Optics
     {
     public:
         float fStop = 8.f;
+
+        // effective focal_length, matching a lens' field of view.
         millimeters focal_length = { 50.f };
-        millimeters focus_distance = { 2.e3f };
+
+        // focus_distance is measured from film/sensor plane. If focused at the
+        // hyperfocal distance, the value may be the hyperfocal distance, or postivie infinity.
+        meters focus_distance = { 3.f };
 
         float zfar = 1e5f;
         float znear = 0.1f;
-        float squeeze = 1.f; // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
 
-        millimeters hyperfocal_distance(millimeters CoC);
-        v2f         focus_range(millimeters hyperfocal_distance); // return value in mm
+        // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
+        float squeeze = 1.f; 
+
+        meters hyperfocal_distance(millimeters CoC);
+        v2f    focus_range(millimeters hyperfocal_distance); // return value in mm
+    };
+
+    /*-------------------------------------------------------------------------
+      Aperture
+      
+      A slight simplification; the aperture describes both the pupil of the
+      aperture and also the shutter.
+
+      Currently the shape of the aperture is modeled as a straight sided polygon.
+      In the future, an arbitrary mask could be specified to use in convolution
+      or raytracing.
+     */
+
+    struct Aperture
+    {
+        float shutter_open = 0.f;
+        float shutter_duration = 0.f;
+        unsigned int shutter_blades = 7;
+
+        // this iris will result in an f-stop of 8 for the default 50mm lens.
+        millimeters iris{ 6.25f };
     };
 
 
@@ -271,9 +325,10 @@ namespace camera {
     class Camera
     {
     public:
-        Mount  mount;
-        Sensor sensor;
-        Optics optics;
+        Mount    mount;
+        Optics   optics;
+        Aperture aperture;
+        Sensor   sensor;
 
         Camera();
         ~Camera();
@@ -286,6 +341,8 @@ namespace camera {
         radians     vertical_FOV() const;
         radians     horizontal_FOV() const;
 
+        // focal length of the lens, divided by the diameter of the iris opening
+        float f_stop() const { return optics.focal_length.mm / aperture.iris.mm; }
 
         // move the camera along the view vector such that both bounds are visible
         void frame(v3f const& bound1, v3f const& bound2);
@@ -372,7 +429,7 @@ namespace camera {
         // delta = mousePos - mouseClickPos;
         //
         void single_stick_interaction(Camera& camera, InteractionToken, 
-            InteractionMode mode, v2f const& delta_in, float dt);
+            InteractionMode mode, v2f const& delta_in, radians roll_hint, float dt);
         void dual_stick_interaction(Camera& camera, InteractionToken,
             InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, float dt);
 
@@ -388,7 +445,7 @@ namespace camera {
         // Gimbal: The camera will be panned and tilted to keep initial under current
         //
         void ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, 
-            InteractionMode mode, v2f const& current, float dt);
+            InteractionMode mode, v2f const& current, radians roll_hint, float dt);
 
         // through the lens, with a point in world space to keep under the mouse.
         // dolly: hit_point will be constrained to stay under the mouse
@@ -400,6 +457,7 @@ namespace camera {
             InteractionPhase phase, InteractionMode mode,
             v2f const& current,
             v3f const& initial_hit_point,
+            radians roll_hint,
             float dt);
     };
 

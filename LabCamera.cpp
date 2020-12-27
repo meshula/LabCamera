@@ -4,6 +4,10 @@
 #include <cmath>
 #include <cfloat>
 
+extern float debug_lines_array[32768];
+extern int debug_lines_array_sz;
+extern int debug_lines_array_idx;
+
 namespace lab {
     namespace camera {
 
@@ -27,6 +31,7 @@ namespace lab {
         constexpr v3f operator / (const v3f& a, float b) { return v3f{ a * (1.f / b) }; }
         constexpr v4f operator + (const v4f& a, const v4f& b) { return v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
         constexpr v4f operator * (const v4f& a, float b) { return v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
+        constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
         constexpr v2f mul(const v2f& a, float b) { return { a.x * b, a.y * b }; }
         constexpr v3f mul(const v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
         constexpr v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
@@ -37,8 +42,11 @@ namespace lab {
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         float length(const quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
-        quatf normalize(const quatf& a) { float l = 1.f / length(a); return { a.x * l, a.y * l, a.z * l, a.w * l }; }
-        constexpr v3f& operator += (v3f& a, const v3f& b) { return a = a + b; }
+        quatf normalize(const quatf& a) 
+        { 
+            float l = 1.f / length(a) * (a.w < 0 ? -1.f : 1.f); // after normalization, real part to be non-negative
+            return { a.x * l, a.y * l, a.z * l, a.w * l };
+        }
 
 
         //---- matrix ops
@@ -386,15 +394,95 @@ namespace lab {
 
         inline v3f ypr_from_quat(const quatf& q)
         {
-            v3f d = qzdir(q);
-            v3f ypr = { atan2f(d.x, d.z),
-                        atan2f(d.y, sqrtf(d.x*d.x + d.z*d.z)),
+            v3f qz = qzdir(q);
+            v3f ypr = { atan2f(qz.x, qz.z),
+                        atan2f(qz.y, sqrtf(qz.x*qz.x + qz.z*qz.z)),
                         0 };
 
             if (ypr.y > pi)
                 ypr.y = 2.f * pi - ypr.y;
             else
                 ypr.y *= -1.f;
+
+            if (fabsf(ypr.y) < 0.9995f)
+            {
+                // if not pitched straight up, calculate roll
+                // compute normal to plane of zdir and up, which is parallel to the xz plane
+                v3f world_up = { 0.f, 1.f, 0.f };
+                v3f world_right = normalize(cross(world_up, qz));
+
+                // the area of bivector formed world_right and right is the cosine of the angle between them
+                v3f camera_right = normalize(qxdir(q));
+                float cos_r = dot(world_right, camera_right);
+                float sin_r = length(cross(world_right, camera_right));
+                float roll = std::atan2f(sin_r, cos_r);
+
+                if (std::isfinite(roll))
+                {
+                    ypr.z = roll;
+                }
+
+
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+
+                v3f qx = qxdir(q);
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+
+                debug_lines_array[debug_lines_array_idx] = qx.x; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = qx.y; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = qx.z; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] =  0.f; debug_lines_array_idx++;
+
+
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+                debug_lines_array[debug_lines_array_idx] = world_right.x; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = world_right.y; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = world_right.z; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            }
+            else
+            {
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 9.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            }
             
             return ypr;
         }
@@ -572,28 +660,10 @@ namespace lab {
 
         void PanTiltController::set_roll(Camera& camera, InteractionToken, radians r)
         {
-            _initial_inv_projection = camera.inv_view_projection(1.f);
-            _initial_focus_point = _orbit_center;
-            v3f pos = camera.mount.transform().position;
-            v3f camera_to_focus = pos - _orbit_center;
-            float distance_to_focus = length(camera_to_focus);
-            const float feel = 0.02f;
-
-            auto& cmt = camera.mount.transform();
-
-            v3f start_ypr = camera.mount.ypr();
-            start_ypr.z = r.value;
-            v3f orig_fwd = cmt.forward();
-
-            m44f rot = mul(mul(rotx(start_ypr.y), roty(start_ypr.x)), rotz(start_ypr.z));
-            rot = transpose(rot);
-            pos = mul(rot, v3f{ 0, 0, distance_to_focus }) + _orbit_center;
-            rot = transpose(rot);
-
-            rot.w.x = -dot({ rot.x.x, rot.y.x, rot.z.x }, pos);
-            rot.w.y = -dot({ rot.x.y, rot.y.y, rot.z.y }, pos);
-            rot.w.z = -dot({ rot.x.z, rot.y.z, rot.z.z }, pos);
-            camera.mount.set_view_transform(rot);
+            v3f dir = camera.mount.transform().forward();
+            quatf q = quat_from_axis_angle(dir, r.rad);
+            q = mul(q, camera.mount.transform().orientation);
+            camera.mount.set_view_transform_quat_pos(q, camera.mount.transform().position);
         }
 
 
@@ -618,7 +688,7 @@ namespace lab {
             v3f fwd = cmt.forward();
             bool test_inversion = fabsf(dot(up, fwd)) > (1.f - 1.e-5);
 
-            v3f rt = cmt.right(); // turntable tilts about the camera right axis
+            v3f rt = normalize(cross(up, fwd));
             quatf rx = quat_from_axis_angle(up, delta.x * _orbit_speed);
             quatf ry = quat_from_axis_angle(rt, -delta.y * _orbit_speed * 0.25f);
             quatf quat_step = mul(ry, rx);
@@ -651,7 +721,7 @@ namespace lab {
             v3f restore_orbit = _orbit_center;
 
             v3f up = { 0,1,0 };   // turntable orbits about the world up axis
-            v3f rt = cmt.right(); // turntable tilts about the camera right axis
+            v3f rt = normalize(cross(up, cmt.forward()));
             quatf rx = quat_from_axis_angle(up, -delta.x * _pan_tilt_speed);
             quatf ry = quat_from_axis_angle(rt, delta.y * _pan_tilt_speed * 0.25f);
             quatf quat_step = mul(rx, ry);
@@ -680,8 +750,8 @@ namespace lab {
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void PanTiltController::single_stick_interaction(Camera& camera, InteractionToken, 
-            InteractionMode mode, v2f const& delta_in, float dt)
+        void PanTiltController::single_stick_interaction(Camera& camera, InteractionToken tok, 
+            InteractionMode mode, v2f const& delta_in, radians roll_hint, float dt)
         {
             auto& cmt = camera.mount.transform();
 
@@ -716,10 +786,12 @@ namespace lab {
 
             case InteractionMode::PanTilt:
                 _pantilt(camera, { delta.x, delta.y });
+                set_roll(camera, tok, roll_hint);
                 break;
 
             case InteractionMode::TurnTableOrbit:
                 _turntable(camera, delta);
+                set_roll(camera, tok, roll_hint);
                 break;
                     
             case InteractionMode::Static:
@@ -797,7 +869,7 @@ namespace lab {
         // current position
         //
         void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok, 
-            InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_, float dt)
+            InteractionPhase phase, InteractionMode mode, v2f const& current_mouse_, radians roll_hint, float dt)
         {
             auto& cmt = camera.mount.transform();
             switch (mode)
@@ -836,8 +908,25 @@ namespace lab {
                     quatf rot = quat_from_vector_to_vector(v0, v1);
                     rot = mul(cmt.orientation, rot);
                     v3f fwd = { 0, 0, length(cmt.position - _orbit_center) };
+                    v3f pos_pre = cmt.position;
                     v3f pos = quat_rotate_vector(normalize(rot), fwd) + _orbit_center;
-                    camera.mount.set_view_transform_quat_pos(normalize(rot), pos);
+                    v3f rt = cmt.right(); // turntable tilts about the camera right axis
+                    //camera.mount.set_view_transform_quat_pos(normalize(rot), pos);
+
+
+                    // because the orientation is synthesized from a motion in world space
+                    // and a rotation in camera space, recompose the camera orientation by
+                    // constraining the camera's direction to face the orbit center.
+                    v3f local_up = { 0, 1, 0 };
+                    camera.mount.look_at(pos, _orbit_center, local_up);
+
+                    v3f rt_post = cmt.right();
+                    if (dot(rt_post, rt) < -0.5f)
+                    {
+                        // if the input rotation causes motion past the pole, reset it.
+                        camera.mount.look_at(pos_pre, _orbit_center, local_up);
+                    }
+
                     _init_mouse = current_mouse;
                 }
             }
@@ -867,7 +956,7 @@ namespace lab {
 
                 dp.x /=  _viewport_size.x;
                 dp.y /= -_viewport_size.y;
-                single_stick_interaction(camera, tok, mode, dp, dt);
+                single_stick_interaction(camera, tok, mode, dp, roll_hint, dt);
                 break;
             }
 
@@ -912,6 +1001,7 @@ namespace lab {
             InteractionPhase phase, InteractionMode mode,
             v2f const& current,
             v3f const& initial_hit_point,
+            radians roll_hint,
             float dt)
         {
             auto& cmt = camera.mount.transform();
@@ -960,7 +1050,7 @@ namespace lab {
             }
 
             default:
-                ttl_interaction(camera, tok, phase, mode, current, dt);
+                ttl_interaction(camera, tok, phase, mode, current, roll_hint, dt);
                 break;
             }
         }
@@ -1122,16 +1212,17 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-        millimeters Optics::hyperfocal_distance(millimeters CoC)
+        meters Optics::hyperfocal_distance(millimeters CoC)
         {
-            return { focal_length.value * focal_length.value / (fStop * CoC.value) };
+            return { focal_length.as_m().m * focal_length.as_m().m / (fStop * CoC.as_m().m) };
         }
 
         v2f Optics::focus_range(millimeters h)
         {
             v2f r;
-            r.x = h.value * focus_distance.value / (h.value + (focus_distance.value - focal_length.value));
-            r.y = h.value * focus_distance.value / (h.value - (focus_distance.value - focal_length.value));
+            float h_m = h.as_m().m;
+            r.x = h_m * focus_distance.m / (h_m + (focus_distance.m - focal_length.as_m().m));
+            r.y = h_m * focus_distance.m / (h_m - (focus_distance.m - focal_length.as_m().m));
             return r;
         }
 
@@ -1142,10 +1233,10 @@ namespace lab {
 
         millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
         {
-            if (fov.value < 0 || fov.value > 3.141592653589793238f)
+            if (fov.rad < 0 || fov.rad > 3.141592653589793238f)
                 return millimeters{ 0.f };
 
-            float f = (aperture_y.value / (2 * tanf(0.5f * fov.value)));
+            float f = (aperture_y.mm / (2 * tanf(0.5f * fov.rad)));
             return { f / enlarge.y };
         }
 
@@ -1170,13 +1261,13 @@ namespace lab {
 
             const float handedness = sensor.handedness; // -1 for left hand coordinates
             float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
-            const float halfFovy = vertical_FOV().value * 0.5f;
+            const float halfFovy = vertical_FOV().rad * 0.5f;
             const float y = 1.f / tanf(halfFovy);
             const float x = y / aspect / optics.squeeze;
             const float scalex = 2.f * sensor.enlarge.x;
             const float scaley = 2.f * sensor.enlarge.y;
-            const float dx = sensor.shift.x.value * 2.f * aspect / sensor.aperture_y.value;
-            const float dy = sensor.shift.y.value * 2.f / sensor.aperture_y.value;
+            const float dx = sensor.shift.x.as_m().m * 2.f * aspect / sensor.aperture_y.as_m().m;
+            const float dy = sensor.shift.y.as_m().m * 2.f / sensor.aperture_y.as_m().m;
 
             const float znear = optics.znear;
             const float zfar = optics.zfar;
@@ -1200,21 +1291,21 @@ namespace lab {
 
         radians Camera::vertical_FOV() const
         {
-            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
-            return { 2.f * std::atanf(sensor.aperture_y.value / (2.f * cropped_f)) };
+            float cropped_f = optics.focal_length.mm * sensor.enlarge.y;
+            return { 2.f * std::atanf(sensor.aperture_y.mm / (2.f * cropped_f)) };
         }
 
         radians Camera::horizontal_FOV() const
         {
-            float cropped_f = optics.focal_length.value * sensor.enlarge.y;
-            return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.value / (2.f * cropped_f)) };
+            float cropped_f = optics.focal_length.mm * sensor.enlarge.y;
+            return { 2.f * std::atanf(optics.squeeze * sensor.aperture_x.mm / (2.f * cropped_f)) };
         }
 
         void Camera::frame(v3f const& bound1, v3f const& bound2)
         {
             auto& cmt = mount.transform();
             float r = 0.5f * length(bound2 - bound1);
-            float g = (1.1f * r) / sinf(vertical_FOV().value * 0.5f);
+            float g = (1.1f * r) / sinf(vertical_FOV().rad * 0.5f);
             v3f focus_point = (bound2 + bound1) * 0.5f;
             v3f position = normalize(cmt.position - focus_point) * g;
             mount.look_at(position, focus_point, cmt.up());

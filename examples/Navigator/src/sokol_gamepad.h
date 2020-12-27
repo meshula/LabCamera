@@ -1,3 +1,13 @@
+
+/*
+
+port this to mac
+
+https ://github.com/wetadigital/USDPluginExamples/issues/5
+https://github.com/wetadigital/USDPluginExamples/issues/6
+*/
+
+
 #ifndef SOKOL_GAMEPAD_INCLUDED
 /*
 sokol_gamepad.h -- cross-platform gamepad API
@@ -217,12 +227,6 @@ _SOKOL_PRIVATE void _sgamepad_generate_analog_stick_state(float x_value, float y
     #include <Windows.h>
     #include <Xinput.h>
     #define SGAMEPAD_MAX_SUPPORTED_GAMEPADS XUSER_MAX_COUNT
-
-    #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-        #pragma comment (lib, "Xinput9_1_0.lib")
-    #elif WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)
-    #endif
-
 #elif defined(__APPLE__)
     #define SGAMEPAD_MAX_SUPPORTED_GAMEPADS 4
 
@@ -255,18 +259,67 @@ _SOKOL_PRIVATE sgamepad _sgamepad = {0};
 /*== Windows Implementation ============================================*/
 #if defined (_WIN32)
 
+_SOKOL_PRIVATE HMODULE _hXInputDLL = NULL;
+_SOKOL_PRIVATE DWORD (__stdcall* _XInputGetCapabilities)(DWORD, DWORD, XINPUT_CAPABILITIES*) = NULL;
+_SOKOL_PRIVATE DWORD (__stdcall* _XInputGetState)(DWORD, XINPUT_STATE*) = NULL;
+
+/// @TODO: _sgamepad_windows_init should be called whenever WM_DEVICECHANGE has
+/// been received. Calling, and updating XInputGetState with device indices for
+/// unconnected entries has measurable overhead.
+
+_SOKOL_PRIVATE void _sgamepad_windows_init()
+{
+    if (!_hXInputDLL)
+    {
+        const wchar_t* dll_names[] = {
+            L"xinput1_4.dll",  // windows 8+
+            L"xinput1_3.dll",  // DXSDK, WinXP
+            L"xinput9_1_0.dll" // windows 7, vista
+        };
+        for (int i = 0; i < 3; ++i)
+        {
+            HMODULE dll = LoadLibraryW(dll_names[i]);
+            if (dll != NULL)
+            {
+                _hXInputDLL = dll;
+                typedef DWORD(__stdcall* fn1)(DWORD, DWORD, XINPUT_CAPABILITIES*);
+                _XInputGetCapabilities = (fn1)GetProcAddress(dll, "XInputGetCapabilities");
+
+                typedef DWORD(__stdcall* fn2)(DWORD, XINPUT_STATE*);
+                _XInputGetState = (fn2)GetProcAddress(dll, "XInputGetState");
+                break;
+            }
+        }
+    }
+    if (_hXInputDLL)
+    {
+        for (int i = 0; i < SGAMEPAD_MAX_SUPPORTED_GAMEPADS; i++)
+        {
+            XINPUT_CAPABILITIES caps;
+            _sgamepad.gamepad_states[i].connected = _XInputGetCapabilities(i, XINPUT_FLAG_GAMEPAD, &caps) == ERROR_SUCCESS;
+        }
+    }
+}
+
+
 _SOKOL_PRIVATE void _sgamepad_record_state() {
+    if (!_hXInputDLL)
+        return;
+
     for (int i = 0; i < SGAMEPAD_MAX_SUPPORTED_GAMEPADS; i++)
     {
+        if (!_sgamepad.gamepad_states[i].connected)
+            continue;
+
         sgamepad_gamepad_state* target = _sgamepad.gamepad_states + i;
       
         XINPUT_STATE xinput_state;
-        if (XInputGetState(i, &xinput_state) != ERROR_SUCCESS)
+        ZeroMemory(&xinput_state, sizeof(XINPUT_STATE));
+        if (_XInputGetState(i, &xinput_state) != ERROR_SUCCESS)
         {
             target->connected = false;
             continue;
         }
-        target->connected = true;
 
         WORD xinput_digital_buttons = xinput_state.Gamepad.wButtons;
 
@@ -596,6 +649,8 @@ SOKOL_API_IMPL unsigned int sgamepad_get_max_supported_gamepads() {
 SOKOL_API_IMPL void sgamepad_init() {
 #if defined(__ANDROID__)
     _sgamepad_android_init();
+#elif defined(_WIN32)
+    _sgamepad_windows_init();
 #endif
 }
 

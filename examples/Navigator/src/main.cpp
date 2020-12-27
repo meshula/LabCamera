@@ -29,6 +29,9 @@
 
 #define TRACE_INTERACTION 0
 
+float debug_lines_array[32768];
+int debug_lines_array_sz = 32768;
+int debug_lines_array_idx = 0;
 
 
 
@@ -241,9 +244,6 @@ static void draw_grid(float y, const lab::camera::m44f& m)
 
 static void draw_jack(float s, const lab::camera::m44f& m)
 {
-    lab::camera::m44f proj = gApp.camera.perspective();
-    sgl_matrix_mode_projection();
-    sgl_load_matrix(&proj.x.x);
 
     lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
@@ -260,6 +260,30 @@ static void draw_jack(float s, const lab::camera::m44f& m)
     sgl_v3f( 0,  0, -s);
     sgl_v3f( 0,  0,  s);
     sgl_end();
+}
+
+static void draw_debug(const lab::camera::m44f& m)
+{
+    if (!debug_lines_array_idx)
+        return;
+
+    lab::camera::m44f proj = gApp.camera.perspective();
+    sgl_matrix_mode_projection();
+    sgl_load_matrix(&proj.x.x);
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
+    sgl_matrix_mode_modelview();
+    sgl_load_matrix(&mv.x.x);
+    sgl_begin_lines();
+
+    for (int i = 0; i < debug_lines_array_idx; )
+    {
+        sgl_c3f(debug_lines_array[i + 3], debug_lines_array[i + 4], debug_lines_array[i + 5]);
+        sgl_v3f(debug_lines_array[i + 0], debug_lines_array[i + 1], debug_lines_array[i + 2]);
+        i += 6;
+    }
+
+    sgl_end();
+    debug_lines_array_idx = 0;
 }
 
 
@@ -361,7 +385,7 @@ bool run_gizmo(MouseState* ms, float width, float height)
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
     gApp.gizmo_state.cam.near_clip = gApp.camera.optics.znear;
     gApp.gizmo_state.cam.far_clip = gApp.camera.optics.zfar;
-    gApp.gizmo_state.cam.yfov = gApp.camera.vertical_FOV().value;
+    gApp.gizmo_state.cam.yfov = gApp.camera.vertical_FOV().rad;
     gApp.gizmo_state.cam.position = tinygizmo::v3f{ camera_pos.x, camera_pos.y, camera_pos.z };
     gApp.gizmo_state.cam.orientation = tinygizmo::v4f{ camera_orientation.x, camera_orientation.y, camera_orientation.z, camera_orientation.w };
     gApp.gizmo_state.ray_origin = tinygizmo::v3f{ ray.pos.x, ray.pos.y, ray.pos.z };
@@ -483,6 +507,7 @@ void run_application_logic()
     m44f identity = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
     draw_grid(0, identity);
     draw_grid(0, *(const m44f*)&gApp.gizmo_transform);
+    draw_debug(identity);
 
     {
         m44f m = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
@@ -691,7 +716,7 @@ void run_application_logic()
         ImGui::End();
     }
 
-    LabCameraNavigatorPanelInteraction in = LCNav_None;
+    LabCameraNavigatorPanelInteraction in = LCNav_Inactive;
     if (gApp.show_navigator)
     {
         ptc.sync_constraints(gApp.navigator_panel->pan_tilt);
@@ -702,7 +727,7 @@ void run_application_logic()
     const lab::camera::rigid_transform rt = gApp.camera.mount.transform();
     camera_minimap(320, 240, &rt, gApp.main_pan_tilt.orbit_center_constraint());
 
-    if (in > LCNav_None)
+    if (in > LCNav_Inactive)
     {
         gApp.ui_state = UIStateMachine::None;
         run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
@@ -785,7 +810,7 @@ void run_application_logic()
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
-                    gApp.initial_hit_point, static_cast<float>(delta_time));
+                    gApp.initial_hit_point, lab::camera::radians{ gApp.navigator_panel->roll }, static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
             else
@@ -798,7 +823,7 @@ void run_application_logic()
                 ptc.ttl_interaction(
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
-                    { mouse_pos.x, mouse_pos.y }, static_cast<float>(delta_time));
+                    { mouse_pos.x, mouse_pos.y }, lab::camera::radians{ gApp.navigator_panel->roll }, static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
 
