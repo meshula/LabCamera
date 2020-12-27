@@ -4,32 +4,55 @@ Copyright (c) 2013 Nick Porcino, All rights reserved.
 
 License is MIT: http://opensource.org/licenses/MIT
 
-LabCamera has no external dependencies. Include LabCamera.cpp in your project.
+LabCamera models interactive and computer vision cameras as a collection of
+physical components: optics, aperature, sensor, and mount. Parameters are
+physical, and compatible with real world measurements.
 
-LabCameraImgui is a convenient panel implementing a pan-tilt controller to
-manipulate the camera.
+The LabCamera interactive controller offers many popular control models;
+arcball, turntable, a variety of cinematic modes, such as crane and dolly.
 
-examples/Navigator is a small demo app that demonstrates the use of LabCamera.
+LabCamera collects many useful calculations necessary in interactive and
+computer vision applications, such as calculating hyperfocal distance, the
+circle of confusion, and so on.
+
+LabCamera has no external dependencies, just include LabCamera.cpp in your 
+project.
+
+LabCameraImgui is a convenient panel implementing various camera controls,
+including a lens kit.
+
+examples/Navigator is a demo app demonstrating the use of LabCamera.
 
 _________
 
-### Goals
+## Goals
 
-- Physical camera modeling
+### Modeling
+
+- Physical camera modeling of optics, aperature, sensor, and mount
 - Support for offset frustums for sensor shift and image tiling
-- Cinematic interaction controls; pan, dolly, crane
+
+### Interaction
+
+- Cinematic interaction controls: pan, dolly, crane
+- Modeling controls: arcball and turntable
 - Through the lens and joystick style interaction
-- Modeling controls; arcball and turntable
-- No dependencies on a UI toolkit or graphics library or event model
-- Trivial math types compatible with other libraries via static casting or copy
-- No leakage of implementation details, including a math library
+
+### Convenience
+
 - Camera raycast helpers
 - Sample Dear Imgui camera control panel for easy drop in usage
-- Convenience functions to create view and projection matrices
+- Functions to create view and projection matrices
+
+### Implementation
+
+- No dependencies on a UI toolkit or graphics library or event model
+- Trivial math types compatible with other libraries via static casting or copy
+- No leakage of implementation details, including the math library
 
 _________
 
-### Model
+## Model
 
 
 LabCamera models a physical camera.

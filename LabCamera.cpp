@@ -804,8 +804,9 @@ namespace lab {
         }
 
 
-        void PanTiltController::dual_stick_interaction(Camera& camera, InteractionToken,
-            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, float dt)
+        void PanTiltController::dual_stick_interaction(Camera& camera, InteractionToken tok,
+            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, 
+            radians roll_hint, float dt)
         {
             v3f pos_delta = pos_delta_in;
             v3f rotation_delta = rotation_delta_in;
@@ -852,6 +853,7 @@ namespace lab {
             {
                 _dolly(camera, { pos_delta.x, 0, pos_delta.z });
                 _turntable(camera, { rotation_delta.x, rotation_delta.z });
+                set_roll(camera, tok, roll_hint);
                 break;
             }
 
@@ -919,6 +921,7 @@ namespace lab {
                     // constraining the camera's direction to face the orbit center.
                     v3f local_up = { 0, 1, 0 };
                     camera.mount.look_at(pos, _orbit_center, local_up);
+                    set_roll(camera, tok, roll_hint);
 
                     v3f rt_post = cmt.right();
                     if (dot(rt_post, rt) < -0.5f)
@@ -936,7 +939,6 @@ namespace lab {
             case InteractionMode::Dolly:
             case InteractionMode::TurnTableOrbit:
             {
-                // roll works? Y
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse_;
@@ -986,6 +988,7 @@ namespace lab {
                 rel = quat_rotate_vector(rotation, rel);
                 _orbit_center = pos + rel;
                 camera.mount.look_at(pos, _orbit_center, world_up_constraint());//  camera.mount.up());
+                set_roll(camera, tok, roll_hint);
                 break;
             }
                     

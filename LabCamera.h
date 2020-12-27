@@ -431,7 +431,8 @@ namespace camera {
         void single_stick_interaction(Camera& camera, InteractionToken, 
             InteractionMode mode, v2f const& delta_in, radians roll_hint, float dt);
         void dual_stick_interaction(Camera& camera, InteractionToken,
-            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in, float dt);
+            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in,
+            radians roll_hint, float dt);
 
         // This mode is intended for through the lens screen space manipulation. 
         // Dolly: the camera will be moved in the view plane to keep initial under current

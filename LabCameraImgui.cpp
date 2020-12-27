@@ -54,9 +54,6 @@ struct LCNav_Panel : public LCNav_PanelState
     const lab::camera::v2f size = { 512, 256 };
     const lab::camera::v2f trackball_size = { 128, 128 };
     const lab::camera::v2f lenskit_size = { 120, 200 };
-    float roll = 0;
-
-
 };
 
 LCNav_PanelState* create_navigator_panel()
@@ -422,7 +419,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f + roll_track_sz, 0xffffffff, 24, 1.f);
 
         v3f ypr = camera.mount.ypr();
-        float roll = navigator_panel->roll; // ypr.z
+        float roll = navigator_panel->roll.rad; // ypr.z
         float s = sinf(roll) * ((width + roll_track_sz) * 0.5f);
         float c = cosf(roll) * ((width + roll_track_sz) * 0.5f);
         ImVec2 p_roll = { s, -c };
@@ -577,7 +574,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         auto up = navigator_panel->pan_tilt.world_up_constraint();
         camera.mount.look_at({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
         navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
-        navigator_panel->roll = 0;
+        navigator_panel->roll = lab::camera::radians{ 0 };
         result = LCNav_Inactive;
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
@@ -669,13 +666,13 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
 
-        navigator_panel->roll = roll_hint;
+        navigator_panel->roll = lab::camera::radians{ roll_hint };
 
         // renormalize transform, then apply the camera roll
         camera.mount.look_at(camera.mount.transform().position,
             navigator_panel->pan_tilt.orbit_center_constraint(), navigator_panel->pan_tilt.world_up_constraint());
         lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-        navigator_panel->pan_tilt.set_roll(camera, tok, lab::camera::radians{ roll_hint });
+        navigator_panel->pan_tilt.set_roll(camera, tok, navigator_panel->roll);
         navigator_panel->pan_tilt.end_interaction(tok);
     }
 
