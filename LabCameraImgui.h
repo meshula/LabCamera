@@ -1,6 +1,6 @@
 
 /*
- Copyright (c) 2013 Nick Porcino, All rights reserved.
+ Copyright (c) 2020 Nick Porcino, All rights reserved.
  License is MIT: http://opensource.org/licenses/MIT
 
  LabCameraImgui has no external dependencies besides LabCamera and Dear ImGui.
@@ -50,9 +50,10 @@ run_navigator_panel(LCNav_PanelState* navigator_panel, lab::camera::Camera& came
 LCNav_PanelState* create_navigator_panel();
 void release_navigator_panel(LCNav_PanelState*);
 
+/*
+ * minimap is not ready for primetime
+ */
 
 void camera_minimap(int w, int h, const lab::camera::rigid_transform* cam, const lab::camera::v3f lookat);
-
-
 
 #endif

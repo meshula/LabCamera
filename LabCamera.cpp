@@ -35,10 +35,10 @@ namespace lab {
         constexpr v2f mul(const v2f& a, float b) { return { a.x * b, a.y * b }; }
         constexpr v3f mul(const v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
         constexpr v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
-        constexpr v3f mul(const m44f& a, const v3f& b) { return xyz(a.x) * b.x + xyz(a.y) * b.y + xyz(a.z) * b.z; }
-        constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+        constexpr v3f mul(const m44f& a, const v3f& b) { return xyz(a.m.x) * b.x + xyz(a.m.y) * b.y + xyz(a.m.z) * b.z; }
+        constexpr v4f mul(const m44f& a, const v4f& b) { return a.m.x * b.x + a.m.y * b.y + a.m.z * b.z + a.m.w * b.w; }
         constexpr quatf mul(const quatf& a, const quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
-        constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
+        constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.m.x), mul(a,b.m.y), mul(a,b.m.z), mul(a,b.m.w) }; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         float length(const quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
@@ -48,46 +48,48 @@ namespace lab {
             return { a.x * l, a.y * l, a.z * l, a.w * l };
         }
 
-
         //---- matrix ops
 
         // adjugate from linalg
         m44f adjugate(const m44f& a)
         {
+            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
             return m44f{
-                v4f{ a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w,
-                     a.x.y * a.w.z * a.z.w + a.z.y * a.x.z * a.w.w + a.w.y * a.z.z * a.x.w - a.w.y * a.x.z * a.z.w - a.z.y * a.w.z * a.x.w - a.x.y * a.z.z * a.w.w,
-                     a.x.y * a.y.z * a.w.w + a.w.y * a.x.z * a.y.w + a.y.y * a.w.z * a.x.w - a.x.y * a.w.z * a.y.w - a.y.y * a.x.z * a.w.w - a.w.y * a.y.z * a.x.w,
-                     a.x.y * a.z.z * a.y.w + a.y.y * a.x.z * a.z.w + a.z.y * a.y.z * a.x.w - a.x.y * a.y.z * a.z.w - a.z.y * a.x.z * a.y.w - a.y.y * a.z.z * a.x.w },
-                v4f{ a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x,
-                     a.x.z * a.z.w * a.w.x + a.w.z * a.x.w * a.z.x + a.z.z * a.w.w * a.x.x - a.x.z * a.w.w * a.z.x - a.z.z * a.x.w * a.w.x - a.w.z * a.z.w * a.x.x,
-                     a.x.z * a.w.w * a.y.x + a.y.z * a.x.w * a.w.x + a.w.z * a.y.w * a.x.x - a.x.z * a.y.w * a.w.x - a.w.z * a.x.w * a.y.x - a.y.z * a.w.w * a.x.x,
-                     a.x.z * a.y.w * a.z.x + a.z.z * a.x.w * a.y.x + a.y.z * a.z.w * a.x.x - a.x.z * a.z.w * a.y.x - a.y.z * a.x.w * a.z.x - a.z.z * a.y.w * a.x.x },
-                v4f{ a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y,
-                     a.x.w * a.w.x * a.z.y + a.z.w * a.x.x * a.w.y + a.w.w * a.z.x * a.x.y - a.x.w * a.z.x * a.w.y - a.w.w * a.x.x * a.z.y - a.z.w * a.w.x * a.x.y,
-                     a.x.w * a.y.x * a.w.y + a.w.w * a.x.x * a.y.y + a.y.w * a.w.x * a.x.y - a.x.w * a.w.x * a.y.y - a.y.w * a.x.x * a.w.y - a.w.w * a.y.x * a.x.y,
-                     a.x.w * a.z.x * a.y.y + a.y.w * a.x.x * a.z.y + a.z.w * a.y.x * a.x.y - a.x.w * a.y.x * a.z.y - a.z.w * a.x.x * a.y.y - a.y.w * a.z.x * a.x.y },
-                v4f{ a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z,
-                     a.x.x * a.z.y * a.w.z + a.w.x * a.x.y * a.z.z + a.z.x * a.w.y * a.x.z - a.x.x * a.w.y * a.z.z - a.z.x * a.x.y * a.w.z - a.w.x * a.z.y * a.x.z,
-                     a.x.x * a.w.y * a.y.z + a.y.x * a.x.y * a.w.z + a.w.x * a.y.y * a.x.z - a.x.x * a.y.y * a.w.z - a.w.x * a.x.y * a.y.z - a.y.x * a.w.y * a.x.z,
-                     a.x.x * a.y.y * a.z.z + a.z.x * a.x.y * a.y.z + a.y.x * a.z.y * a.x.z - a.x.x * a.z.y * a.y.z - a.y.x * a.x.y * a.z.z - a.z.x * a.y.y * a.x.z } };
+                v4f{ ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w,
+                     ax.y * aw.z * az.w + az.y * ax.z * aw.w + aw.y * az.z * ax.w - aw.y * ax.z * az.w - az.y * aw.z * ax.w - ax.y * az.z * aw.w,
+                     ax.y * ay.z * aw.w + aw.y * ax.z * ay.w + ay.y * aw.z * ax.w - ax.y * aw.z * ay.w - ay.y * ax.z * aw.w - aw.y * ay.z * ax.w,
+                     ax.y * az.z * ay.w + ay.y * ax.z * az.w + az.y * ay.z * ax.w - ax.y * ay.z * az.w - az.y * ax.z * ay.w - ay.y * az.z * ax.w },
+                v4f{ ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x,
+                     ax.z * az.w * aw.x + aw.z * ax.w * az.x + az.z * aw.w * ax.x - ax.z * aw.w * az.x - az.z * ax.w * aw.x - aw.z * az.w * ax.x,
+                     ax.z * aw.w * ay.x + ay.z * ax.w * aw.x + aw.z * ay.w * ax.x - ax.z * ay.w * aw.x - aw.z * ax.w * ay.x - ay.z * aw.w * ax.x,
+                     ax.z * ay.w * az.x + az.z * ax.w * ay.x + ay.z * az.w * ax.x - ax.z * az.w * ay.x - ay.z * ax.w * az.x - az.z * ay.w * ax.x },
+                v4f{ ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y,
+                     ax.w * aw.x * az.y + az.w * ax.x * aw.y + aw.w * az.x * ax.y - ax.w * az.x * aw.y - aw.w * ax.x * az.y - az.w * aw.x * ax.y,
+                     ax.w * ay.x * aw.y + aw.w * ax.x * ay.y + ay.w * aw.x * ax.y - ax.w * aw.x * ay.y - ay.w * ax.x * aw.y - aw.w * ay.x * ax.y,
+                     ax.w * az.x * ay.y + ay.w * ax.x * az.y + az.w * ay.x * ax.y - ax.w * ay.x * az.y - az.w * ax.x * ay.y - ay.w * az.x * ax.y },
+                v4f{ ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z,
+                     ax.x * az.y * aw.z + aw.x * ax.y * az.z + az.x * aw.y * ax.z - ax.x * aw.y * az.z - az.x * ax.y * aw.z - aw.x * az.y * ax.z,
+                     ax.x * aw.y * ay.z + ay.x * ax.y * aw.z + aw.x * ay.y * ax.z - ax.x * ay.y * aw.z - aw.x * ax.y * ay.z - ay.x * aw.y * ax.z,
+                     ax.x * ay.y * az.z + az.x * ax.y * ay.z + ay.x * az.y * ax.z - ax.x * az.y * ay.z - ay.x * ax.y * az.z - az.x * ay.y * ax.z } };
         }
 
         float determinant(m44f const& a)
         {
-            return a.x.x * (a.y.y * a.z.z * a.w.w + a.w.y * a.y.z * a.z.w + a.z.y * a.w.z * a.y.w - a.y.y * a.w.z * a.z.w - a.z.y * a.y.z * a.w.w - a.w.y * a.z.z * a.y.w)
-                + a.x.y * (a.y.z * a.w.w * a.z.x + a.z.z * a.y.w * a.w.x + a.w.z * a.z.w * a.y.x - a.y.z * a.z.w * a.w.x - a.w.z * a.y.w * a.z.x - a.z.z * a.w.w * a.y.x)
-                + a.x.z * (a.y.w * a.z.x * a.w.y + a.w.w * a.y.x * a.z.y + a.z.w * a.w.x * a.y.y - a.y.w * a.w.x * a.z.y - a.z.w * a.y.x * a.w.y - a.w.w * a.z.x * a.y.y)
-                + a.x.w * (a.y.x * a.w.y * a.z.z + a.z.x * a.y.y * a.w.z + a.w.x * a.z.y * a.y.z - a.y.x * a.z.y * a.w.z - a.w.x * a.y.y * a.z.z - a.z.x * a.w.y * a.y.z);
+            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
+            return ax.x * (ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w)
+                 + ax.y * (ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x)
+                 + ax.z * (ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y)
+                 + ax.w * (ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z);
         }
 
         m44f transpose(m44f const& a)
         {
+            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
             return {
-                a.x.x, a.y.x, a.z.x, a.w.x,
-                a.x.y, a.y.y, a.z.y, a.w.y,
-                a.x.z, a.y.z, a.z.z, a.w.z,
-                a.x.w, a.y.w, a.z.w, a.w.w
+                ax.x, ay.x, az.x, aw.x,
+                ax.y, ay.y, az.y, aw.y,
+                ax.z, ay.z, az.z, aw.z,
+                ax.w, ay.w, az.w, aw.w
             };
         }
 
@@ -95,7 +97,7 @@ namespace lab {
         {
             m44f m = adjugate(mat);
             float oo_det = 1.f / determinant(mat);
-            float* ptr = &m.x.x;
+            float* ptr = &m.m.x.x;
             for (int i = 0; i < 16; i++)
                 ptr[i] *= oo_det;
             return m;
@@ -208,23 +210,22 @@ namespace lab {
             float zs = n.z * s;
 
             m44f m;
-            m.x.x = xx;
-            m.x.y = xy + zs;
-            m.x.z = zx - ys;
-            m.x.w = 0.f;
-            m.y.x = xy - zs;
-            m.y.y = yy;
-            m.y.z = yz + xs;
-            m.y.w = 0.f;
-            m.z.x = zx + ys;
-            m.z.y = yz - xs;
-            m.z.z = zz;
-            m.z.w = 0.f;
-            m.w.x = 0.f;
-            m.w.y = 0.f;
-            m.w.z = 0.f;
-            m.w.w = 1.f;
-
+            m.m.x.x = xx;
+            m.m.x.y = xy + zs;
+            m.m.x.z = zx - ys;
+            m.m.x.w = 0.f;
+            m.m.y.x = xy - zs;
+            m.m.y.y = yy;
+            m.m.y.z = yz + xs;
+            m.m.y.w = 0.f;
+            m.m.z.x = zx + ys;
+            m.m.z.y = yz - xs;
+            m.m.z.z = zz;
+            m.m.z.w = 0.f;
+            m.m.w.x = 0.f;
+            m.m.w.y = 0.f;
+            m.m.w.z = 0.f;
+            m.m.w.w = 1.f;
             return m;
         }
 
@@ -932,8 +933,6 @@ namespace lab {
 
                     _init_mouse = current_mouse;
                 }
-                else
-                    printf("%f %f %f\n", v0.x, v0.y, v0.z);
             }
             break;
 
@@ -1136,9 +1135,9 @@ namespace lab {
         m44f Mount::gl_view_transform() const
         {
             m44f m = inv_rotation_transform();
-            m.w.x = -dot({ m.x.x, m.y.x, m.z.x }, _transform.position);
-            m.w.y = -dot({ m.x.y, m.y.y, m.z.y }, _transform.position);
-            m.w.z = -dot({ m.x.z, m.y.z, m.z.z }, _transform.position);
+            m[3].x = -dot({ m[0].x, m[1].x, m[2].x }, _transform.position);
+            m[3].y = -dot({ m[0].y, m[1].y, m[2].y }, _transform.position);
+            m[3].z = -dot({ m[0].z, m[1].z, m[2].z }, _transform.position);
             return m;
         }
 
@@ -1171,7 +1170,7 @@ namespace lab {
         {
             v3f p = mul(xyz(m[3]), -1.f);
             m44f m2 = m;
-            m2.w = { 0, 0, 0, 1 };
+            m2.m.w = { 0, 0, 0, 1 };
             m2 = transpose(m2);
             _transform.position = mul(m2, p);
             _transform.orientation = quat_from_matrix(m);

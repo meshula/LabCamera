@@ -36,21 +36,28 @@
 
 #include <stdint.h>
 
+//-------------------------------------------------------------------------
+// LabCamera doesn't provide a math library, just these trivial types
+// compatible with almost any other library via static casting or copying.
+//
+typedef struct { float x, y; } lc_v2f;
+typedef struct { float x, y, z; } lc_v3f;
+typedef struct { float x, y, z, w; } lc_v4f;
+typedef struct { lc_v4f x; lc_v4f y; lc_v4f z; lc_v4f w; } lc_m44f;
+typedef lc_v4f  lc_quatf;
+
+#ifdef __cplusplus
 namespace lab {
 namespace camera {
 
-    //-------------------------------------------------------------------------
-    // LabCamera doesn't provide a math library, just these trivial types
-    // compatible with almost any other library via static casting or copying.
-    //
-    struct v2f { float x, y; };
-    struct v3f { float x, y, z; };
-    struct v4f { float x, y, z, w; };
-    typedef v4f quatf;
+    typedef lc_v2f v2f;
+    typedef lc_v3f v3f;
+    typedef lc_v4f v4f;
+    typedef lc_quatf quatf;
 
     struct m44f {
         union {
-            struct { v4f x; v4f y; v4f z; v4f w; };
+            lc_m44f m;
             v4f array[4];
         };
         constexpr const v4f& operator[] (int j) const { return array[j]; }
@@ -465,5 +472,6 @@ namespace camera {
 
 }
 } // lab::camera
+#endif // _cplusplus
 
 #endif
