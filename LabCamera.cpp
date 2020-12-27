@@ -721,10 +721,10 @@ namespace lab {
 
 
 
-//-----------------------------------------------------------------------------
-// PanTiltController
-//
-//-----------------------------------------------------------------------------
+        //-----------------------------------------------------------------------------
+        // PanTiltController
+        //
+        //-----------------------------------------------------------------------------
 
         InteractionToken PanTiltController::begin_interaction(v2f const& viewport_size)
         {
@@ -1056,7 +1056,7 @@ namespace lab {
                     _init_mouse.y = current_mouse_.y;
                 dp = current_mouse_ - _init_mouse;
 
-                dp.x /=  _viewport_size.x;
+                dp.x /= _viewport_size.x;
                 dp.y /= -_viewport_size.y;
                 single_stick_interaction(camera, tok, mode, dp, roll_hint, dt);
                 break;
@@ -1076,11 +1076,11 @@ namespace lab {
 
                 // Through the lens gimbal
                 lc_ray original_ray = get_ray(_initial_inv_projection,
-                                              pos, _init_mouse,
-                                              { 0, 0 }, _viewport_size);
-                lc_ray new_ray =      get_ray(_initial_inv_projection,
-                                              pos, current_mouse_,
-                                              { 0, 0 }, _viewport_size);
+                    pos, _init_mouse,
+                    { 0, 0 }, _viewport_size);
+                lc_ray new_ray = get_ray(_initial_inv_projection,
+                    pos, current_mouse_,
+                    { 0, 0 }, _viewport_size);
 
                 quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
 
@@ -1184,11 +1184,32 @@ namespace lab {
             _pan_tilt_speed = pt;
         }
 
+    }
+} // lab::Camera
 
 //-----------------------------------------------------------------------------
-// Mount
+// Aperture
 //
 //-----------------------------------------------------------------------------
+
+void lc_aperture_set_default(lc_aperture* a)
+{
+    if (!a)
+        return;
+
+    a->shutter_open = 0.f;
+    a->shutter_duration = 0.f;
+    a->shutter_blades = 7;
+    a->iris = lc_millimeters{ 6.25f };
+}
+
+namespace lab {
+    namespace camera {
+
+        //-----------------------------------------------------------------------------
+        // Mount
+        //
+        //-----------------------------------------------------------------------------
 
 
         Mount::Mount()
@@ -1277,7 +1298,8 @@ namespace lab {
         {
             return ypr_from_quat(transform()->orientation);
         }
-
+    }
+}
 
 
 //-----------------------------------------------------------------------------
@@ -1285,19 +1307,33 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-        lc_meters Optics::hyperfocal_distance(lc_millimeters CoC)
-        {
-            return { mm_as_m(focal_length).m * mm_as_m(focal_length).m / (fStop * mm_as_m(CoC).m) };
-        }
+void lc_optics_set_default(lc_optics* o)
+{
+    if (!o)
+        return;
 
-        v2f Optics::focus_range(lc_millimeters h)
-        {
-            v2f r;
-            float h_m = mm_as_m(h).m;
-            r.x = h_m * focus_distance.m / (h_m + (focus_distance.m - mm_as_m(focal_length).m));
-            r.y = h_m * focus_distance.m / (h_m - (focus_distance.m - mm_as_m(focal_length).m));
-            return r;
-        }
+    o->fStop = 8.f;
+    o->focal_length = lc_millimeters{ 50.f };
+    o->zfar = 1e5f;
+    o->znear = 0.1f;
+    o->squeeze = 1.f;
+}
+
+lc_meters lc_optics_hyperfocal_distance(lc_optics* o, lc_millimeters CoC)
+{
+    return { mm_as_m(o->focal_length).m * mm_as_m(o->focal_length).m / (o->fStop * mm_as_m(CoC).m) };
+}
+
+lc_v2f lc_optics_focus_range(lc_optics* o, lc_millimeters h)
+{
+    lc_v2f r;
+    float h_m = mm_as_m(h).m;
+    r.x = h_m * o->focus_distance.m / (h_m + (o->focus_distance.m - mm_as_m(o->focal_length).m));
+    r.y = h_m * o->focus_distance.m / (h_m - (o->focus_distance.m - mm_as_m(o->focal_length).m));
+    return r;
+}
+
+namespace lab { namespace camera {
 
 //-----------------------------------------------------------------------------
 // Sensor
@@ -1318,7 +1354,12 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-        Camera::Camera() = default;
+        Camera::Camera()
+        {
+            lc_optics_set_default(&optics);
+            lc_aperture_set_default(&aperture);
+        }
+
         Camera::~Camera() = default;
 
         m44f Camera::perspective(float aspect) const
@@ -1446,10 +1487,10 @@ namespace lab {
             return get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
         }
 
-        HitResult Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const
+        lc_hit_result Camera::hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const
         {
             lc_ray ray = get_ray_from_pixel(mouse, { 0, 0 }, viewport);
-            HitResult r;
+            lc_hit_result r;
             r.hit = intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
             return r;
         }

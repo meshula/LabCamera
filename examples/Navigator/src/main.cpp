@@ -526,7 +526,7 @@ void run_application_logic()
         // hit point on manipulator plane
         if (gApp.show_manip_plane_intersect)
         {
-            lab::camera::HitResult hit = gApp.camera.hit_test(
+            lc_hit_result hit = gApp.camera.hit_test(
                 { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 *(v3f*)(&gApp.gizmo_transform.w),
@@ -551,7 +551,7 @@ void run_application_logic()
             cam_pos.y += cam_nrm.y;
             cam_pos.z += cam_nrm.z;
 
-            lab::camera::HitResult hit = gApp.camera.hit_test(
+            lc_hit_result hit = gApp.camera.hit_test(
                 { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 cam_pos, cam_nrm);
@@ -680,7 +680,7 @@ void run_application_logic()
         cam_pos.z += cam_nrm.z;
 
         // project onto a plane one unit in front of the camera
-        lab::camera::HitResult hit = gApp.camera.hit_test(
+        lc_hit_result hit = gApp.camera.hit_test(
             { gApp.mouse.mousex, gApp.mouse.mousey },
             { (float)window_width, (float)window_height },
             cam_pos, cam_nrm);
@@ -751,7 +751,7 @@ void run_application_logic()
             else if (gApp.mouse.click_initiated)
             {
                 // hit test versus the gizmo's plane
-                lab::camera::HitResult hit = gApp.camera.hit_test(
+                lc_hit_result hit = gApp.camera.hit_test(
                     { gApp.mouse.mousex, gApp.mouse.mousey },
                     { (float)window_width, (float)window_height },
                     *(v3f*)(&gApp.gizmo_transform.w),
