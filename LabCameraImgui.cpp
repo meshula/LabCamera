@@ -51,9 +51,9 @@ struct LCNav_Panel : public LCNav_PanelState
 
     LCNav_Component component = LCNav_None;
     LCNav_MouseState mouse_state;
-    const lab::camera::v2f size = { 512, 256 };
-    const lab::camera::v2f trackball_size = { 128, 128 };
-    const lab::camera::v2f lenskit_size = { 120, 200 };
+    const lc_v2f size = { 512, 256 };
+    const lc_v2f trackball_size = { 128, 128 };
+    const lc_v2f lenskit_size = { 120, 200 };
 };
 
 LCNav_PanelState* create_navigator_panel()
@@ -406,7 +406,6 @@ void
 draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
-    using lab::camera::v3f;
     ImGuiIO& io = ImGui::GetIO();
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -418,7 +417,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f + roll_track_sz, 0xffffffff, 24, 1.f);
 
-        v3f ypr = camera.mount.ypr();
+        lc_v3f ypr = camera.mount.ypr();
         float roll = navigator_panel->roll.rad; // ypr.z
         float s = sinf(roll) * ((width + roll_track_sz) * 0.5f);
         float c = cosf(roll) * ((width + roll_track_sz) * 0.5f);
@@ -439,8 +438,6 @@ void
 draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
-    using lab::camera::v3f;
-
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     bool roll_active = false;
     draw_list->PushClipRect(p0, p1);
@@ -448,29 +445,29 @@ draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& ca
         float width = p1.x - p0.x - 2.f * roll_track_sz;
 
         const lc_rigid_transform* tr = camera.mount.transform();
-        navigator_panel->trackball_camera.mount.look_at(5.f, tr->orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
+        navigator_panel->trackball_camera.mount.look_at(5.f, tr->orientation, lc_v3f{ 0,0,0 }, lc_v3f{ 0, 1, 0 });
 
-        lab::camera::v3f pnt{ 0, 1, 0 };
-        lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ 0, -1, 0 };
-        lab::camera::v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        lc_v3f pnt{ 0, 1, 0 };
+        lc_v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        pnt = lc_v3f{ 0, -1, 0 };
+        lc_v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         ImVec2 v0 = p0 + ImVec2{ xy0.x, xy0.y };
         ImVec2 v1 = p0 + ImVec2{ xy1.x, xy1.y };
         draw_list->AddLine(v0, v1, 0xff00ff00);
 
-        pnt = lab::camera::v3f{ 1, 0, 0 };
+        pnt = lc_v3f{ 1, 0, 0 };
         xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ -1, 0, 0 };
+        pnt = lc_v3f{ -1, 0, 0 };
         xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         v0 = p0 + ImVec2{ xy0.x, xy0.y };
         v1 = p0 + ImVec2{ xy1.x, xy1.y };
         draw_list->AddLine(v0, v1, 0xff0000ff);
 
-        pnt = lab::camera::v3f{ 0, 0, 1 };
+        pnt = lc_v3f{ 0, 0, 1 };
         xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
-        pnt = lab::camera::v3f{ 0, 0, -1 };
+        pnt = lc_v3f{ 0, 0, -1 };
         xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         v0 = p0 + ImVec2{ xy0.x, xy0.y };
@@ -686,12 +683,11 @@ static float len(float x, float y)
     return sqrtf(x * x + y * y);
 }
 
-void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, float t, const lc_rigid_transform* cam, const lab::camera::v3f lookat)
+void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, float t, const lc_rigid_transform* cam, const lc_v3f lookat)
 {
-    using lab::camera::v3f;
     float min_dim = std::min(sz.x, sz.y);
-    v3f eye = cam->position;
-    v3f relative_eye = { eye.x - lookat.x, eye.y - lookat.y, eye.z - lookat.z };
+    lc_v3f eye = cam->position;
+    lc_v3f relative_eye = { eye.x - lookat.x, eye.y - lookat.y, eye.z - lookat.z };
     float scale = 1.f / 10.f;
     ImVec2 p_eye = { relative_eye.x, relative_eye.z };
     p_eye *= scale;
@@ -708,7 +704,7 @@ void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, floa
 // to extract a drawable region covering the whole window.
 // https://gist.github.com/ocornut/51367cc7dfd2c41d607bb0acfa6caf66
 //
-void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lab::camera::v3f lookat)
+void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lc_v3f lookat)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::Begin("Camera Minimap", NULL, ImGuiWindowFlags_AlwaysAutoResize);

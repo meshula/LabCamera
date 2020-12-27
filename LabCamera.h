@@ -10,6 +10,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-------------------------------------------------------------------------
 // LabCamera doesn't provide a math library, just these trivial types
 // compatible with almost any other library via static casting or copying.
@@ -63,14 +67,12 @@ inline bool lc_rt_is_uniform_scale(const lc_rigid_transform* rt) { return rt->sc
 
 
 #ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
 namespace lab {
     namespace camera {
-
-        typedef lc_v2f v2f;
-        typedef lc_v3f v3f;
-        typedef lc_v4f v4f;
-        typedef lc_quatf quatf;
-        typedef lc_m44f m44f;
 
         //-------------------------------------------------------------------------
         // Mount is a nodal mount, centered on the camera's sensor
@@ -85,25 +87,25 @@ namespace lab {
             ~Mount();
 
             // matrix
-            m44f gl_view_transform() const;
-            m44f gl_view_transform_inv() const;
-            m44f model_view_transform(m44f const& view_matrix) const;
-            m44f model_view_transform(float const* const view_matrix) const;
-            m44f rotation_transform() const;
-            m44f inv_rotation_transform() const;
+            lc_m44f gl_view_transform() const;
+            lc_m44f gl_view_transform_inv() const;
+            lc_m44f model_view_transform(lc_m44f const& view_matrix) const;
+            lc_m44f model_view_transform(float const* const view_matrix) const;
+            lc_m44f rotation_transform() const;
+            lc_m44f inv_rotation_transform() const;
 
             // components
             const lc_rigid_transform* transform() const { return &_transform; }
-            v3f ypr() const;
+            lc_v3f ypr() const;
 
             float mm_to_world() const { return 1000.f; } // multiply mm by this value to get world values
 
             // mutation
-            void set_view_transform(m44f const&);
-            void set_view_transform_quat_pos(quatf const& q, v3f const& eye);
-            void set_view_transform_ypr_eye(v3f const& ypr, v3f const& eye);
-            void look_at(v3f const& eye, v3f const& target, v3f const& up);
-            void look_at(float distance, quatf const& orientation, v3f const& target, v3f const& up);
+            void set_view_transform(lc_m44f const&);
+            void set_view_transform_quat_pos(lc_quatf const& q, lc_v3f const& eye);
+            void set_view_transform_ypr_eye(lc_v3f const& ypr, lc_v3f const& eye);
+            void look_at(lc_v3f const& eye, lc_v3f const& target, lc_v3f const& up);
+            void look_at(float distance, lc_quatf const& orientation, lc_v3f const& target, lc_v3f const& up);
         };
 
         //-------------------------------------------------------------------------
@@ -130,7 +132,7 @@ namespace lab {
             float handedness = -1.f; // left handed
             lc_millimeters aperture_x = { 35.f };
             lc_millimeters aperture_y = { 24.5f };
-            v2f enlarge = { 1, 1 };
+            lc_v2f enlarge = { 1, 1 };
             Shift shift = { lc_millimeters{0}, lc_millimeters{0} };
 
             // Utility function to derive a focal length for this sensor
@@ -142,78 +144,77 @@ namespace lab {
     }
 }
 
-/*
----------------------------------------------------------------------------
+/*---------------------------------------------------------------------------
     Optics
 
-A and B are on the sensor plane.
+    A and B are on the sensor plane.
 
-There is a point at infinity, O, on the axis of the lens, whose parallel rays
-converge on B.
-                                a
-    ---------------------------+---------------+ A
-                                b| |              |
-    O--------------------------+---------------+ B
-                                c| |              |
-    ---------------------------+---------------+
-    infinity                 lens           sensor plane
-    C
+    There is a point at infinity, O, on the axis of the lens, whose parallel rays
+    converge on B.
+                                    a
+        ---------------------------+---------------+ A
+                                    b| |              |
+        O--------------------------+---------------+ B
+                                    c| |              |
+        ---------------------------+---------------+
+        infinity                 lens           sensor plane
+        C
 
-h = A-B is half the sensor plane aperture.
-f = b-B is the focal length
+    h = A-B is half the sensor plane aperture.
+    f = b-B is the focal length
 
-There is a point C at infinity, whose parallel rays through a, b, and c,
-converge on the edge of the sensor plane, at A.
+    There is a point C at infinity, whose parallel rays through a, b, and c,
+    converge on the edge of the sensor plane, at A.
 
-The field of view of the lens, at infinity, can therefore be approximated by
+    The field of view of the lens, at infinity, can therefore be approximated by
 
-    fov = 2 atan((h/2) / f)
+        fov = 2 atan((h/2) / f)
 
-Given a field of view, the assumption of a focus at infinity, and a sensor
-aperture, the focal length may be calculated accordingly:
+    Given a field of view, the assumption of a focus at infinity, and a sensor
+    aperture, the focal length may be calculated accordingly:
 
-    f = tan(fov/2) / (h/2)
+        f = tan(fov/2) / (h/2)
 
-an anamorphic lens' horizontal field of view must take squeeze into account:
+    an anamorphic lens' horizontal field of view must take squeeze into account:
 
-    fov = 2 atan((s * h/2) / f)
+        fov = 2 atan((s * h/2) / f)
 
-The hyperfocal distance is useful for determining what ranges are in focus.
+    The hyperfocal distance is useful for determining what ranges are in focus.
 
-If a camera is focused at infinity, objects from the hyperfocal distance to
-infinity are in focus.
+    If a camera is focused at infinity, objects from the hyperfocal distance to
+    infinity are in focus.
 
-O----------------H----------------------------|
-Infinity       hyperfocal distance         Sensor plane
+    O----------------H----------------------------|
+    Infinity       hyperfocal distance         Sensor plane
 
-If a camera is focussed at the hyperfocal distance, then objects from 1/2 H to
-infinity are in focus.
+    If a camera is focussed at the hyperfocal distance, then objects from 1/2 H to
+    infinity are in focus.
 
-O----------------H----------H/2---------------|
-Infinity       hyperfocal distance         Sensor plane
+    O----------------H----------H/2---------------|
+    Infinity       hyperfocal distance         Sensor plane
 
-Given a focus distance, and the hyperfocal distance, the in focus range is
-given by
+    Given a focus distance, and the hyperfocal distance, the in focus range is
+    given by
 
-    Dn = hd / (h + (d - f))
-    Df = hd / (h - (d - f))
+        Dn = hd / (h + (d - f))
+        Df = hd / (h - (d - f))
 
-Given a circle of confusion, such as 0.002mm as might be typical for 35mm film,
-the hyperfocal distance can be determined.
+    Given a circle of confusion, such as 0.002mm as might be typical for 35mm film,
+    the hyperfocal distance can be determined.
 
-    h = f^2/(fstop * CoC)
+        h = f^2/(fstop * CoC)
 
-@TODO PBRT has complex lens model, see RealisticCamera. Consider it for adoption here,
-perhaps as a secondary structure in Optics, or as a subclass.
+    @TODO PBRT has complex lens model, see RealisticCamera. Consider it for adoption here,
+    perhaps as a secondary structure in Optics, or as a subclass.
 
-https://github.com/mmp/pbrt-v4/blob/master/src/pbrt/cameras.h
+    https://github.com/mmp/pbrt-v4/blob/master/src/pbrt/cameras.h
 
-PBRT defines Orthographic, Perspective, Spherical, and Realistic cameras.
+    PBRT defines Orthographic, Perspective, Spherical, and Realistic cameras.
 
-@TODO introduce at least Orthographic, in addtion to the present model which wuold
-be Perspective.
+    @TODO introduce at least Orthographic, in addtion to the present model which wuold
+    be Perspective.
 
-*/
+ */
 
 typedef struct
 {
@@ -246,7 +247,7 @@ lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance);
     Currently the shape of the aperture is modeled as a straight sided polygon.
     In the future, an arbitrary mask could be specified to use in convolution
     or raytracing.
-    */
+ */
 
 typedef struct
 {
@@ -279,7 +280,7 @@ void lc_aperture_set_default(lc_aperture* a);
     whose radius corresponds to the distance from the camera to the focus point when
     begin_interaction() is invoked.
 
-    */
+  */
 
 typedef struct
 {
@@ -304,8 +305,8 @@ namespace lab {
         // perspective and field of view are computed from the sensor
         // and optics of the camera.
         //
-        m44f        perspective(float aspect = 1.f) const;
-        m44f        inv_perspective(float aspect = 1.f) const;
+        lc_m44f        perspective(float aspect = 1.f) const;
+        lc_m44f        inv_perspective(float aspect = 1.f) const;
         lc_radians     vertical_FOV() const;
         lc_radians     horizontal_FOV() const;
 
@@ -313,21 +314,21 @@ namespace lab {
         float f_stop() const { return optics.focal_length.mm / aperture.iris.mm; }
 
         // move the camera along the view vector such that both bounds are visible
-        void frame(v3f const& bound1, v3f const& bound2);
+        void frame(lc_v3f const& bound1, lc_v3f const& bound2);
 
-        void set_clipping_planes_within_bounds(float min_near, float max_far, v3f const& bound1, v3f const& bound2);
+        void set_clipping_planes_within_bounds(float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2);
 
-        float distance_to_plane(v3f const& planePoint, v3f const& planeNormal) const;
+        float distance_to_plane(lc_v3f const& planePoint, lc_v3f const& planeNormal) const;
 
         // Returns a world-space ray through the given pixel, originating at the camera
-        lc_ray get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const;
+        lc_ray get_ray_from_pixel(lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size) const;
 
-        lc_hit_result hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const;
+        lc_hit_result hit_test(const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal) const;
 
-        v2f project_to_viewport(v2f const& viewport_origin, v2f const& viewport_size, const v3f& point) const;
+        lc_v2f project_to_viewport(lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point) const;
 
-        m44f view_projection(float aspect = 1.f) const;
-        m44f inv_view_projection(float aspect = 1.f) const;
+        lc_m44f view_projection(float aspect = 1.f) const;
+        lc_m44f inv_view_projection(float aspect = 1.f) const;
     };
 
 
@@ -348,32 +349,32 @@ namespace lab {
         uint64_t _epoch = 0;
 
         // constraints
-        v3f _world_up{ 0, 1, 0 };
-        v3f _orbit_center{ 0, 0, 0 };
+        lc_v3f _world_up{ 0, 1, 0 };
+        lc_v3f _orbit_center{ 0, 0, 0 };
 
         // local settings
         float _orbit_speed = 0.5f;
         float _pan_tilt_speed = 0.25f;
 
         // working state
-        v2f _viewport_size = { 0, 0 };
-        v3f _initial_focus_point = { 0, 0, 0 };
+        lc_v2f _viewport_size = { 0, 0 };
+        lc_v3f _initial_focus_point = { 0, 0, 0 };
         float _initial_focus_distance = 5.f;
-        v2f _init_mouse{ 0,0 };
-        v2f _prev_mouse{ 0,0 };
-        m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
+        lc_v2f _init_mouse{ 0,0 };
+        lc_v2f _prev_mouse{ 0,0 };
+        lc_m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
 
-        void _dolly(Camera& camera, const v3f& delta);
-        void _turntable(Camera& camera, const v2f& delta);
-        void _pantilt(Camera& camera, const v2f& delta);
+        void _dolly(Camera& camera, const lc_v3f& delta);
+        void _turntable(Camera& camera, const lc_v2f& delta);
+        void _pantilt(Camera& camera, const lc_v2f& delta);
 
     public:
         PanTiltController() = default;
 
-        v3f world_up_constraint() const;
-        v3f orbit_center_constraint() const;
-        void set_orbit_center_constraint(v3f const& pos);
-        void set_world_up_constraint(v3f const& up);
+        lc_v3f world_up_constraint() const;
+        lc_v3f orbit_center_constraint() const;
+        void set_orbit_center_constraint(lc_v3f const& pos);
+        void set_world_up_constraint(lc_v3f const& up);
         void set_speed(float orbit, float pan_tilt);
 
         // begin_interaction
@@ -381,7 +382,7 @@ namespace lab {
         // returns an InteractionToken. In the future this will be in aid of
         // multitouch, multidevice interactions on the same camera
         //
-        InteractionToken begin_interaction(v2f const& viewport_size);
+        InteractionToken begin_interaction(lc_v2f const& viewport_size);
         void end_interaction(InteractionToken);
 
         // Synchronize constraints and epoch to the most recent of this and controller.
@@ -400,7 +401,7 @@ namespace lab {
             Camera& camera,
             InteractionToken,
             InteractionMode mode,
-            v2f const& delta_in,
+            lc_v2f const& delta_in,
             lc_radians roll_hint,
             float dt);
 
@@ -408,8 +409,8 @@ namespace lab {
             Camera& camera,
             InteractionToken,
             InteractionMode mode,
-            v3f const& pos_delta_in,
-            v3f const& rotation_delta_in,
+            lc_v3f const& pos_delta_in,
+            lc_v3f const& rotation_delta_in,
             lc_radians roll_hint,
             float dt);
 
@@ -429,7 +430,7 @@ namespace lab {
             InteractionToken tok,
             InteractionPhase phase,
             InteractionMode mode,
-            v2f const& current,
+            lc_v2f const& current,
             lc_radians roll_hint,
             float dt);
 
@@ -444,8 +445,8 @@ namespace lab {
             InteractionToken tok,
             InteractionPhase phase,
             InteractionMode mode,
-            v2f const& current,
-            v3f const& initial_hit_point,
+            lc_v2f const& current,
+            lc_v3f const& initial_hit_point,
             lc_radians roll_hint,
             float dt);
     };

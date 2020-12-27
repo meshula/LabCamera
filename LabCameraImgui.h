@@ -54,6 +54,6 @@ void release_navigator_panel(LCNav_PanelState*);
  * minimap is not ready for primetime
  */
 
-void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lab::camera::v3f lookat);
+void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lc_v3f lookat);
 
 #endif
