@@ -39,7 +39,7 @@ int debug_lines_array_idx = 0;
     Utility
  */
 
-static bool intersect_ray_plane(const lab::camera::Ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
+static bool intersect_ray_plane(const lc_ray& ray, const lab::camera::v3f& point, const lab::camera::v3f& normal,
     lab::camera::v3f* intersection = nullptr, float* outT = nullptr)
 {
     const float PLANE_EPSILON = 0.001f;
@@ -376,10 +376,10 @@ static GizmoTriangles gizmo_triangles;
 // return true if the gizmo was interacted
 bool run_gizmo(MouseState* ms, float width, float height)
 {
-    auto& cmt = gApp.camera.mount.transform();
-    lab::camera::v3f camera_pos = cmt.position;
-    lab::camera::Ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
-    lab::camera::quatf camera_orientation = cmt.orientation;
+    const lc_rigid_transform* cmt = gApp.camera.mount.transform();
+    lab::camera::v3f camera_pos = cmt->position;
+    lc_ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
+    lab::camera::quatf camera_orientation = cmt->orientation;
 
     gApp.gizmo_state.mouse_left = ms->dragging;
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
@@ -493,8 +493,8 @@ void run_application_logic()
     m44f view_t = gApp.camera.mount.gl_view_transform_inv();
     m44f view_proj = gApp.camera.view_projection(1.f);
 
-    auto& cmt = gApp.camera.mount.transform();
-    v3f pos = cmt.position;
+    const lc_rigid_transform* cmt = gApp.camera.mount.transform();
+    v3f pos = cmt->position;
 
     //--- draw things in the 3d view
     //
@@ -542,8 +542,8 @@ void run_application_logic()
         // intersection of mouse ray with image plane at 1 unit distance
         if (gApp.show_view_plane_intersect)
         {
-            v3f cam_pos = cmt.position;
-            v3f cam_nrm = cmt.forward();
+            v3f cam_pos = cmt->position;
+            v3f cam_nrm = lc_rt_forward(cmt);
             cam_nrm.x *= -1.f;
             cam_nrm.y *= -1.f;
             cam_nrm.z *= -1.f;
@@ -670,8 +670,8 @@ void run_application_logic()
 
     // show where the 2d projected 3d projected 2d hit point is
     {
-        v3f cam_pos = cmt.position;
-        v3f cam_nrm = cmt.forward();
+        v3f cam_pos = cmt->position;
+        v3f cam_nrm = lc_rt_forward(cmt);
         cam_nrm.x *= -1.f;
         cam_nrm.y *= -1.f;
         cam_nrm.z *= -1.f;
@@ -707,7 +707,7 @@ void run_application_logic()
         ImGui::Text("state: %s", name_state(gApp.ui_state));
         v3f ypr = gApp.camera.mount.ypr();
         ImGui::Text("ypr: (%f, %f, %f)", ypr.x, ypr.y, ypr.z);
-        v3f pos = cmt.position;
+        v3f pos = cmt->position;
         ImGui::Text("pos: (%f, %f, %f)", pos.x, pos.y, pos.z);
         ImGui::Separator();
         ImGui::Text("imouse: %f, %f", gApp.mouse.initial_mousex, gApp.mouse.initial_mousey);
@@ -724,8 +724,8 @@ void run_application_logic()
         in = run_navigator_panel(gApp.navigator_panel, gApp.camera, static_cast<float>(delta_time));
     }
 
-    const lab::camera::rigid_transform rt = gApp.camera.mount.transform();
-    camera_minimap(320, 240, &rt, gApp.main_pan_tilt.orbit_center_constraint());
+    const lc_rigid_transform* rt = gApp.camera.mount.transform();
+    camera_minimap(320, 240, rt, gApp.main_pan_tilt.orbit_center_constraint());
 
     if (in > LCNav_Inactive)
     {
@@ -766,8 +766,8 @@ void run_application_logic()
                     }
                     else
                     {
-                        v3f cam_pos = cmt.position;
-                        v3f cam_nrm = cmt.forward();
+                        v3f cam_pos = cmt->position;
+                        v3f cam_nrm = lc_rt_forward(cmt);
                         cam_nrm.x *= -1.f;
                         cam_nrm.y *= -1.f;
                         cam_nrm.z *= -1.f;
@@ -811,7 +811,7 @@ void run_application_logic()
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point, 
-                    radians{ gApp.navigator_panel->roll }, 
+                    lc_radians{ gApp.navigator_panel->roll }, 
                     static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
@@ -826,7 +826,7 @@ void run_application_logic()
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y }, 
-                    radians{ gApp.navigator_panel->roll }, 
+                    lc_radians{ gApp.navigator_panel->roll }, 
                     static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
@@ -861,7 +861,7 @@ void run_application_logic()
             gApp.camera, 
             tok, gApp.navigator_panel->camera_interaction_mode, 
             { left_stick.x, 0, left_stick.y }, { right_stick.x, 0, right_stick.y },
-            radians{ gApp.navigator_panel->roll },
+            lc_radians{ gApp.navigator_panel->roll },
             static_cast<float>(delta_time));
         gApp.joystick_pan_tilt.end_interaction(tok);
     }

@@ -15,7 +15,7 @@
 enum LabCameraNavigatorPanelInteraction
 {
     LCNav_Inactive = 0,
-    LCNav_ModeChange, 
+    LCNav_ModeChange,
     LCNav_RollInitiated, LCNav_RollContinued, LCNav_RollEnded,
     LCNav_TumbleInitiated, LCNav_TumbleContinued, LCNav_TumbleEnded
 };
@@ -33,7 +33,7 @@ protected:
 
 public:
     float nav_radius = 6;
-    radians roll{ 0 };
+    lc_radians roll{ 0 };
     lab::camera::PanTiltController pan_tilt;
     LabCameraNavigatorPanelInteraction state = LCNav_Inactive;
     lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
@@ -54,6 +54,6 @@ void release_navigator_panel(LCNav_PanelState*);
  * minimap is not ready for primetime
  */
 
-void camera_minimap(int w, int h, const lab::camera::rigid_transform* cam, const lab::camera::v3f lookat);
+void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lab::camera::v3f lookat);
 
 #endif

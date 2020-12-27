@@ -19,6 +19,7 @@ typedef struct { float x, y, z; } lc_v3f;
 typedef struct { float x, y, z, w; } lc_v4f;
 typedef struct { lc_v4f x; lc_v4f y; lc_v4f z; lc_v4f w; } lc_m44f;
 typedef lc_v4f  lc_quatf;
+typedef struct { lc_v3f pos; lc_v3f dir; } lc_ray;
 
 //-------------------------------------------------------------------------
 // wrapped units and conversions
@@ -28,10 +29,38 @@ typedef struct { float mm; } lc_millimeters;
 inline lc_millimeters m_as_mm(lc_meters m) { return lc_millimeters{ m.m * 1.e3f }; }
 inline lc_meters mm_as_m(lc_millimeters m) { return lc_meters{ m.mm * 1.e-3f }; }
 
-typedef struct { float rad; } radians;
-typedef struct { float deg; } degrees;
-inline radians radians_from_degrees(degrees d) { return { d.deg * 0.01745329251f }; }
-inline degrees degrees_from_radians(radians r) { return { r.rad * 57.2957795131f }; }
+typedef struct { float rad; } lc_radians;
+typedef struct { float deg; } lc_degrees;
+inline lc_radians radians_from_degrees(lc_degrees d) { return { d.deg * 0.01745329251f }; }
+inline lc_degrees degrees_from_radians(lc_radians r) { return { r.rad * 57.2957795131f }; }
+
+//-------------------------------------------------------------------------
+// rigid transform
+//
+typedef struct
+{
+    lc_quatf orientation;
+    lc_v3f   position;
+    lc_v3f   scale;
+} lc_rigid_transform;
+
+void lc_rt_set_identity(lc_rigid_transform*);
+void lc_rt_set_ops(lc_rigid_transform*, lc_quatf orientation, lc_v3f position, lc_v3f scale);
+void lc_rt_set_op_uniform_scale(lc_rigid_transform*, lc_quatf orientation, lc_v3f position, float scale);
+void lc_rt_set_op(lc_rigid_transform*, lc_quatf orientation, lc_v3f position);
+
+lc_v3f  lc_rt_right(const lc_rigid_transform*);
+lc_v3f  lc_rt_up(const lc_rigid_transform*);
+lc_v3f  lc_rt_forward(const lc_rigid_transform*);
+
+lc_m44f lc_rt_matrix(const lc_rigid_transform*);
+lc_v3f  lc_rt_transform_vector(const lc_rigid_transform*, lc_v3f vec);
+lc_v3f  lc_rt_transform_point(const lc_rigid_transform*, lc_v3f p);
+lc_v3f  lc_rt_detransform_point(const lc_rigid_transform*, lc_v3f p);
+lc_v3f  lc_rt_detransform_vector(const lc_rigid_transform*, lc_v3f vec);
+
+inline bool lc_rt_is_uniform_scale(const lc_rigid_transform* rt) { return rt->scale.x == rt->scale.y && rt->scale.x == rt->scale.z; }
+
 
 #ifdef __cplusplus
 namespace lab {
@@ -51,39 +80,13 @@ namespace camera {
         v4f& operator[] (int j) { return array[j]; }
     };
 
-    struct Ray { v3f pos; v3f dir; };
-
-    struct rigid_transform
-    {
-        rigid_transform() {}
-        rigid_transform(const quatf& orientation, const v3f& position, const v3f& scale) : orientation(orientation), position(position), scale(scale) {}
-        rigid_transform(const quatf& orientation, const v3f& position, float scale) : orientation(orientation), position(position), scale{ scale, scale, scale } {}
-        rigid_transform(const quatf& orientation, const v3f& position) : orientation(orientation), position(position) {}
-
-        quatf orientation{ 0,0,0,1 };
-        v3f   position{ 0,0,0 };
-        v3f   scale{ 1,1,1 };
-
-        v3f   right() const;
-        v3f   up() const;
-        v3f   forward() const;
-
-        bool  is_uniform_scale() const { return scale.x == scale.y && scale.x == scale.z; }
-        m44f  matrix() const;
-        v3f   transform_vector(const v3f& vec) const;
-        v3f   transform_point(const v3f& p) const;
-        v3f   detransform_point(const v3f& p) const;
-        v3f   detransform_vector(const v3f& vec) const;
-    };
-
-
     //-------------------------------------------------------------------------
     // Mount is a nodal mount, centered on the camera's sensor
     // The mount's transform is left handed, y is up, -z is forward
     //
     class Mount
     {
-        rigid_transform _transform;
+        lc_rigid_transform _transform;
 
     public:
         Mount();
@@ -98,7 +101,7 @@ namespace camera {
         m44f inv_rotation_transform() const;
 
         // components
-        const rigid_transform& transform() const { return _transform; }
+        const lc_rigid_transform* transform() const { return &_transform; }
         v3f ypr() const;
 
         float mm_to_world() const { return 1000.f; } // multiply mm by this value to get world values
@@ -113,12 +116,12 @@ namespace camera {
 
     //-------------------------------------------------------------------------
     // Sensor describes the plane where an image is to be resolved.
-    // The sensor's coordinate system has its center at (0, 0) and 
+    // The sensor's coordinate system has its center at (0, 0) and
     // its bounds are -1 to 1.
     // enlarge is a multiplicative value; and shift is an additive value
     // in the sensor's coordinate system.
     //
-    // Shift and enlarge can be used to create projection matrices for 
+    // Shift and enlarge can be used to create projection matrices for
     // subregions of an image. For example, if the default Sensor is to be
     // rendered as four tiles, a matrix for rendering the upper left quadrant
     // can be computed by setting enlarge to { 2, 2 }, and
@@ -141,7 +144,7 @@ namespace camera {
         // Utility function to derive a focal length for this sensor
         // corresponding to the sensor geometry.
         //
-        lc_millimeters focal_length_from_vertical_FOV(radians fov);
+        lc_millimeters focal_length_from_vertical_FOV(lc_radians fov);
     };
 
     /*
@@ -208,7 +211,7 @@ namespace camera {
     @TODO PBRT has complex lens model, see RealisticCamera. Consider it for adoption here,
     perhaps as a secondary structure in Optics, or as a subclass.
 
-    https://github.com/mmp/pbrt-v4/blob/master/src/pbrt/cameras.h 
+    https://github.com/mmp/pbrt-v4/blob/master/src/pbrt/cameras.h
 
     PBRT defines Orthographic, Perspective, Spherical, and Realistic cameras.
 
@@ -233,7 +236,7 @@ namespace camera {
         float znear = 0.1f;
 
         // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
-        float squeeze = 1.f; 
+        float squeeze = 1.f;
 
         lc_meters hyperfocal_distance(lc_millimeters CoC);
         v2f    focus_range(lc_millimeters hyperfocal_distance); // return value in mm
@@ -241,7 +244,7 @@ namespace camera {
 
     /*-------------------------------------------------------------------------
       Aperture
-      
+
       A slight simplification; the aperture describes both the pupil of the
       aperture and also the shutter.
 
@@ -275,7 +278,7 @@ namespace camera {
      the focus_point. These constraints may be modified by the interaction methods;
      otherwise, they may be modified freely outside of a begin-end interaction block.
 
-     Implicit constraints are specific to the interaction mode. For example, the 
+     Implicit constraints are specific to the interaction mode. For example, the
      TurnTableOrbit implicitly constrains the camera position to a point on a sphere
      whose radius corresponds to the distance from the camera to the focus point when
      begin_interaction() is invoked.
@@ -304,8 +307,8 @@ namespace camera {
         //
         m44f        perspective(float aspect = 1.f) const;
         m44f        inv_perspective(float aspect = 1.f) const;
-        radians     vertical_FOV() const;
-        radians     horizontal_FOV() const;
+        lc_radians     vertical_FOV() const;
+        lc_radians     horizontal_FOV() const;
 
         // focal length of the lens, divided by the diameter of the iris opening
         float f_stop() const { return optics.focal_length.mm / aperture.iris.mm; }
@@ -318,7 +321,7 @@ namespace camera {
         float distance_to_plane(v3f const& planePoint, v3f const& planeNormal) const;
 
         // Returns a world-space ray through the given pixel, originating at the camera
-        Ray get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const;
+        lc_ray get_ray_from_pixel(v2f const& pixel, v2f const& viewport_origin, v2f const& viewport_size) const;
 
         HitResult hit_test(const v2f& mouse, const v2f& viewport, const v3f& plane_point, const v3f& plane_normal) const;
 
@@ -376,7 +379,7 @@ namespace camera {
 
         // begin_interaction
         //
-        // returns an InteractionToken. In the future this will be in aid of 
+        // returns an InteractionToken. In the future this will be in aid of
         // multitouch, multidevice interactions on the same camera
         //
         InteractionToken begin_interaction(v2f const& viewport_size);
@@ -385,7 +388,7 @@ namespace camera {
         // Synchronize constraints and epoch to the most recent of this and controller.
         void sync_constraints(PanTiltController& controller);
 
-        void set_roll(Camera& camera, InteractionToken, radians roll);
+        void set_roll(Camera& camera, InteractionToken, lc_radians roll);
 
         // delta is the 2d motion of a mouse or gesture in the screen plane, or
         // the absolute value of an analog joystick position.
@@ -394,25 +397,42 @@ namespace camera {
         // explicit neutral zero point. For example, delta could be computed as
         // delta = mousePos - mouseClickPos;
         //
-        void single_stick_interaction(Camera& camera, InteractionToken, 
-            InteractionMode mode, v2f const& delta_in, radians roll_hint, float dt);
-        void dual_stick_interaction(Camera& camera, InteractionToken,
-            InteractionMode mode, v3f const& pos_delta_in, v3f const& rotation_delta_in,
-            radians roll_hint, float dt);
+        void single_stick_interaction(
+            Camera& camera,
+            InteractionToken,
+            InteractionMode mode,
+            v2f const& delta_in,
+            lc_radians roll_hint,
+            float dt);
 
-        // This mode is intended for through the lens screen space manipulation. 
+        void dual_stick_interaction(
+            Camera& camera,
+            InteractionToken,
+            InteractionMode mode,
+            v3f const& pos_delta_in,
+            v3f const& rotation_delta_in,
+            lc_radians roll_hint,
+            float dt);
+
+        // This mode is intended for through the lens screen space manipulation.
         // Dolly: the camera will be moved in the view plane to keep initial under current
-        // in the horizontal direction, and forward and backward motion will be under a 
+        // in the horizontal direction, and forward and backward motion will be under a
         // heuristic
         //
         // Crane: the camera will be moved in the view plane to keep initial under current
-        // 
+        //
         // TurnTableOrbit: roughly screen relative tumble motions
         //
         // Gimbal: The camera will be panned and tilted to keep initial under current
         //
-        void ttl_interaction(Camera& camera, InteractionToken tok, InteractionPhase phase, 
-            InteractionMode mode, v2f const& current, radians roll_hint, float dt);
+        void ttl_interaction(
+            Camera& camera,
+            InteractionToken tok,
+            InteractionPhase phase,
+            InteractionMode mode,
+            v2f const& current,
+            lc_radians roll_hint,
+            float dt);
 
         // through the lens, with a point in world space to keep under the mouse.
         // dolly: hit_point will be constrained to stay under the mouse
@@ -420,11 +440,14 @@ namespace camera {
         // gimbal: same
         // turntable orbit, roughly screen relative tumble motions
         //
-        void constrained_ttl_interaction(Camera& camera, InteractionToken tok,
-            InteractionPhase phase, InteractionMode mode,
+        void constrained_ttl_interaction(
+            Camera& camera,
+            InteractionToken tok,
+            InteractionPhase phase,
+            InteractionMode mode,
             v2f const& current,
             v3f const& initial_hit_point,
-            radians roll_hint,
+            lc_radians roll_hint,
             float dt);
     };
 

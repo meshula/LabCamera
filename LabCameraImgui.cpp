@@ -93,8 +93,8 @@ static bool DialControl(const char* label, float* p_value)
     float angle_cos = cosf(*p_value - 3.141592f * 0.5f), angle_sin = sinf(*p_value - 3.141592f * 0.5f);
     float radius_inner = radius_outer * 0.40f;
     draw_list->AddCircleFilled(center, radius_outer, ImGui::GetColorU32(ImGuiCol_FrameBg), 16);
-    draw_list->AddLine(ImVec2(center.x + angle_cos * radius_inner, center.y + angle_sin * radius_inner), 
-                       ImVec2(center.x + angle_cos * (radius_outer - 2), center.y + angle_sin * (radius_outer - 2)), 
+    draw_list->AddLine(ImVec2(center.x + angle_cos * radius_inner, center.y + angle_sin * radius_inner),
+                       ImVec2(center.x + angle_cos * (radius_outer - 2), center.y + angle_sin * (radius_outer - 2)),
                        ImGui::GetColorU32(ImGuiCol_SliderGrabActive), 2.0f);
     draw_list->AddCircleFilled(center, radius_inner, ImGui::GetColorU32(is_active ? ImGuiCol_FrameBgActive : is_hovered ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg), 16);
     draw_list->AddText(ImVec2(pos.x, pos.y + radius_outer * 2 + style.ItemInnerSpacing.y), ImGui::GetColorU32(ImGuiCol_Text), label);
@@ -260,7 +260,7 @@ static bool LensKit_Picker(const char* label, float* p_value, float* lenses, int
     return ret;
 }
 
-static bool LensKit_Vernier(const char* label, float* p_value, 
+static bool LensKit_Vernier(const char* label, float* p_value,
                             const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
 {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -315,7 +315,7 @@ static bool LensKit_Vernier(const char* label, float* p_value,
         ImGui::GetColorU32(ImGuiCol_SliderGrabActive), 2.0f);
 
 
-    draw_list->AddCircleFilled(center, radius_inner, 
+    draw_list->AddCircleFilled(center, radius_inner,
         ImGui::GetColorU32(is_active ? ImGuiCol_FrameBgActive : is_active ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg), 16);
 
     static ImVec2 initial_click = { 0,0 };
@@ -344,7 +344,7 @@ static bool LensKit_Vernier(const char* label, float* p_value,
 }
 
 
-static bool LensKit(const char* label, float* p_value, 
+static bool LensKit(const char* label, float* p_value,
                     const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
 {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -403,7 +403,7 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
 const float roll_track_sz = 8.f;
 
 void
-draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera, 
+draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
     using lab::camera::v3f;
@@ -436,7 +436,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera
 }
 
 void
-draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera, 
+draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
     using lab::camera::v3f;
@@ -447,8 +447,8 @@ draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& ca
     {
         float width = p1.x - p0.x - 2.f * roll_track_sz;
 
-        const lab::camera::rigid_transform& tr = camera.mount.transform();
-        navigator_panel->trackball_camera.mount.look_at(5.f, tr.orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
+        const lc_rigid_transform* tr = camera.mount.transform();
+        navigator_panel->trackball_camera.mount.look_at(5.f, tr->orientation, v3f{ 0,0,0 }, v3f{ 0, 1, 0 });
 
         lab::camera::v3f pnt{ 0, 1, 0 };
         lab::camera::v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
@@ -573,7 +573,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         auto up = navigator_panel->pan_tilt.world_up_constraint();
         camera.mount.look_at({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
         navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
-        navigator_panel->roll = radians{ 0 };
+        navigator_panel->roll = lc_radians{ 0 };
         result = LCNav_Inactive;
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
@@ -634,11 +634,11 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
             ImVec2 center_dist = joystick_center - io.MousePos;
             lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
             navigator_panel->pan_tilt.ttl_interaction(
-                camera, 
-                tok, phase, navigator_panel->camera_interaction_mode, 
-                { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f), 
+                camera,
+                tok, phase, navigator_panel->camera_interaction_mode,
+                { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f),
                   navigator_panel->trackball_size.y - (center_dist.y + navigator_panel->trackball_size.y * 0.5f) },
-                  radians{ navigator_panel->roll }, dt);
+                  lc_radians{ navigator_panel->roll }, dt);
             navigator_panel->pan_tilt.end_interaction(tok);
         }
         else
@@ -649,9 +649,9 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
             float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
             lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
             navigator_panel->pan_tilt.single_stick_interaction(
-                camera, 
-                tok, navigator_panel->camera_interaction_mode, { dx, dy }, 
-                radians{ navigator_panel->roll }, dt);
+                camera,
+                tok, navigator_panel->camera_interaction_mode, { dx, dy },
+                lc_radians{ navigator_panel->roll }, dt);
             navigator_panel->pan_tilt.end_interaction(tok);
         }
     }
@@ -667,10 +667,10 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
 
-        navigator_panel->roll = radians{ roll_hint };
+        navigator_panel->roll = lc_radians{ roll_hint };
 
         // renormalize transform, then apply the camera roll
-        camera.mount.look_at(camera.mount.transform().position,
+        camera.mount.look_at(camera.mount.transform()->position,
             navigator_panel->pan_tilt.orbit_center_constraint(), navigator_panel->pan_tilt.world_up_constraint());
         lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
         navigator_panel->pan_tilt.set_roll(camera, tok, navigator_panel->roll);
@@ -686,7 +686,7 @@ static float len(float x, float y)
     return sqrtf(x * x + y * y);
 }
 
-void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, float t, const lab::camera::rigid_transform* cam, const lab::camera::v3f lookat)
+void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, float t, const lc_rigid_transform* cam, const lab::camera::v3f lookat)
 {
     using lab::camera::v3f;
     float min_dim = std::min(sz.x, sz.y);
@@ -708,7 +708,7 @@ void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, floa
 // to extract a drawable region covering the whole window.
 // https://gist.github.com/ocornut/51367cc7dfd2c41d607bb0acfa6caf66
 //
-void camera_minimap(int w, int h, const lab::camera::rigid_transform* cam, const lab::camera::v3f lookat)
+void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lab::camera::v3f lookat)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::Begin("Camera Minimap", NULL, ImGuiWindowFlags_AlwaysAutoResize);
