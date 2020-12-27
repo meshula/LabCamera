@@ -899,7 +899,9 @@ namespace lab {
                 {
                     v.x = -(v.x - w) * min_dimension;
                     v.y = (v.y - h) * min_dimension;
-                    float len_squared = dot(v, v);
+                    float len_squared = v.x * v.x + v.y * v.y;
+                    if (len_squared > 1.f)
+                        len_squared = 1.f;
                     v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
                 };
                 mouse_to_vec(v0);
@@ -913,8 +915,6 @@ namespace lab {
                     v3f pos_pre = cmt.position;
                     v3f pos = quat_rotate_vector(normalize(rot), fwd) + _orbit_center;
                     v3f rt = cmt.right(); // turntable tilts about the camera right axis
-                    //camera.mount.set_view_transform_quat_pos(normalize(rot), pos);
-
 
                     // because the orientation is synthesized from a motion in world space
                     // and a rotation in camera space, recompose the camera orientation by
@@ -932,6 +932,8 @@ namespace lab {
 
                     _init_mouse = current_mouse;
                 }
+                else
+                    printf("%f %f %f\n", v0.x, v0.y, v0.z);
             }
             break;
 

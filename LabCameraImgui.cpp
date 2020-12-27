@@ -540,10 +540,10 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         navigator_panel->component = LCNav_None;
 
 
+    ImVec2 joystick_center = (p0 + p1) * 0.5f;
     if (joystick_gizmo_hovered && navigator_panel->component == LCNav_None && ms.click_initiated)
     {
-        ImVec2 center = (p0 + p1) * 0.5f;
-        ImVec2 center_dist = center - io.MousePos;
+        ImVec2 center_dist = joystick_center - io.MousePos;
         float radius = (p1.x - p0.x) * 0.5f - roll_track_sz;
         float r2 = radius * radius;
         if (center_dist.x * center_dist.x + center_dist.y * center_dist.y > r2)
@@ -555,8 +555,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     float roll_hint = 0.f;
     if (navigator_panel->component == LCNav_Roll)
     {
-        ImVec2 center = (p0 + p1) * 0.5f;
-        ImVec2 center_dist = center - io.MousePos;
+        ImVec2 center_dist = joystick_center - io.MousePos;
         float radius = (p1.x - p0.x) * 0.5f - roll_track_sz;
         float r2 = radius * radius;
         r2 = sqrtf(r2);
@@ -632,11 +631,13 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
 
         if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
         {
+            ImVec2 center_dist = joystick_center - io.MousePos;
             lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
             navigator_panel->pan_tilt.ttl_interaction(
                 camera, 
                 tok, phase, navigator_panel->camera_interaction_mode, 
-                { navigator_panel->mouse_state.mousex, navigator_panel->mouse_state.mousey },
+                { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f), 
+                  navigator_panel->trackball_size.y - (center_dist.y + navigator_panel->trackball_size.y * 0.5f) },
                 lab::camera::radians{ navigator_panel->roll }, dt);
             navigator_panel->pan_tilt.end_interaction(tok);
         }
