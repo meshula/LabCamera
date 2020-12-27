@@ -218,13 +218,13 @@ static void draw_grid(float y, const lab::camera::m44f& m)
     sgl_matrix_mode_projection();
 
     lab::camera::m44f proj = gApp.camera.perspective();
-    sgl_load_matrix(&proj.m.x.x);
+    sgl_load_matrix(&proj.x.x);
 
     lab::camera::m44f view = gApp.camera.mount.gl_view_transform();
     lab::camera::m44f mv = gApp.camera.mount.model_view_transform(m);
 
     sgl_matrix_mode_modelview();
-    sgl_load_matrix(&mv.m.x.x);
+    sgl_load_matrix(&mv.x.x);
 
     sgl_c3f(1.0f, 0.0f, 1.0f);
 
@@ -245,9 +245,9 @@ static void draw_grid(float y, const lab::camera::m44f& m)
 static void draw_jack(float s, const lab::camera::m44f& m)
 {
 
-    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.m.x.x);
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
-    sgl_load_matrix(&mv.m.x.x);
+    sgl_load_matrix(&mv.x.x);
 
     sgl_begin_lines();
     sgl_c3f( 1,  0,  0);
@@ -269,10 +269,10 @@ static void draw_debug(const lab::camera::m44f& m)
 
     lab::camera::m44f proj = gApp.camera.perspective();
     sgl_matrix_mode_projection();
-    sgl_load_matrix(&proj.m.x.x);
-    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.m.x.x);
+    sgl_load_matrix(&proj.x.x);
+    lab::camera::m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
     sgl_matrix_mode_modelview();
-    sgl_load_matrix(&mv.m.x.x);
+    sgl_load_matrix(&mv.x.x);
     sgl_begin_lines();
 
     for (int i = 0; i < debug_lines_array_idx; )
@@ -500,7 +500,7 @@ void run_application_logic()
     //
     sg_begin_default_pass(&gApp.pass_action, window_width, window_height);
 
-    draw_gizmo(&view_t.m.x.x, &view_proj.m.x.x, gizmo_triangles.triangle_count, gizmo_triangles.indices.data(), gizmo_triangles.vertices.data());
+    draw_gizmo(&view_t.x.x, &view_proj.x.x, gizmo_triangles.triangle_count, gizmo_triangles.indices.data(), gizmo_triangles.vertices.data());
 
     start_gl_rendering();
 
@@ -516,11 +516,11 @@ void run_application_logic()
         if (gApp.show_look_at)
         {
             v3f lookat = gApp.navigator_panel->pan_tilt.orbit_center_constraint();
-            m.m.w = { lookat.x, lookat.y, lookat.z, 1.f };
+            m.w = { lookat.x, lookat.y, lookat.z, 1.f };
             draw_jack(1, m);
         }
 
-        m.m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y, gApp.initial_hit_point.z, 1.f };
+        m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y, gApp.initial_hit_point.z, 1.f };
         draw_jack(0.25, m);
 
         // hit point on manipulator plane
@@ -534,7 +534,7 @@ void run_application_logic()
 
             if (hit.hit)
             {
-                m.m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
+                m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
                 draw_jack(0.5f, m);
             }
         }
@@ -558,7 +558,7 @@ void run_application_logic()
 
             if (hit.hit)
             {
-                m.m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
+                m.w = { hit.point.x, hit.point.y, hit.point.z, 1.f };
                 draw_jack(0.1f, m);
             }
         }

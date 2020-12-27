@@ -70,15 +70,7 @@ namespace camera {
     typedef lc_v3f v3f;
     typedef lc_v4f v4f;
     typedef lc_quatf quatf;
-
-    struct m44f {
-        union {
-            lc_m44f m;
-            v4f array[4];
-        };
-        constexpr const v4f& operator[] (int j) const { return array[j]; }
-        v4f& operator[] (int j) { return array[j]; }
-    };
+    typedef lc_m44f m44f;
 
     //-------------------------------------------------------------------------
     // Mount is a nodal mount, centered on the camera's sensor

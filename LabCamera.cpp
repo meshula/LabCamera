@@ -36,10 +36,10 @@ namespace lab {
         constexpr v2f mul(const v2f& a, float b) { return { a.x * b, a.y * b }; }
         constexpr v3f mul(const v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
         constexpr v4f mul(const v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
-        constexpr v3f mul(const m44f& a, const v3f& b) { return xyz(a.m.x) * b.x + xyz(a.m.y) * b.y + xyz(a.m.z) * b.z; }
-        constexpr v4f mul(const m44f& a, const v4f& b) { return a.m.x * b.x + a.m.y * b.y + a.m.z * b.z + a.m.w * b.w; }
+        constexpr v3f mul(const m44f& a, const v3f& b) { return xyz(a.x) * b.x + xyz(a.y) * b.y + xyz(a.z) * b.z; }
+        constexpr v4f mul(const m44f& a, const v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
         constexpr quatf mul(const quatf& a, const quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
-        constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.m.x), mul(a,b.m.y), mul(a,b.m.z), mul(a,b.m.w) }; }
+        constexpr m44f mul(const m44f& a, const m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
         float length(const v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
         v3f normalize(const v3f& a) { return a * (1.f / length(a)); }
         float length(const quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
@@ -54,7 +54,7 @@ namespace lab {
         // adjugate from linalg
         m44f adjugate(const m44f& a)
         {
-            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
+            const v4f& ax = a.x; const v4f& ay = a.y; const v4f& az = a.z; const v4f& aw = a.w;
             return m44f{
                 v4f{ ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w,
                      ax.y * aw.z * az.w + az.y * ax.z * aw.w + aw.y * az.z * ax.w - aw.y * ax.z * az.w - az.y * aw.z * ax.w - ax.y * az.z * aw.w,
@@ -76,21 +76,20 @@ namespace lab {
 
         float determinant(m44f const& a)
         {
-            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
+            const v4f& ax = a.x; const v4f& ay = a.y; const v4f& az = a.z; const v4f& aw = a.w;
             return ax.x * (ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w)
-                + ax.y * (ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x)
-                + ax.z * (ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y)
-                + ax.w * (ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z);
+                 + ax.y * (ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x)
+                 + ax.z * (ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y)
+                 + ax.w * (ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z);
         }
 
         m44f transpose(m44f const& a)
         {
-            const v4f& ax = a.m.x; const v4f& ay = a.m.y; const v4f& az = a.m.z; const v4f& aw = a.m.w;
             return {
-                ax.x, ay.x, az.x, aw.x,
-                ax.y, ay.y, az.y, aw.y,
-                ax.z, ay.z, az.z, aw.z,
-                ax.w, ay.w, az.w, aw.w
+                a.x.x, a.y.x, a.z.x, a.w.x,
+                a.x.y, a.y.y, a.z.y, a.w.y,
+                a.x.z, a.y.z, a.z.z, a.w.z,
+                a.x.w, a.y.w, a.z.w, a.w.w
             };
         }
 
@@ -98,7 +97,7 @@ namespace lab {
         {
             m44f m = adjugate(mat);
             float oo_det = 1.f / determinant(mat);
-            float* ptr = &m.m.x.x;
+            float* ptr = &m.x.x;
             for (int i = 0; i < 16; i++)
                 ptr[i] *= oo_det;
             return m;
@@ -139,24 +138,24 @@ namespace lab {
             float sy = sinf(e.y);
             float sz = sinf(e.z);
 
-            m44f m;
-            m[0].x = cx * cz;
-            m[0].y = cx * -sz;
-            m[0].z = -sx;
-            m[0].w = 0;
+            lc_m44f m;
+            m.x.x = cx * cz;
+            m.x.y = cx * -sz;
+            m.x.z = -sx;
+            m.x.w = 0;
 
-            m[1].x = sx * sy * cz + cy * sz;
-            m[1].y = sx * sy * sz + cy * cz;
-            m[1].z = cx * sy;
-            m[1].w = 0;
+            m.y.x = sx * sy * cz + cy * sz;
+            m.y.y = sx * sy * sz + cy * cz;
+            m.y.z = cx * sy;
+            m.y.w = 0;
 
-            m[2].x = sx * cy * cz - sy * sz;
-            m[2].y = sx * cy * sz - sy * cz;
-            m[2].z = cx * cy;
-            m[2].w = 0;
+            m.z.x = sx * cy * cz - sy * sz;
+            m.z.y = sx * cy * sz - sy * cz;
+            m.z.z = cx * cy;
+            m.z.w = 0;
 
-            m[3] = { 0,0,0,1 };
-            return m;
+            m.w = { 0,0,0,1 };
+            return { m };
         }
 
         m44f rotx(float r)
@@ -211,22 +210,22 @@ namespace lab {
             float zs = n.z * s;
 
             m44f m;
-            m.m.x.x = xx;
-            m.m.x.y = xy + zs;
-            m.m.x.z = zx - ys;
-            m.m.x.w = 0.f;
-            m.m.y.x = xy - zs;
-            m.m.y.y = yy;
-            m.m.y.z = yz + xs;
-            m.m.y.w = 0.f;
-            m.m.z.x = zx + ys;
-            m.m.z.y = yz - xs;
-            m.m.z.z = zz;
-            m.m.z.w = 0.f;
-            m.m.w.x = 0.f;
-            m.m.w.y = 0.f;
-            m.m.w.z = 0.f;
-            m.m.w.w = 1.f;
+            m.x.x = xx;
+            m.x.y = xy + zs;
+            m.x.z = zx - ys;
+            m.x.w = 0.f;
+            m.y.x = xy - zs;
+            m.y.y = yy;
+            m.y.z = yz + xs;
+            m.y.w = 0.f;
+            m.z.x = zx + ys;
+            m.z.y = yz - xs;
+            m.z.z = zz;
+            m.z.w = 0.f;
+            m.w.x = 0.f;
+            m.w.y = 0.f;
+            m.w.z = 0.f;
+            m.w.w = 1.f;
             return m;
         }
 
@@ -508,7 +507,7 @@ namespace lab {
             quatf quat;
 
             int nxt[3] = { 1, 2, 0 };
-            float tr = mat[0].x + mat[1].y + mat[2].z;
+            float tr = mat.x.x + mat.y.y + mat.z.z;
 
             // check the diagonal
             if (tr > 0.0) {
@@ -516,27 +515,30 @@ namespace lab {
                 quat.w = s / 2.f;
                 s = 0.5f / s;
 
-                quat.x = (mat[1].z - mat[2].y) * s;
-                quat.y = (mat[2].x - mat[0].z) * s;
-                quat.z = (mat[0].y - mat[1].x) * s;
+                quat.x = (mat.y.z - mat.z.y) * s;
+                quat.y = (mat.z.x - mat.x.z) * s;
+                quat.z = (mat.x.y - mat.y.x) * s;
             }
             else {
                 // diagonal is negative
                 i = 0;
-                if (mat[1].y > mat[0].x)
+
+                const lc_v4f* m[3] = { &mat.x, &mat.y, &mat.z };
+
+                if (m[1]->y > m[0]->x)
                     i = 1;
 
-                v4f const* const mat_i = &mat[i];
+                v4f const* const mat_i = m[i];
                 float const* const f_i = reinterpret_cast<float const* const>(mat_i);
-                if (mat[2].z > f_i[i])
+                if (m[2]->z > f_i[i])
                     i = 2;
 
                 j = nxt[i];
                 k = nxt[j];
 
-                v4f const* const mat_j = &mat[j];
+                v4f const* const mat_j = m[j];
                 float const* const f_j = reinterpret_cast<float const* const>(mat_j);
-                v4f const* const mat_k = &mat[k];
+                v4f const* const mat_k = m[k];
                 float const* const f_k = reinterpret_cast<float const* const>(mat_k);
 
                 s = sqrtf((f_i[i] - (f_j[j] + f_k[k])) + 1.f);
@@ -1202,9 +1204,9 @@ namespace lab {
         m44f Mount::gl_view_transform() const
         {
             m44f m = inv_rotation_transform();
-            m[3].x = -dot({ m[0].x, m[1].x, m[2].x }, _transform.position);
-            m[3].y = -dot({ m[0].y, m[1].y, m[2].y }, _transform.position);
-            m[3].z = -dot({ m[0].z, m[1].z, m[2].z }, _transform.position);
+            m.w.x = -dot({ m.x.x, m.y.x, m.z.x }, _transform.position);
+            m.w.y = -dot({ m.x.y, m.y.y, m.z.y }, _transform.position);
+            m.w.z = -dot({ m.x.z, m.y.z, m.z.z }, _transform.position);
             return m;
         }
 
@@ -1235,9 +1237,9 @@ namespace lab {
 
         void Mount::set_view_transform(m44f const& m)
         {
-            v3f p = mul(xyz(m[3]), -1.f);
+            v3f p = mul(xyz(m.w), -1.f);
             m44f m2 = m;
-            m2.m.w = { 0, 0, 0, 1 };
+            m2.w = { 0, 0, 0, 1 };
             m2 = transpose(m2);
             _transform.position = mul(m2, p);
             _transform.orientation = quat_from_matrix(m);
@@ -1337,16 +1339,16 @@ namespace lab {
             const float znear = optics.znear;
             const float zfar = optics.zfar;
 
-            m44f result;
-            memset(&result, 0, sizeof(m44f));
-            result[0].x = scalex * x / (right - left);
-            result[1].y = scaley * y / (top - bottom);
-            result[2].x = (right + left + dx) / (right - left);
-            result[2].y = (top + bottom + dy) / (top - bottom);
-            result[2].z = handedness * (zfar + znear) / (zfar - znear);
-            result[2].w = handedness;
-            result[3].z = handedness * 2.f * zfar * znear / (zfar - znear);
-            return result;
+            lc_m44f result;
+            memset(&result, 0, sizeof(lc_m44f));
+            result.x.x = scalex * x / (right - left);
+            result.y.y = scaley * y / (top - bottom);
+            result.z.x = (right + left + dx) / (right - left);
+            result.z.y = (top + bottom + dy) / (top - bottom);
+            result.z.z = handedness * (zfar + znear) / (zfar - znear);
+            result.z.w = handedness;
+            result.w.z = handedness * 2.f * zfar * znear / (zfar - znear);
+            return { result };
         }
 
         m44f Camera::inv_perspective(float aspect) const
