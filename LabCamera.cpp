@@ -1216,17 +1216,17 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-        meters Optics::hyperfocal_distance(millimeters CoC)
+        lc_meters Optics::hyperfocal_distance(lc_millimeters CoC)
         {
-            return { focal_length.as_m().m * focal_length.as_m().m / (fStop * CoC.as_m().m) };
+            return { mm_as_m(focal_length).m * mm_as_m(focal_length).m / (fStop * mm_as_m(CoC).m) };
         }
 
-        v2f Optics::focus_range(millimeters h)
+        v2f Optics::focus_range(lc_millimeters h)
         {
             v2f r;
-            float h_m = h.as_m().m;
-            r.x = h_m * focus_distance.m / (h_m + (focus_distance.m - focal_length.as_m().m));
-            r.y = h_m * focus_distance.m / (h_m - (focus_distance.m - focal_length.as_m().m));
+            float h_m = mm_as_m(h).m;
+            r.x = h_m * focus_distance.m / (h_m + (focus_distance.m - mm_as_m(focal_length).m));
+            r.y = h_m * focus_distance.m / (h_m - (focus_distance.m - mm_as_m(focal_length).m));
             return r;
         }
 
@@ -1235,10 +1235,10 @@ namespace lab {
 //
 //-----------------------------------------------------------------------------
 
-        millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
+        lc_millimeters Sensor::focal_length_from_vertical_FOV(radians fov)
         {
             if (fov.rad < 0 || fov.rad > 3.141592653589793238f)
-                return millimeters{ 0.f };
+                return lc_millimeters{ 0.f };
 
             float f = (aperture_y.mm / (2 * tanf(0.5f * fov.rad)));
             return { f / enlarge.y };
@@ -1270,8 +1270,8 @@ namespace lab {
             const float x = y / aspect / optics.squeeze;
             const float scalex = 2.f * sensor.enlarge.x;
             const float scaley = 2.f * sensor.enlarge.y;
-            const float dx = sensor.shift.x.as_m().m * 2.f * aspect / sensor.aperture_y.as_m().m;
-            const float dy = sensor.shift.y.as_m().m * 2.f / sensor.aperture_y.as_m().m;
+            const float dx = mm_as_m(sensor.shift.x).m * 2.f * aspect / mm_as_m(sensor.aperture_y).m;
+            const float dy = mm_as_m(sensor.shift.y).m * 2.f / mm_as_m(sensor.aperture_y).m;
 
             const float znear = optics.znear;
             const float zfar = optics.zfar;

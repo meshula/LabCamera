@@ -1,36 +1,10 @@
 
-/*
- Copyright (c) 2013 Nick Porcino, All rights reserved.
- License is MIT: http://opensource.org/licenses/MIT
-
- LabCamera has no external dependencies. Include LabCamera.cpp in your project.
-*/
-
-// LabCamera models a physical camera.
+//-------------------------------------------------------------------------
+// Copyright (c) 2013 Nick Porcino, All rights reserved.
+// License is MIT: http://opensource.org/licenses/MIT
 //
-// Mount describes a camera's location and orientation in space, with the origin of
-//  its coordinate system on the sensor plane
+// LabCamera has no external dependencies. Include LabCamera.cpp in your project.
 //
-// Sensor describes the geometry of the sensor plane
-//
-// Optics is at the moment a simple pinhole lens.
-//
-// Camera composes a Mount, Sensor, and Optics.
-//
-// Conceptually it adds the notion of a camera pose, which is the location and
-// orientation of the camera, and the notion of constraints. The camera can be
-// controlled via the pose, or by imposing constraints on the pose.
-//
-// The camera interaction function is a stateless free function, implementing
-// an orbit mode, a crane, a dolly, and a gimbal.
-//
-// A future version of LabCamera will have a conversion from geometry coordinates
-// to millimeters to support calculation of depth effects, bokeh, and other
-// calculations where the physical size of a lens affects how it interacts with
-// the environment
-//
-
-
 #ifndef LAB_CAMERA_H
 #define LAB_CAMERA_H
 
@@ -45,6 +19,19 @@ typedef struct { float x, y, z; } lc_v3f;
 typedef struct { float x, y, z, w; } lc_v4f;
 typedef struct { lc_v4f x; lc_v4f y; lc_v4f z; lc_v4f w; } lc_m44f;
 typedef lc_v4f  lc_quatf;
+
+//-------------------------------------------------------------------------
+// wrapped units and conversions
+//
+typedef struct { float m; } lc_meters;
+typedef struct { float mm; } lc_millimeters;
+inline lc_millimeters m_as_mm(lc_meters m) { return lc_millimeters{ m.m * 1.e3f }; }
+inline lc_meters mm_as_m(lc_millimeters m) { return lc_meters{ m.mm * 1.e-3f }; }
+
+typedef struct { float rad; } radians;
+typedef struct { float deg; } degrees;
+inline radians radians_from_degrees(degrees d) { return { d.deg * 0.01745329251f }; }
+inline degrees degrees_from_radians(radians r) { return { r.rad * 57.2957795131f }; }
 
 #ifdef __cplusplus
 namespace lab {
@@ -65,34 +52,6 @@ namespace camera {
     };
 
     struct Ray { v3f pos; v3f dir; };
-
-    // wrapping of a float value to communicate the unit of the value
-    //
-    struct millimeters;
-    struct meters {
-        float m;
-        constexpr millimeters as_mm() const;
-    };
-    struct millimeters 
-    { 
-        float mm; 
-        constexpr meters as_m() const { return { mm * 1.e-3f }; }
-    };
-    constexpr millimeters meters::as_mm() const { return { m * 1.e3f }; }
-
-    struct degrees;
-    struct radians
-    { 
-        float rad; 
-        constexpr degrees as_degrees();
-    };
-    struct degrees
-    {
-        float deg;
-        constexpr radians radians_from_degrees() { return { deg * 0.01745329251f }; };
-    };
-    constexpr degrees radians::as_degrees() { return { rad * 57.2957795131f }; }
-
 
     struct rigid_transform
     {
@@ -170,19 +129,19 @@ namespace camera {
     class Sensor
     {
     public:
-        struct Shift { millimeters x, y; };
+        struct Shift { lc_millimeters x, y; };
 
         // spatial characteristics
         float handedness = -1.f; // left handed
-        millimeters aperture_x = { 35.f };
-        millimeters aperture_y = { 24.5f };
+        lc_millimeters aperture_x = { 35.f };
+        lc_millimeters aperture_y = { 24.5f };
         v2f enlarge = { 1, 1 };
-        Shift shift = { millimeters{0}, millimeters{0} };
+        Shift shift = { lc_millimeters{0}, lc_millimeters{0} };
 
         // Utility function to derive a focal length for this sensor
         // corresponding to the sensor geometry.
         //
-        millimeters focal_length_from_vertical_FOV(radians fov);
+        lc_millimeters focal_length_from_vertical_FOV(radians fov);
     };
 
     /*
@@ -264,11 +223,11 @@ namespace camera {
         float fStop = 8.f;
 
         // effective focal_length, matching a lens' field of view.
-        millimeters focal_length = { 50.f };
+        lc_millimeters focal_length = { 50.f };
 
         // focus_distance is measured from film/sensor plane. If focused at the
         // hyperfocal distance, the value may be the hyperfocal distance, or postivie infinity.
-        meters focus_distance = { 3.f };
+        lc_meters focus_distance = { 3.f };
 
         float zfar = 1e5f;
         float znear = 0.1f;
@@ -276,8 +235,8 @@ namespace camera {
         // squeeze describes anamorphic pixels, for example, Cinemascope squeeze would be 2.
         float squeeze = 1.f; 
 
-        meters hyperfocal_distance(millimeters CoC);
-        v2f    focus_range(millimeters hyperfocal_distance); // return value in mm
+        lc_meters hyperfocal_distance(lc_millimeters CoC);
+        v2f    focus_range(lc_millimeters hyperfocal_distance); // return value in mm
     };
 
     /*-------------------------------------------------------------------------
@@ -298,7 +257,7 @@ namespace camera {
         unsigned int shutter_blades = 7;
 
         // this iris will result in an f-stop of 8 for the default 50mm lens.
-        millimeters iris{ 6.25f };
+        lc_millimeters iris{ 6.25f };
     };
 
 

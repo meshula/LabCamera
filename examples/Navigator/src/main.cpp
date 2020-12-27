@@ -811,7 +811,7 @@ void run_application_logic()
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point, 
-                    lab::camera::radians{ gApp.navigator_panel->roll }, 
+                    radians{ gApp.navigator_panel->roll }, 
                     static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
@@ -826,7 +826,7 @@ void run_application_logic()
                     gApp.camera,
                     tok, phase, gApp.navigator_panel->camera_interaction_mode,
                     { mouse_pos.x, mouse_pos.y }, 
-                    lab::camera::radians{ gApp.navigator_panel->roll }, 
+                    radians{ gApp.navigator_panel->roll }, 
                     static_cast<float>(delta_time));
                 ptc.end_interaction(tok);
             }
@@ -861,7 +861,7 @@ void run_application_logic()
             gApp.camera, 
             tok, gApp.navigator_panel->camera_interaction_mode, 
             { left_stick.x, 0, left_stick.y }, { right_stick.x, 0, right_stick.y },
-            lab::camera::radians{ gApp.navigator_panel->roll },
+            radians{ gApp.navigator_panel->roll },
             static_cast<float>(delta_time));
         gApp.joystick_pan_tilt.end_interaction(tok);
     }

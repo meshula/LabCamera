@@ -573,7 +573,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         auto up = navigator_panel->pan_tilt.world_up_constraint();
         camera.mount.look_at({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
         navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
-        navigator_panel->roll = lab::camera::radians{ 0 };
+        navigator_panel->roll = radians{ 0 };
         result = LCNav_Inactive;
     }
     if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
@@ -610,7 +610,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
     ImGui::SetCursorPosY(pos.y + 8);
     if (LensKit("Lens###NavHome", &focal_length, camera, lenses, lens_count, sz))
     {
-        camera.optics.focal_length = lab::camera::millimeters{ focal_length };
+        camera.optics.focal_length = lc_millimeters{ focal_length };
     }
 
 
@@ -638,7 +638,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
                 tok, phase, navigator_panel->camera_interaction_mode, 
                 { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f), 
                   navigator_panel->trackball_size.y - (center_dist.y + navigator_panel->trackball_size.y * 0.5f) },
-                lab::camera::radians{ navigator_panel->roll }, dt);
+                  radians{ navigator_panel->roll }, dt);
             navigator_panel->pan_tilt.end_interaction(tok);
         }
         else
@@ -651,7 +651,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
             navigator_panel->pan_tilt.single_stick_interaction(
                 camera, 
                 tok, navigator_panel->camera_interaction_mode, { dx, dy }, 
-                lab::camera::radians{ navigator_panel->roll }, dt);
+                radians{ navigator_panel->roll }, dt);
             navigator_panel->pan_tilt.end_interaction(tok);
         }
     }
@@ -667,7 +667,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
 
-        navigator_panel->roll = lab::camera::radians{ roll_hint };
+        navigator_panel->roll = radians{ roll_hint };
 
         // renormalize transform, then apply the camera roll
         camera.mount.look_at(camera.mount.transform().position,
