@@ -129,7 +129,7 @@ void mouse_state_update(MouseState* ms,
 struct AppState
 {
     // camera and application state
-    lab::camera::Camera camera;
+    lc_camera camera;
     lc_v3f initial_hit_point{ 0,0,0 };
     lab::camera::PanTiltController main_pan_tilt;
     lab::camera::PanTiltController joystick_pan_tilt;
@@ -217,7 +217,7 @@ static void draw_grid(float y, const lc_m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lc_m44f proj = gApp.camera.perspective();
+    lc_m44f proj = lc_camera_perspective(&gApp.camera);
     sgl_load_matrix(&proj.x.x);
 
     lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
@@ -267,7 +267,7 @@ static void draw_debug(const lc_m44f& m)
     if (!debug_lines_array_idx)
         return;
 
-    lc_m44f proj = gApp.camera.perspective();
+    lc_m44f proj = lc_camera_perspective(&gApp.camera);
     sgl_matrix_mode_projection();
     sgl_load_matrix(&proj.x.x);
     lc_m44f mv = lc_mount_model_view_transform_f16(&gApp.camera.mount, &m.x.x);
@@ -292,6 +292,7 @@ static void draw_debug(const lc_m44f& m)
 void initialize_graphics()
 {
     sgamepad_init();
+    lc_camera_set_defaults(&gApp.camera);
 
     gApp.joystick_pan_tilt.set_speed(0.1f, 0.05f);
     gApp.navigator_panel = create_navigator_panel();
@@ -378,14 +379,14 @@ bool run_gizmo(MouseState* ms, float width, float height)
 {
     const lc_rigid_transform* cmt = &gApp.camera.mount.transform;
     lc_v3f camera_pos = cmt->position;
-    lc_ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
+    lc_ray ray = lc_camera_get_ray_from_pixel(&gApp.camera, { ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
     lc_quatf camera_orientation = cmt->orientation;
 
     gApp.gizmo_state.mouse_left = ms->dragging;
     gApp.gizmo_state.viewport_size = tinygizmo::v2f{ width, height };
     gApp.gizmo_state.cam.near_clip = gApp.camera.optics.znear;
     gApp.gizmo_state.cam.far_clip = gApp.camera.optics.zfar;
-    gApp.gizmo_state.cam.yfov = gApp.camera.vertical_FOV().rad;
+    gApp.gizmo_state.cam.yfov = lc_camera_vertical_FOV(&gApp.camera).rad;
     gApp.gizmo_state.cam.position = tinygizmo::v3f{ camera_pos.x, camera_pos.y, camera_pos.z };
     gApp.gizmo_state.cam.orientation = tinygizmo::v4f{ camera_orientation.x, camera_orientation.y, camera_orientation.z, camera_orientation.w };
     gApp.gizmo_state.ray_origin = tinygizmo::v3f{ ray.pos.x, ray.pos.y, ray.pos.z };
@@ -484,10 +485,10 @@ void run_application_logic()
     lab::camera::PanTiltController& ptc = gApp.main_pan_tilt;
 
     gApp.camera.optics.squeeze = w / h;
-    lc_m44f proj = gApp.camera.perspective();
+    lc_m44f proj = lc_camera_perspective(&gApp.camera);
     lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
     lc_m44f view_t = lc_mount_gl_view_transform_inv(&gApp.camera.mount);
-    lc_m44f view_proj = gApp.camera.view_projection(1.f);
+    lc_m44f view_proj = lc_camera_view_projection(&gApp.camera, 1.f);
 
     const lc_rigid_transform* cmt = &gApp.camera.mount.transform;
     lc_v3f pos = cmt->position;
@@ -522,7 +523,7 @@ void run_application_logic()
         // hit point on manipulator plane
         if (gApp.show_manip_plane_intersect)
         {
-            lc_hit_result hit = gApp.camera.hit_test(
+            lc_hit_result hit = lc_camera_hit_test(&gApp.camera,
                 { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 *(lc_v3f*)(&gApp.gizmo_transform.w),
@@ -547,7 +548,7 @@ void run_application_logic()
             cam_pos.y += cam_nrm.y;
             cam_pos.z += cam_nrm.z;
 
-            lc_hit_result hit = gApp.camera.hit_test(
+            lc_hit_result hit = lc_camera_hit_test(&gApp.camera,
                 { gApp.mouse.mousex, gApp.mouse.mousey },
                 { (float)window_width, (float)window_height },
                 cam_pos, cam_nrm);
@@ -676,7 +677,7 @@ void run_application_logic()
         cam_pos.z += cam_nrm.z;
 
         // project onto a plane one unit in front of the camera
-        lc_hit_result hit = gApp.camera.hit_test(
+        lc_hit_result hit = lc_camera_hit_test(&gApp.camera,
             { gApp.mouse.mousex, gApp.mouse.mousey },
             { (float)window_width, (float)window_height },
             cam_pos, cam_nrm);
@@ -685,7 +686,7 @@ void run_application_logic()
         {
             lc_v2f vp_sz{ (float)window_width, (float)window_height };
             lc_v2f vp_or = { 0, 0 };
-            lc_v2f xy = gApp.camera.project_to_viewport(vp_or, vp_sz, hit.point);
+            lc_v2f xy = lc_camera_project_to_viewport(&gApp.camera, vp_or, vp_sz, hit.point);
             ImGui::SetCursorScreenPos(ImVec2{ xy.x, xy.y } + canvas_offset - ImVec2{ 4,4 });
             ImGui::TextUnformatted("O");
         }
@@ -747,7 +748,7 @@ void run_application_logic()
             else if (gApp.mouse.click_initiated)
             {
                 // hit test versus the gizmo's plane
-                lc_hit_result hit = gApp.camera.hit_test(
+                lc_hit_result hit = lc_camera_hit_test(&gApp.camera,
                     { gApp.mouse.mousex, gApp.mouse.mousey },
                     { (float)window_width, (float)window_height },
                     *(lc_v3f*)(&gApp.gizmo_transform.w),
@@ -771,7 +772,7 @@ void run_application_logic()
                         cam_pos.y += cam_nrm.y;
                         cam_pos.z += cam_nrm.z;
 
-                        hit = gApp.camera.hit_test(
+                        hit = lc_camera_hit_test(&gApp.camera,
                             { gApp.mouse.mousex, gApp.mouse.mousey },
                             { (float)window_width, (float)window_height },
                             cam_pos, cam_nrm);

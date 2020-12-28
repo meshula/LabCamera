@@ -44,10 +44,11 @@ struct LCNav_Panel : public LCNav_PanelState
     LCNav_Panel()
     {
         pan_tilt.set_speed(0.01f, 0.005f);
+        lc_camera_set_defaults(&trackball_camera);
     }
 
     // this camera is for displaying a little gimbal in the trackball widget
-    lab::camera::Camera trackball_camera;
+    lc_camera trackball_camera;
 
     LCNav_Component component = LCNav_None;
     LCNav_MouseState mouse_state;
@@ -261,7 +262,7 @@ static bool LensKit_Picker(const char* label, float* p_value, float* lenses, int
 }
 
 static bool LensKit_Vernier(const char* label, float* p_value,
-                            const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
+                            const lc_camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
 {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems)
@@ -286,7 +287,7 @@ static bool LensKit_Vernier(const char* label, float* p_value,
     bool is_hovered = ImGui::IsItemHovered();
     ImVec2 mouse_pos = io.MousePos - center;
 
-    float fov_h = camera.horizontal_FOV().rad * 0.5f;
+    float fov_h = lc_camera_horizontal_FOV(&camera).rad * 0.5f;
 
     bool value_changed = false;
     if (is_active && (io.MouseDelta.x != 0.f || io.MouseDelta.y != 0.f))
@@ -345,7 +346,7 @@ static bool LensKit_Vernier(const char* label, float* p_value,
 
 
 static bool LensKit(const char* label, float* p_value,
-                    const lab::camera::Camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
+                    const lc_camera& camera, float* lenses, int lens_count, ImVec2 const& sz)
 {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems)
@@ -403,7 +404,7 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
 const float roll_track_sz = 8.f;
 
 void
-draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
+draw_roll_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -435,7 +436,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera
 }
 
 void
-draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera,
+draw_joystick_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
 {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -448,27 +449,27 @@ draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& ca
         lc_mount_set_view(&navigator_panel->trackball_camera.mount, 5.f, tr->orientation, lc_v3f{ 0,0,0 }, lc_v3f{ 0, 1, 0 });
 
         lc_v3f pnt{ 0, 1, 0 };
-        lc_v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        lc_v2f xy0 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
         pnt = lc_v3f{ 0, -1, 0 };
-        lc_v2f xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        lc_v2f xy1 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         ImVec2 v0 = p0 + ImVec2{ xy0.x, xy0.y };
         ImVec2 v1 = p0 + ImVec2{ xy1.x, xy1.y };
         draw_list->AddLine(v0, v1, 0xff00ff00);
 
         pnt = lc_v3f{ 1, 0, 0 };
-        xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        xy0 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
         pnt = lc_v3f{ -1, 0, 0 };
-        xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        xy1 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         v0 = p0 + ImVec2{ xy0.x, xy0.y };
         v1 = p0 + ImVec2{ xy1.x, xy1.y };
         draw_list->AddLine(v0, v1, 0xff0000ff);
 
         pnt = lc_v3f{ 0, 0, 1 };
-        xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        xy0 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
         pnt = lc_v3f{ 0, 0, -1 };
-        xy1 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
+        xy1 = lc_camera_project_to_viewport(&navigator_panel->trackball_camera, { -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
 
         v0 = p0 + ImVec2{ xy0.x, xy0.y };
         v1 = p0 + ImVec2{ xy1.x, xy1.y };
@@ -506,7 +507,7 @@ bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
 
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& camera, float dt)
+run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float dt)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
     LabCameraNavigatorPanelInteraction result = LCNav_Inactive;

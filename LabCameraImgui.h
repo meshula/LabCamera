@@ -45,7 +45,7 @@ public:
  */
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel, lab::camera::Camera& camera, float dt);
+run_navigator_panel(LCNav_PanelState* navigator_panel, lc_camera& camera, float dt);
 
 LCNav_PanelState* create_navigator_panel();
 void release_navigator_panel(LCNav_PanelState*);

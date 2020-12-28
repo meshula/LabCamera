@@ -95,8 +95,6 @@ void lc_mount_set_view_transform_ypr_eye(lc_mount*, lc_v3f ypr, lc_v3f eye);
 void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
 void lc_mount_set_view(lc_mount*, float distance, lc_quatf orientation, lc_v3f target, lc_v3f up);
 
-
-
 /*-------------------------------------------------------------------------
    lc_sensor 
    
@@ -130,7 +128,6 @@ void lc_sensor_set_default(lc_sensor* s);
 
 // Derive focal length for the supplied sensor geometry and fov
 lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians fov);
-
 
 /*---------------------------------------------------------------------------
     Optics
@@ -239,10 +236,10 @@ lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance);
 
 typedef struct
 {
-    float shutter_open;             // offset in seconds from the start of exposure
-    float shutter_duration;         // duration of exposure, in seconds
-    unsigned int shutter_blades;    // default 6
-    lc_millimeters iris;            // the default aperture is 6.25mm, corresponding to an f-stop of 8 for a 50mm lens
+    float          shutter_open;     // offset in seconds from the start of exposure
+    float          shutter_duration; // duration of exposure, in seconds
+    unsigned int   shutter_blades;   // default 6
+    lc_millimeters iris;             // the default aperture is 6.25mm, corresponding to an f-stop of 8 for a 50mm lens
 } lc_aperture;
 
 void lc_aperture_set_default(lc_aperture* a);
@@ -274,6 +271,44 @@ typedef struct
     lc_v3f point;
 } lc_hit_result;
 
+typedef struct
+{
+    lc_mount    mount;
+    lc_optics   optics;
+    lc_aperture aperture;
+    lc_sensor   sensor;
+} lc_camera;
+
+void lc_camera_set_defaults(lc_camera*);
+
+// perspective and field of view are computed from the sensor
+// and optics of the camera.
+//
+lc_m44f        lc_camera_perspective(const lc_camera* cam, float aspect = 1.f);
+lc_m44f        lc_camera_inv_perspective(const lc_camera* cam, float aspect = 1.f);
+lc_radians     lc_camera_vertical_FOV(const lc_camera* cam);
+lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam);
+
+// focal length of the lens, divided by the diameter of the iris opening
+inline float lc_camera_f_stop(lc_camera* cam) { return cam->optics.focal_length.mm / cam->aperture.iris.mm; }
+
+// move the camera along the view vector such that both bounds are visible
+void lc_camera_frame(lc_camera* cam, lc_v3f const& bound1, lc_v3f const& bound2);
+
+void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2);
+
+float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f const& planePoint, lc_v3f const& planeNormal);
+
+// Returns a world-space ray through the given pixel, originating at the camera
+lc_ray lc_camera_get_ray_from_pixel(const lc_camera*, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size);
+
+lc_hit_result lc_camera_hit_test(const lc_camera*, const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal);
+
+lc_v2f lc_camera_project_to_viewport(const lc_camera*, lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point);
+
+lc_m44f lc_camera_view_projection(const lc_camera*, float aspect = 1.f);
+lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect = 1.f);
+
 #ifdef __cplusplus
 }
 #endif
@@ -281,47 +316,6 @@ typedef struct
 
 namespace lab {
     namespace camera {
-
-    class Camera
-    {
-    public:
-        lc_mount       mount;
-        lc_optics   optics;
-        lc_aperture aperture;
-        lc_sensor      sensor;
-
-        Camera();
-        ~Camera();
-
-        // perspective and field of view are computed from the sensor
-        // and optics of the camera.
-        //
-        lc_m44f        perspective(float aspect = 1.f) const;
-        lc_m44f        inv_perspective(float aspect = 1.f) const;
-        lc_radians     vertical_FOV() const;
-        lc_radians     horizontal_FOV() const;
-
-        // focal length of the lens, divided by the diameter of the iris opening
-        float f_stop() const { return optics.focal_length.mm / aperture.iris.mm; }
-
-        // move the camera along the view vector such that both bounds are visible
-        void frame(lc_v3f const& bound1, lc_v3f const& bound2);
-
-        void set_clipping_planes_within_bounds(float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2);
-
-        float distance_to_plane(lc_v3f const& planePoint, lc_v3f const& planeNormal) const;
-
-        // Returns a world-space ray through the given pixel, originating at the camera
-        lc_ray get_ray_from_pixel(lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size) const;
-
-        lc_hit_result hit_test(const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal) const;
-
-        lc_v2f project_to_viewport(lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point) const;
-
-        lc_m44f view_projection(float aspect = 1.f) const;
-        lc_m44f inv_view_projection(float aspect = 1.f) const;
-    };
-
 
     typedef uint64_t InteractionToken;
 
@@ -355,9 +349,9 @@ namespace lab {
         lc_v2f _prev_mouse{ 0,0 };
         lc_m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
 
-        void _dolly(Camera& camera, const lc_v3f& delta);
-        void _turntable(Camera& camera, const lc_v2f& delta);
-        void _pantilt(Camera& camera, const lc_v2f& delta);
+        void _dolly(lc_camera& camera, const lc_v3f& delta);
+        void _turntable(lc_camera& camera, const lc_v2f& delta);
+        void _pantilt(lc_camera& camera, const lc_v2f& delta);
 
     public:
         PanTiltController() = default;
@@ -379,7 +373,7 @@ namespace lab {
         // Synchronize constraints and epoch to the most recent of this and controller.
         void sync_constraints(PanTiltController& controller);
 
-        void set_roll(Camera& camera, InteractionToken, lc_radians roll);
+        void set_roll(lc_camera& camera, InteractionToken, lc_radians roll);
 
         // delta is the 2d motion of a mouse or gesture in the screen plane, or
         // the absolute value of an analog joystick position.
@@ -389,7 +383,7 @@ namespace lab {
         // delta = mousePos - mouseClickPos;
         //
         void single_stick_interaction(
-            Camera& camera,
+            lc_camera& camera,
             InteractionToken,
             InteractionMode mode,
             lc_v2f const& delta_in,
@@ -397,7 +391,7 @@ namespace lab {
             float dt);
 
         void dual_stick_interaction(
-            Camera& camera,
+            lc_camera& camera,
             InteractionToken,
             InteractionMode mode,
             lc_v3f const& pos_delta_in,
@@ -417,7 +411,7 @@ namespace lab {
         // Gimbal: The camera will be panned and tilted to keep initial under current
         //
         void ttl_interaction(
-            Camera& camera,
+            lc_camera& camera,
             InteractionToken tok,
             InteractionPhase phase,
             InteractionMode mode,
@@ -432,7 +426,7 @@ namespace lab {
         // turntable orbit, roughly screen relative tumble motions
         //
         void constrained_ttl_interaction(
-            Camera& camera,
+            lc_camera& camera,
             InteractionToken tok,
             InteractionPhase phase,
             InteractionMode mode,

@@ -758,7 +758,7 @@ namespace lab {
         {
         }
 
-        void PanTiltController::set_roll(Camera& camera, InteractionToken, lc_radians r)
+        void PanTiltController::set_roll(lc_camera& camera, InteractionToken, lc_radians r)
         {
             lc_v3f dir = lc_rt_forward(&camera.mount.transform);
             lc_quatf q = quat_from_axis_angle(dir, r.rad);
@@ -766,7 +766,7 @@ namespace lab {
             lc_mount_set_view_transform_quat_pos(&camera.mount, q, camera.mount.transform.position);
         }
 
-        void PanTiltController::_dolly(Camera& camera, const lc_v3f& delta)
+        void PanTiltController::_dolly(lc_camera& camera, const lc_v3f& delta)
         {
             const lc_rigid_transform* cmt = &camera.mount.transform;
             lc_v3f pos = cmt->position;
@@ -780,7 +780,7 @@ namespace lab {
             lc_mount_set_view_transform_quat_pos(&camera.mount, cmt->orientation, cmt->position + dP);
         };
 
-        void PanTiltController::_turntable(Camera& camera, const lc_v2f& delta)
+        void PanTiltController::_turntable(lc_camera& camera, const lc_v2f& delta)
         {
             const lc_rigid_transform* cmt = &camera.mount.transform;
             lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
@@ -811,7 +811,7 @@ namespace lab {
             }
         }
 
-        void PanTiltController::_pantilt(Camera& camera, const lc_v2f& delta)
+        void PanTiltController::_pantilt(lc_camera& camera, const lc_v2f& delta)
         {
             const lc_rigid_transform* cmt = &camera.mount.transform;
 
@@ -849,7 +849,7 @@ namespace lab {
         // delta is the 2d motion of a mouse or gesture in the screen plane,
         // typically computed as scale * (currMousePos - prevMousePos);
         //
-        void PanTiltController::single_stick_interaction(Camera& camera, InteractionToken tok,
+        void PanTiltController::single_stick_interaction(lc_camera& camera, InteractionToken tok,
             InteractionMode mode, lc_v2f const& delta_in, lc_radians roll_hint, float dt)
         {
             const lc_rigid_transform* cmt = &camera.mount.transform;
@@ -903,7 +903,7 @@ namespace lab {
         }
 
 
-        void PanTiltController::dual_stick_interaction(Camera& camera, InteractionToken tok,
+        void PanTiltController::dual_stick_interaction(lc_camera& camera, InteractionToken tok,
             InteractionMode mode, lc_v3f const& pos_delta_in, lc_v3f const& rotation_delta_in,
             lc_radians roll_hint, float dt)
         {
@@ -969,7 +969,7 @@ namespace lab {
         // Initial is the screen position of the beginning of the interaction, current is the
         // current position
         //
-        void PanTiltController::ttl_interaction(Camera& camera, InteractionToken tok,
+        void PanTiltController::ttl_interaction(lc_camera& camera, InteractionToken tok,
             InteractionPhase phase, InteractionMode mode, lc_v2f const& current_mouse_, lc_radians roll_hint, float dt)
         {
             const lc_rigid_transform* cmt = &camera.mount.transform;
@@ -1067,7 +1067,7 @@ namespace lab {
                 if (phase == InteractionPhase::Start)
                 {
                     _init_mouse = current_mouse_;
-                    _initial_inv_projection = camera.inv_view_projection(1.f);
+                    _initial_inv_projection = lc_camera_inv_view_projection(&camera, 1.f);
                     _initial_focus_point = _orbit_center;
                 }
 
@@ -1099,7 +1099,7 @@ namespace lab {
             _prev_mouse = current_mouse_;
         }
 
-        void PanTiltController::constrained_ttl_interaction(Camera& camera, InteractionToken tok,
+        void PanTiltController::constrained_ttl_interaction(lc_camera& camera, InteractionToken tok,
             InteractionPhase phase, InteractionMode mode,
             lc_v2f const& current,
             lc_v3f const& initial_hit_point,
@@ -1118,7 +1118,7 @@ namespace lab {
                 }
 
                 // Through the lens crane
-                lc_v2f target_xy = camera.project_to_viewport(lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
+                lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _viewport_size.x);
                 lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
                 delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
@@ -1135,7 +1135,7 @@ namespace lab {
                 }
 
                 // Through the lens crane
-                lc_v2f target_xy = camera.project_to_viewport(lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
+                lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
                 target_xy = mul(target_xy, 1.f / _viewport_size.x);
                 lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
                 lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
@@ -1371,172 +1371,170 @@ lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor* s, lc_radians
     return { f / s->enlarge.y };
 }
 
-namespace lab {
-    namespace camera {
-
-
 //-----------------------------------------------------------------------------
 // Camera
 //
 //-----------------------------------------------------------------------------
 
-        Camera::Camera()
-        {
-            lc_optics_set_default(&optics);
-            lc_aperture_set_default(&aperture);
-            lc_sensor_set_default(&sensor);
-            lc_mount_set_default(&mount);
-        }
+void lc_camera_set_defaults(lc_camera* cam)
+{
+    lc_optics_set_default(&cam->optics);
+    lc_aperture_set_default(&cam->aperture);
+    lc_sensor_set_default(&cam->sensor);
+    lc_mount_set_default(&cam->mount);
+}
 
-        Camera::~Camera() = default;
+lc_m44f        lc_camera_perspective(const lc_camera* cam, float aspect)
+{
+    using namespace lab::camera;
+    if (fabs(aspect) < std::numeric_limits<float>::epsilon())
+        return m44f_identity;
 
-        lc_m44f Camera::perspective(float aspect) const
-        {
-            if (fabs(aspect) < std::numeric_limits<float>::epsilon())
-                return m44f_identity;
+    const float handedness = cam->sensor.handedness; // -1 for left hand coordinates
+    float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
+    const float halfFovy = lc_camera_vertical_FOV(cam).rad * 0.5f;
+    const float y = 1.f / tanf(halfFovy);
+    const float x = y / aspect / cam->optics.squeeze;
+    const float scalex = 2.f * cam->sensor.enlarge.x;
+    const float scaley = 2.f * cam->sensor.enlarge.y;
+    const float dx = mm_as_m(cam->sensor.shift.x).m * 2.f * aspect / mm_as_m(cam->sensor.aperture.y).m;
+    const float dy = mm_as_m(cam->sensor.shift.y).m * 2.f / mm_as_m(cam->sensor.aperture.y).m;
 
-            const float handedness = sensor.handedness; // -1 for left hand coordinates
-            float left = -1.f, right = 1.f, bottom = -1.f, top = 1.f;
-            const float halfFovy = vertical_FOV().rad * 0.5f;
-            const float y = 1.f / tanf(halfFovy);
-            const float x = y / aspect / optics.squeeze;
-            const float scalex = 2.f * sensor.enlarge.x;
-            const float scaley = 2.f * sensor.enlarge.y;
-            const float dx = mm_as_m(sensor.shift.x).m * 2.f * aspect / mm_as_m(sensor.aperture.y).m;
-            const float dy = mm_as_m(sensor.shift.y).m * 2.f / mm_as_m(sensor.aperture.y).m;
+    const float znear = cam->optics.znear;
+    const float zfar = cam->optics.zfar;
 
-            const float znear = optics.znear;
-            const float zfar = optics.zfar;
+    lc_m44f result;
+    memset(&result, 0, sizeof(lc_m44f));
+    result.x.x = scalex * x / (right - left);
+    result.y.y = scaley * y / (top - bottom);
+    result.z.x = (right + left + dx) / (right - left);
+    result.z.y = (top + bottom + dy) / (top - bottom);
+    result.z.z = handedness * (zfar + znear) / (zfar - znear);
+    result.z.w = handedness;
+    result.w.z = handedness * 2.f * zfar * znear / (zfar - znear);
+    return { result };
+}
 
-            lc_m44f result;
-            memset(&result, 0, sizeof(lc_m44f));
-            result.x.x = scalex * x / (right - left);
-            result.y.y = scaley * y / (top - bottom);
-            result.z.x = (right + left + dx) / (right - left);
-            result.z.y = (top + bottom + dy) / (top - bottom);
-            result.z.z = handedness * (zfar + znear) / (zfar - znear);
-            result.z.w = handedness;
-            result.w.z = handedness * 2.f * zfar * znear / (zfar - znear);
-            return { result };
-        }
+lc_m44f        lc_camera_inv_perspective(const lc_camera* cam, float aspect)
+{
+    using namespace lab::camera;
+    return invert(lc_camera_perspective(cam, aspect));
+}
 
-        lc_m44f Camera::inv_perspective(float aspect) const
-        {
-            return invert(perspective(aspect));
-        }
+lc_radians     lc_camera_vertical_FOV(const lc_camera* cam)
+{
+    float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
+    return { 2.f * std::atanf(cam->sensor.aperture.y.mm / (2.f * cropped_f)) };
+}
 
-        lc_radians Camera::vertical_FOV() const
-        {
-            float cropped_f = optics.focal_length.mm * sensor.enlarge.y;
-            return { 2.f * std::atanf(sensor.aperture.y.mm / (2.f * cropped_f)) };
-        }
+lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam)
+{
+    float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
+    return { 2.f * std::atanf(cam->optics.squeeze * cam->sensor.aperture.x.mm / (2.f * cropped_f)) };
+}
 
-        lc_radians Camera::horizontal_FOV() const
-        {
-            float cropped_f = optics.focal_length.mm * sensor.enlarge.y;
-            return { 2.f * std::atanf(optics.squeeze * sensor.aperture.x.mm / (2.f * cropped_f)) };
-        }
+// move the camera along the view vector such that both bounds are visible
+void lc_camera_frame(lc_camera* cam, lc_v3f const& bound1, lc_v3f const& bound2)
+{
+    using namespace lab::camera;
+    const lc_rigid_transform* cmt = &cam->mount.transform;
+    float r = 0.5f * length(bound2 - bound1);
+    float g = (1.1f * r) / sinf(lc_camera_vertical_FOV(cam).rad * 0.5f);
+    lc_v3f focus_point = (bound2 + bound1) * 0.5f;
+    lc_v3f position = normalize(cmt->position - focus_point) * g;
+    lc_mount_look_at(&cam->mount, position, focus_point, lc_rt_up(cmt));
+}
 
-        void Camera::frame(lc_v3f const& bound1, lc_v3f const& bound2)
-        {
-            const lc_rigid_transform* cmt = &mount.transform;
-            float r = 0.5f * length(bound2 - bound1);
-            float g = (1.1f * r) / sinf(vertical_FOV().rad * 0.5f);
-            lc_v3f focus_point = (bound2 + bound1) * 0.5f;
-            lc_v3f position = normalize(cmt->position - focus_point) * g;
-            lc_mount_look_at(&mount, position, focus_point, lc_rt_up(cmt));
-        }
+void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2)
+{
+    using namespace lab::camera;
+    float clip_near = FLT_MAX;
+    float clip_far = FLT_MIN;
 
-        void Camera::set_clipping_planes_within_bounds(float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2)
-        {
-            float clip_near = FLT_MAX;
-            float clip_far = FLT_MIN;
+    lc_v4f points[8] = {
+        {bound1.x, bound1.y, bound1.z, 1.f},
+        {bound1.x, bound1.y, bound2.z, 1.f},
+        {bound1.x, bound2.y, bound1.z, 1.f},
+        {bound1.x, bound2.y, bound2.z, 1.f},
+        {bound2.x, bound1.y, bound1.z, 1.f},
+        {bound2.x, bound1.y, bound2.z, 1.f},
+        {bound2.x, bound2.y, bound1.z, 1.f},
+        {bound2.x, bound2.y, bound2.z, 1.f} };
 
-            lc_v4f points[8] = {
-                {bound1.x, bound1.y, bound1.z, 1.f},
-                {bound1.x, bound1.y, bound2.z, 1.f},
-                {bound1.x, bound2.y, bound1.z, 1.f},
-                {bound1.x, bound2.y, bound2.z, 1.f},
-                {bound2.x, bound1.y, bound1.z, 1.f},
-                {bound2.x, bound1.y, bound2.z, 1.f},
-                {bound2.x, bound2.y, bound1.z, 1.f},
-                {bound2.x, bound2.y, bound2.z, 1.f} };
+    for (int p = 0; p < 8; ++p)
+    {
+        lc_v4f dp = mul(lc_mount_gl_view_transform(&cam->mount), points[p]);
+        clip_near = std::min(dp.z, clip_near);
+        clip_far = std::max(dp.z, clip_far);
+    }
 
-            for (int p = 0; p < 8; ++p)
-            {
-                lc_v4f dp = mul(lc_mount_gl_view_transform(&mount), points[p]);
-                clip_near = std::min(dp.z, clip_near);
-                clip_far = std::max(dp.z, clip_far);
-            }
+    clip_near = std::max(min_near, std::min(clip_near, max_far));
+    clip_far = std::max(clip_near, std::min(clip_near, max_far));
 
-            clip_near = std::max(min_near, std::min(clip_near, max_far));
-            clip_far = std::max(clip_near, std::min(clip_near, max_far));
+    if (clip_far < clip_near)
+    {
+        float temp = clip_far;
+        clip_far = clip_near;
+        clip_near = clip_far;
+    }
 
-            if (clip_far < clip_near)
-            {
-                float temp = clip_far;
-                clip_far = clip_near;
-                clip_near = clip_far;
-            }
+    cam->optics.znear = clip_near;
+    cam->optics.zfar = clip_far;
+}
 
-            optics.znear = clip_near;
-            optics.zfar = clip_far;
-        }
+float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f const& plane_point, lc_v3f const& plane_normal)
+{
+    using namespace lab::camera;
+    const lc_rigid_transform* cmt = &cam->mount.transform;
+    float denom = dot(plane_normal, lc_rt_forward(cmt));
+    if (denom > 1.e-6f) {
+        lc_v3f p0 = plane_point - cmt->position;
+        return dot(p0, plane_normal) / denom;
+    }
+    return FLT_MAX; // ray and plane are parallel
+}
 
-        float Camera::distance_to_plane(lc_v3f const& plane_point, lc_v3f const& plane_normal) const
-        {
-            const lc_rigid_transform* cmt = &mount.transform;
-            float denom = dot(plane_normal, lc_rt_forward(cmt));
-            if (denom > 1.e-6f) {
-                lc_v3f p0 = plane_point - cmt->position;
-                return dot(p0, plane_normal) / denom;
-            }
-            return FLT_MAX; // ray and plane are parallel
-        }
+lc_m44f lc_camera_view_projection(const lc_camera* cam, float aspect)
+{
+    using namespace lab::camera;
+    lc_m44f proj = lc_camera_perspective(cam, aspect);
+    lc_m44f view = lc_mount_gl_view_transform(&cam->mount);
+    return mul(proj, view);
+}
 
-        lc_m44f Camera::view_projection(float aspect) const
-        {
-            lc_m44f proj = perspective(aspect);
-            lc_m44f view = lc_mount_gl_view_transform(&mount);
-            return mul(proj, view);
-        }
+lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
+{
+    using namespace lab::camera;
+    lc_m44f proj = lc_camera_perspective(cam, aspect);
+    lc_m44f view = lc_mount_gl_view_transform(&cam->mount);
+    return invert(mul(proj, view));
+}
 
-        lc_m44f Camera::inv_view_projection(float aspect) const
-        {
-            lc_m44f proj = perspective(aspect);
-            lc_m44f view = lc_mount_gl_view_transform(&mount);
-            return invert(mul(proj, view));
-        }
+lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
+{
+    const lc_rigid_transform* cmt = &cam->mount.transform;
+    lc_m44f inv_projection = lc_camera_inv_view_projection(cam, 1.f);
+    return lab::camera::get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
+}
 
-        lc_ray Camera::get_ray_from_pixel(lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size) const
-        {
-            const lc_rigid_transform* cmt = &mount.transform;
-            lc_m44f inv_projection = inv_view_projection(1.f);
-            return get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
-        }
+lc_hit_result lc_camera_hit_test(const lc_camera* cam, const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal)
+{
+    lc_ray ray = lc_camera_get_ray_from_pixel(cam, mouse, { 0, 0 }, viewport);
+    lc_hit_result r;
+    r.hit = lab::camera::intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
+    return r;
+}
 
-        lc_hit_result Camera::hit_test(const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal) const
-        {
-            lc_ray ray = get_ray_from_pixel(mouse, { 0, 0 }, viewport);
-            lc_hit_result r;
-            r.hit = intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
-            return r;
-        }
+lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point)
+{
+    using namespace lab::camera;
+    lc_m44f m = lc_camera_view_projection(cam, 1.f);
 
-        lc_v2f Camera::project_to_viewport(lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point) const
-        {
-            lc_m44f m = view_projection(1.f);
-
-            lc_v4f p = mul(m, lc_v4f{ point.x, point.y, point.z, 1.f });
-            lc_v3f pnt = xyz(mul(p, 1.f / p.w));
-            pnt.x = pnt.x * viewport_size.x * 0.5f + viewport_size.x * 0.5f;
-            pnt.y = pnt.y * viewport_size.y * -0.5f + viewport_size.y * 0.5f;
-            pnt.x -= viewport_origin.x;
-            pnt.y -= viewport_origin.y;
-            return { pnt.x, pnt.y };
-        }
-
-
-    } // camera
-} // lab
-
+    lc_v4f p = mul(m, lc_v4f{ point.x, point.y, point.z, 1.f });
+    lc_v3f pnt = xyz(mul(p, 1.f / p.w));
+    pnt.x = pnt.x * viewport_size.x * 0.5f + viewport_size.x * 0.5f;
+    pnt.y = pnt.y * viewport_size.y * -0.5f + viewport_size.y * 0.5f;
+    pnt.x -= viewport_origin.x;
+    pnt.y -= viewport_origin.y;
+    return { pnt.x, pnt.y };
+}
