@@ -65,84 +65,72 @@ lc_v3f  lc_rt_detransform_vector(const lc_rigid_transform*, lc_v3f vec);
 
 inline bool lc_rt_is_uniform_scale(const lc_rigid_transform* rt) { return rt->scale.x == rt->scale.y && rt->scale.x == rt->scale.z; }
 
+/*-------------------------------------------------------------------------
+    lc_mount is a nodal mount, centered on the camera's sensor
+    The mount's transform is left handed, y is up, -z is forward
+ */
 
-#ifdef __cplusplus
-}
-#endif
+typedef struct
+{
+    lc_rigid_transform transform;
+} lc_mount;
 
-#ifdef __cplusplus
-namespace lab {
-    namespace camera {
+void lc_mount_set_default(lc_mount*);
 
-        //-------------------------------------------------------------------------
-        // Mount is a nodal mount, centered on the camera's sensor
-        // The mount's transform is left handed, y is up, -z is forward
-        //
-        class Mount
-        {
-            lc_rigid_transform _transform;
+lc_m44f lc_mount_gl_view_transform(const lc_mount*);
+lc_m44f lc_mount_gl_view_transform_inv(const lc_mount*);
+lc_m44f lc_mount_model_view_transform_f16(const lc_mount*, float const* const view_matrix);
+lc_m44f lc_mount_model_view_transform_m44f(const lc_mount*, lc_m44f const* const view_matrix);
+lc_m44f lc_mount_rotation_transform(const lc_mount*);
+lc_m44f lc_mount_inv_rotation_transform(const lc_mount*);
+lc_v3f  lc_mount_ypr(const lc_mount*);
 
-        public:
-            Mount();
-            ~Mount();
+inline float lc_mount_mm_to_world() { return 1000.f; } // multiply mm by this value to get world values
 
-            // matrix
-            lc_m44f gl_view_transform() const;
-            lc_m44f gl_view_transform_inv() const;
-            lc_m44f model_view_transform(lc_m44f const& view_matrix) const;
-            lc_m44f model_view_transform(float const* const view_matrix) const;
-            lc_m44f rotation_transform() const;
-            lc_m44f inv_rotation_transform() const;
+// mutation
+void lc_mount_set_view_transform_m44f(lc_mount*, lc_m44f const*const);
+void lc_mount_set_view_transform_f16(lc_mount*, float const* const);
+void lc_mount_set_view_transform_quat_pos(lc_mount*, lc_quatf q, lc_v3f eye);
+void lc_mount_set_view_transform_ypr_eye(lc_mount*, lc_v3f ypr, lc_v3f eye);
+void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
+void lc_mount_set_view(lc_mount*, float distance, lc_quatf orientation, lc_v3f target, lc_v3f up);
 
-            // components
-            const lc_rigid_transform* transform() const { return &_transform; }
-            lc_v3f ypr() const;
 
-            float mm_to_world() const { return 1000.f; } // multiply mm by this value to get world values
 
-            // mutation
-            void set_view_transform(lc_m44f const&);
-            void set_view_transform_quat_pos(lc_quatf const& q, lc_v3f const& eye);
-            void set_view_transform_ypr_eye(lc_v3f const& ypr, lc_v3f const& eye);
-            void look_at(lc_v3f const& eye, lc_v3f const& target, lc_v3f const& up);
-            void look_at(float distance, lc_quatf const& orientation, lc_v3f const& target, lc_v3f const& up);
-        };
+/*-------------------------------------------------------------------------
+   lc_sensor 
+   
+    describes the plane where an image is to be resolved.
 
-        //-------------------------------------------------------------------------
-        // Sensor describes the plane where an image is to be resolved.
-        // The sensor's coordinate system has its center at (0, 0) and
-        // its bounds are -1 to 1.
-        // enlarge is a multiplicative value; and shift is an additive value
-        // in the sensor's coordinate system.
-        //
-        // Shift and enlarge can be used to create projection matrices for
-        // subregions of an image. For example, if the default Sensor is to be
-        // rendered as four tiles, a matrix for rendering the upper left quadrant
-        // can be computed by setting enlarge to { 2, 2 }, and
-        // shift to millimeters{-17.5f}, millimeters{-12.25f}.
-        //
-        // The default sensor aperture is as for 35mm DSLR.
-        //
-        class Sensor
-        {
-        public:
-            struct Shift { lc_millimeters x, y; };
+    The sensor's coordinate system has its center at (0, 0) and
+    its bounds are -1 to 1.
+    enlarge is a multiplicative value; and shift is an additive value
+    in the sensor's coordinate system.
+    
+    Shift and enlarge can be used to create projection matrices for
+    subregions of an image. For example, if the default lc_sensor is to be
+    rendered as four tiles, a matrix for rendering the upper left quadrant
+    can be computed by setting enlarge to { 2, 2 }, and
+    shift to millimeters{-17.5f}, millimeters{-12.25f}.
+    
+    The default sensor aperture is as for 35mm DSLR.
 
-            // spatial characteristics
-            float handedness = -1.f; // left handed
-            lc_millimeters aperture_x = { 35.f };
-            lc_millimeters aperture_y = { 24.5f };
-            lc_v2f enlarge = { 1, 1 };
-            Shift shift = { lc_millimeters{0}, lc_millimeters{0} };
+    A handedness of -1 indicates a left handed camera
+ */
 
-            // Utility function to derive a focal length for this sensor
-            // corresponding to the sensor geometry.
-            //
-            lc_millimeters focal_length_from_vertical_FOV(lc_radians fov);
-        };
+typedef struct
+{
+    struct { lc_millimeters x, y; } shift;
+    struct { float x, y; }          enlarge;
+    struct { lc_millimeters x, y; } aperture;
+    float                           handedness;
+} lc_sensor;
 
-    }
-}
+void lc_sensor_set_default(lc_sensor* s);
+
+// Derive focal length for the supplied sensor geometry and fov
+lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians fov);
+
 
 /*---------------------------------------------------------------------------
     Optics
@@ -234,7 +222,7 @@ typedef struct
     float squeeze;
 } lc_optics;
 
-void lc_optics_set_default(lc_optics*);
+void      lc_optics_set_default(lc_optics*);
 lc_meters lc_optics_hyperfocal_distance(lc_optics*, lc_millimeters CoC);
 lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance); // return value in mm
 
@@ -253,10 +241,8 @@ typedef struct
 {
     float shutter_open;             // offset in seconds from the start of exposure
     float shutter_duration;         // duration of exposure, in seconds
-    unsigned int shutter_blades;    // default 7
-
-    // the default aperture is 6.25mm, corresponding to an f-stop of 8 for a 50mm lens
-    lc_millimeters iris;
+    unsigned int shutter_blades;    // default 6
+    lc_millimeters iris;            // the default aperture is 6.25mm, corresponding to an f-stop of 8 for a 50mm lens
 } lc_aperture;
 
 void lc_aperture_set_default(lc_aperture* a);
@@ -288,16 +274,21 @@ typedef struct
     lc_v3f point;
 } lc_hit_result;
 
+#ifdef __cplusplus
+}
+#endif
+
+
 namespace lab {
     namespace camera {
 
     class Camera
     {
     public:
-        Mount       mount;
+        lc_mount       mount;
         lc_optics   optics;
         lc_aperture aperture;
-        Sensor      sensor;
+        lc_sensor      sensor;
 
         Camera();
         ~Camera();
@@ -456,4 +447,3 @@ namespace lab {
 } // lab::camera
 #endif // _cplusplus
 
-#endif

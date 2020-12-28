@@ -220,8 +220,8 @@ static void draw_grid(float y, const lc_m44f& m)
     lc_m44f proj = gApp.camera.perspective();
     sgl_load_matrix(&proj.x.x);
 
-    lc_m44f view = gApp.camera.mount.gl_view_transform();
-    lc_m44f mv = gApp.camera.mount.model_view_transform(m);
+    lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
+    lc_m44f mv = lc_mount_model_view_transform_m44f(&gApp.camera.mount, &m);
 
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
@@ -245,7 +245,7 @@ static void draw_grid(float y, const lc_m44f& m)
 static void draw_jack(float s, const lc_m44f& m)
 {
 
-    lc_m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
+    lc_m44f mv = lc_mount_model_view_transform_f16(&gApp.camera.mount, &m.x.x);
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
 
@@ -270,7 +270,7 @@ static void draw_debug(const lc_m44f& m)
     lc_m44f proj = gApp.camera.perspective();
     sgl_matrix_mode_projection();
     sgl_load_matrix(&proj.x.x);
-    lc_m44f mv = gApp.camera.mount.model_view_transform(&m.x.x);
+    lc_m44f mv = lc_mount_model_view_transform_f16(&gApp.camera.mount, &m.x.x);
     sgl_matrix_mode_modelview();
     sgl_load_matrix(&mv.x.x);
     sgl_begin_lines();
@@ -376,7 +376,7 @@ static GizmoTriangles gizmo_triangles;
 // return true if the gizmo was interacted
 bool run_gizmo(MouseState* ms, float width, float height)
 {
-    const lc_rigid_transform* cmt = gApp.camera.mount.transform();
+    const lc_rigid_transform* cmt = &gApp.camera.mount.transform;
     lc_v3f camera_pos = cmt->position;
     lc_ray ray = gApp.camera.get_ray_from_pixel({ ms->mousex, ms->mousey }, { 0, 0 }, { width, height });
     lc_quatf camera_orientation = cmt->orientation;
@@ -485,11 +485,11 @@ void run_application_logic()
 
     gApp.camera.optics.squeeze = w / h;
     lc_m44f proj = gApp.camera.perspective();
-    lc_m44f view = gApp.camera.mount.gl_view_transform();
-    lc_m44f view_t = gApp.camera.mount.gl_view_transform_inv();
+    lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
+    lc_m44f view_t = lc_mount_gl_view_transform_inv(&gApp.camera.mount);
     lc_m44f view_proj = gApp.camera.view_projection(1.f);
 
-    const lc_rigid_transform* cmt = gApp.camera.mount.transform();
+    const lc_rigid_transform* cmt = &gApp.camera.mount.transform;
     lc_v3f pos = cmt->position;
 
     //--- draw things in the 3d view
@@ -701,7 +701,7 @@ void run_application_logic()
     {
         ImGui::Begin("App State");
         ImGui::Text("state: %s", name_state(gApp.ui_state));
-        lc_v3f ypr = gApp.camera.mount.ypr();
+        lc_v3f ypr = lc_mount_ypr(&gApp.camera.mount);
         ImGui::Text("ypr: (%f, %f, %f)", ypr.x, ypr.y, ypr.z);
         lc_v3f pos = cmt->position;
         ImGui::Text("pos: (%f, %f, %f)", pos.x, pos.y, pos.z);
@@ -720,7 +720,7 @@ void run_application_logic()
         in = run_navigator_panel(gApp.navigator_panel, gApp.camera, static_cast<float>(delta_time));
     }
 
-    const lc_rigid_transform* rt = gApp.camera.mount.transform();
+    const lc_rigid_transform* rt = &gApp.camera.mount.transform;
     camera_minimap(320, 240, rt, gApp.main_pan_tilt.orbit_center_constraint());
 
     if (in > LCNav_Inactive)

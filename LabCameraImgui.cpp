@@ -417,7 +417,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& camera
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f, 0xffffffff, 24, 1.f);
         draw_list->AddCircle((p0 + p1) * 0.5f, width * 0.5f + roll_track_sz, 0xffffffff, 24, 1.f);
 
-        lc_v3f ypr = camera.mount.ypr();
+        lc_v3f ypr = lc_mount_ypr(&camera.mount);
         float roll = navigator_panel->roll.rad; // ypr.z
         float s = sinf(roll) * ((width + roll_track_sz) * 0.5f);
         float c = cosf(roll) * ((width + roll_track_sz) * 0.5f);
@@ -444,8 +444,8 @@ draw_joystick_widget(LCNav_Panel* navigator_panel, const lab::camera::Camera& ca
     {
         float width = p1.x - p0.x - 2.f * roll_track_sz;
 
-        const lc_rigid_transform* tr = camera.mount.transform();
-        navigator_panel->trackball_camera.mount.look_at(5.f, tr->orientation, lc_v3f{ 0,0,0 }, lc_v3f{ 0, 1, 0 });
+        const lc_rigid_transform* tr = &camera.mount.transform;
+        lc_mount_set_view(&navigator_panel->trackball_camera.mount, 5.f, tr->orientation, lc_v3f{ 0,0,0 }, lc_v3f{ 0, 1, 0 });
 
         lc_v3f pnt{ 0, 1, 0 };
         lc_v2f xy0 = navigator_panel->trackball_camera.project_to_viewport({ -roll_track_sz,0 }, { width, p1.y - p0.y }, pnt);
@@ -568,7 +568,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
 
     if (ImGui::Button("Home###NavHome")) {
         auto up = navigator_panel->pan_tilt.world_up_constraint();
-        camera.mount.look_at({ 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
+        lc_mount_look_at(&camera.mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
         navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
         navigator_panel->roll = lc_radians{ 0 };
         result = LCNav_Inactive;
@@ -667,7 +667,7 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lab::camera::Camera& cam
         navigator_panel->roll = lc_radians{ roll_hint };
 
         // renormalize transform, then apply the camera roll
-        camera.mount.look_at(camera.mount.transform()->position,
+        lc_mount_look_at(&camera.mount, camera.mount.transform.position,
             navigator_panel->pan_tilt.orbit_center_constraint(), navigator_panel->pan_tilt.world_up_constraint());
         lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
         navigator_panel->pan_tilt.set_roll(camera, tok, navigator_panel->roll);
