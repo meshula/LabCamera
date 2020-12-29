@@ -130,38 +130,41 @@ set(NAVIGATOR_SRC
     ../../c_canary.c
     src/main.cpp
     src/gizmo.glsl
+    src/gizmo_glsl.h
 )
 
 set(NAVIGATOR_SHADERS
     gizmo
 )
 
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated_src)
+if (REGENERATE_SHADER)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated_src)
 
-foreach(SHADER ${NAVIGATOR_SHADERS})
-    if (WIN32)
-        add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
-            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
-        )
-    elseif (APPLE)
-        add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/osx/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
-            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
-        )
-    else()
-        add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/linux/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
-            COMMENT "Running sokol-shdc for ${SHADER}.glsl"
-        )
-    endif()
-    list(APPEND NAVIGATOR_SHADERS_SRC ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h)
-endforeach()
+    foreach(SHADER ${NAVIGATOR_SHADERS})
+        if (WIN32)
+            add_custom_command(
+                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+            )
+        elseif (APPLE)
+            add_custom_command(
+                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/osx/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+            )
+        else()
+            add_custom_command(
+                OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/linux/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMENT "Running sokol-shdc for ${SHADER}.glsl"
+            )
+        endif()
+        list(APPEND NAVIGATOR_SHADERS_SRC ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h)
+    endforeach()
 
-add_custom_target(CompileNavigatorShaderFiles ALL DEPENDS ${PLAYGROUND_SHADERS_SRC})
+    add_custom_target(CompileNavigatorShaderFiles ALL DEPENDS ${PLAYGROUND_SHADERS_SRC})
+endif()
 
 add_executable(Navigator
     ${NAVIGATOR_SRC}
@@ -169,7 +172,7 @@ add_executable(Navigator
     ${NAVIGATOR_SHADERS_SRC}
 )
 
-add_dependencies(Navigator CompileNavigatorShaderFiles)
+#add_dependencies(Navigator CompileNavigatorShaderFiles)
 
 target_compile_definitions(Navigator PRIVATE
     ${ST_GFX_DEFS}
@@ -186,7 +189,7 @@ target_include_directories(Navigator SYSTEM
 
 target_include_directories(Navigator
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated_src
+#    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated_src
     PRIVATE third/imgui/examples
 )
 
@@ -221,10 +224,5 @@ endif()
 #-------------------------------------------------------------------------------
 # Installer
 #-------------------------------------------------------------------------------
-
-install(
-    FILES
-        resources/fonts/meshula-icons/meshula-icons.ttf
-        DESTINATION bin/Navigator_rsrc/fonts/)
 
 install(TARGETS Navigator DESTINATION bin)
