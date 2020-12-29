@@ -9,623 +9,623 @@ extern int debug_lines_array_sz;
 extern int debug_lines_array_idx;
 
 
-namespace lab {
-    namespace camera {
+// an anonymous namespace to prevent symbol exposure
+namespace {
 
-        lc_m44f m44f_identity = { 1.f,0.f,0.f,0.f, 0.f,1.f,0.f,0.f, 0.f,0.f,1.f,0.f, 0.f,0.f,0.f,1.f };
+    lc_m44f m44f_identity = { 1.f,0.f,0.f,0.f, 0.f,1.f,0.f,0.f, 0.f,0.f,1.f,0.f, 0.f,0.f,0.f,1.f };
 
-        const float pi = 3.14159265359f;
+    const float pi = 3.14159265359f;
 
-        // Support for 3D spatial rotations using quaternions, via qmul(qmul(q, v), qconj(q))
-        constexpr lc_v3f qxdir(const lc_quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
-        constexpr lc_v3f qydir(const lc_quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
-        constexpr lc_v3f qzdir(const lc_quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
-        constexpr lc_v3f xyz(const lc_v4f& a) { return { a.x, a.y, a.z }; }
-        constexpr lc_v3f cross(const lc_v3f& a, const lc_v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
-        constexpr float dot(const lc_v3f& a, const lc_v3f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z; }
-        constexpr float dot(const lc_v4f& a, const lc_v4f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
-        constexpr lc_v2f operator + (const lc_v2f& a, const lc_v2f& b) { return lc_v2f{ a.x + b.x, a.y + b.y }; }
-        constexpr lc_v2f operator - (const lc_v2f& a, const lc_v2f& b) { return lc_v2f{ a.x - b.x, a.y - b.y }; }
-        constexpr lc_v3f operator + (const lc_v3f& a, const lc_v3f& b) { return lc_v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
-        constexpr lc_v3f operator - (const lc_v3f& a, const lc_v3f& b) { return lc_v3f{ a.x - b.x, a.y - b.y, a.z - b.z }; }
-        constexpr lc_v3f operator * (const lc_v3f& a, float b) { return lc_v3f{ a.x * b, a.y * b, a.z * b }; }
-        constexpr lc_v3f operator / (const lc_v3f& a, float b) { return lc_v3f{ a * (1.f / b) }; }
-        constexpr lc_v4f operator + (const lc_v4f& a, const lc_v4f& b) { return lc_v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
-        constexpr lc_v4f operator * (const lc_v4f& a, float b) { return lc_v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
-        constexpr lc_v3f& operator += (lc_v3f& a, const lc_v3f& b) { return a = a + b; }
-        constexpr lc_v2f mul(const lc_v2f& a, float b) { return { a.x * b, a.y * b }; }
-        constexpr lc_v3f mul(const lc_v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
-        constexpr lc_v4f mul(const lc_v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
-        constexpr lc_v3f mul(const lc_m44f& a, const lc_v3f& b) { return xyz(a.x) * b.x + xyz(a.y) * b.y + xyz(a.z) * b.z; }
-        constexpr lc_v4f mul(const lc_m44f& a, const lc_v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
-        constexpr lc_quatf mul(const lc_quatf& a, const lc_quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
-        constexpr lc_m44f mul(const lc_m44f& a, const lc_m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
-        float length(const lc_v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
-        lc_v3f normalize(const lc_v3f& a) { return a * (1.f / length(a)); }
-        float length(const lc_quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
-        lc_quatf normalize(const lc_quatf& a)
-        {
-            float l = 1.f / length(a) * (a.w < 0 ? -1.f : 1.f); // after normalization, real part to be non-negative
-            return { a.x * l, a.y * l, a.z * l, a.w * l };
+    // Support for 3D spatial rotations using quaternions, via qmul(qmul(q, v), qconj(q))
+    constexpr lc_v3f qxdir(const lc_quatf& q) { return { q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z, (q.x * q.y + q.z * q.w) * 2, (q.z * q.x - q.y * q.w) * 2 }; }
+    constexpr lc_v3f qydir(const lc_quatf& q) { return { (q.x * q.y - q.z * q.w) * 2, q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z, (q.y * q.z + q.x * q.w) * 2 }; }
+    constexpr lc_v3f qzdir(const lc_quatf& q) { return { (q.z * q.x + q.y * q.w) * 2, (q.y * q.z - q.x * q.w) * 2, q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z }; }
+    constexpr lc_v3f xyz(const lc_v4f& a) { return { a.x, a.y, a.z }; }
+    constexpr lc_v3f cross(const lc_v3f& a, const lc_v3f& b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+    constexpr float dot(const lc_v3f& a, const lc_v3f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z; }
+    constexpr float dot(const lc_v4f& a, const lc_v4f& b) { return  a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+    constexpr lc_v2f operator + (const lc_v2f& a, const lc_v2f& b) { return lc_v2f{ a.x + b.x, a.y + b.y }; }
+    constexpr lc_v2f operator - (const lc_v2f& a, const lc_v2f& b) { return lc_v2f{ a.x - b.x, a.y - b.y }; }
+    constexpr lc_v3f operator + (const lc_v3f& a, const lc_v3f& b) { return lc_v3f{ a.x + b.x, a.y + b.y, a.z + b.z }; }
+    constexpr lc_v3f operator - (const lc_v3f& a, const lc_v3f& b) { return lc_v3f{ a.x - b.x, a.y - b.y, a.z - b.z }; }
+    constexpr lc_v3f operator * (const lc_v3f& a, float b) { return lc_v3f{ a.x * b, a.y * b, a.z * b }; }
+    constexpr lc_v3f operator / (const lc_v3f& a, float b) { return lc_v3f{ a * (1.f / b) }; }
+    constexpr lc_v4f operator + (const lc_v4f& a, const lc_v4f& b) { return lc_v4f{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
+    constexpr lc_v4f operator * (const lc_v4f& a, float b) { return lc_v4f{ a.x * b, a.y * b, a.z * b, a.w * b }; }
+    constexpr lc_v3f& operator += (lc_v3f& a, const lc_v3f& b) { return a = a + b; }
+    constexpr lc_v2f mul(const lc_v2f& a, float b) { return { a.x * b, a.y * b }; }
+    constexpr lc_v3f mul(const lc_v3f& a, float b) { return { a.x * b, a.y * b, a.z * b }; }
+    constexpr lc_v4f mul(const lc_v4f& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
+    constexpr lc_v3f mul(const lc_m44f& a, const lc_v3f& b) { return xyz(a.x) * b.x + xyz(a.y) * b.y + xyz(a.z) * b.z; }
+    constexpr lc_v4f mul(const lc_m44f& a, const lc_v4f& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+    constexpr lc_quatf mul(const lc_quatf& a, float b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
+    constexpr lc_quatf mul(const lc_quatf& a, const lc_quatf& b) { return { a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y, a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z, a.z * b.w + a.w * b.z + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z }; }
+    constexpr lc_m44f mul(const lc_m44f& a, const lc_m44f& b) { return { mul(a,b.x), mul(a,b.y), mul(a,b.z), mul(a,b.w) }; }
+    float length(const lc_v3f& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
+    lc_v3f normalize(const lc_v3f& a) { return a * (1.f / length(a)); }
+    float length(const lc_quatf& a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
+    lc_quatf normalize(const lc_quatf& a)
+    {
+        float l = 1.f / length(a) * (a.w < 0 ? -1.f : 1.f); // after normalization, real part to be non-negative
+        return { a.x * l, a.y * l, a.z * l, a.w * l };
+    }
+
+    //---- matrix ops
+
+    // adjugate from linalg
+    lc_m44f adjugate(const lc_m44f& a)
+    {
+        const lc_v4f& ax = a.x; const lc_v4f& ay = a.y; const lc_v4f& az = a.z; const lc_v4f& aw = a.w;
+        return lc_m44f{
+            lc_v4f{ ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w,
+                 ax.y * aw.z * az.w + az.y * ax.z * aw.w + aw.y * az.z * ax.w - aw.y * ax.z * az.w - az.y * aw.z * ax.w - ax.y * az.z * aw.w,
+                 ax.y * ay.z * aw.w + aw.y * ax.z * ay.w + ay.y * aw.z * ax.w - ax.y * aw.z * ay.w - ay.y * ax.z * aw.w - aw.y * ay.z * ax.w,
+                 ax.y * az.z * ay.w + ay.y * ax.z * az.w + az.y * ay.z * ax.w - ax.y * ay.z * az.w - az.y * ax.z * ay.w - ay.y * az.z * ax.w },
+            lc_v4f{ ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x,
+                 ax.z * az.w * aw.x + aw.z * ax.w * az.x + az.z * aw.w * ax.x - ax.z * aw.w * az.x - az.z * ax.w * aw.x - aw.z * az.w * ax.x,
+                 ax.z * aw.w * ay.x + ay.z * ax.w * aw.x + aw.z * ay.w * ax.x - ax.z * ay.w * aw.x - aw.z * ax.w * ay.x - ay.z * aw.w * ax.x,
+                 ax.z * ay.w * az.x + az.z * ax.w * ay.x + ay.z * az.w * ax.x - ax.z * az.w * ay.x - ay.z * ax.w * az.x - az.z * ay.w * ax.x },
+            lc_v4f{ ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y,
+                 ax.w * aw.x * az.y + az.w * ax.x * aw.y + aw.w * az.x * ax.y - ax.w * az.x * aw.y - aw.w * ax.x * az.y - az.w * aw.x * ax.y,
+                 ax.w * ay.x * aw.y + aw.w * ax.x * ay.y + ay.w * aw.x * ax.y - ax.w * aw.x * ay.y - ay.w * ax.x * aw.y - aw.w * ay.x * ax.y,
+                 ax.w * az.x * ay.y + ay.w * ax.x * az.y + az.w * ay.x * ax.y - ax.w * ay.x * az.y - az.w * ax.x * ay.y - ay.w * az.x * ax.y },
+            lc_v4f{ ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z,
+                 ax.x * az.y * aw.z + aw.x * ax.y * az.z + az.x * aw.y * ax.z - ax.x * aw.y * az.z - az.x * ax.y * aw.z - aw.x * az.y * ax.z,
+                 ax.x * aw.y * ay.z + ay.x * ax.y * aw.z + aw.x * ay.y * ax.z - ax.x * ay.y * aw.z - aw.x * ax.y * ay.z - ay.x * aw.y * ax.z,
+                 ax.x * ay.y * az.z + az.x * ax.y * ay.z + ay.x * az.y * ax.z - ax.x * az.y * ay.z - ay.x * ax.y * az.z - az.x * ay.y * ax.z } };
+    }
+
+    float determinant(lc_m44f const& a)
+    {
+        const lc_v4f& ax = a.x; const lc_v4f& ay = a.y; const lc_v4f& az = a.z; const lc_v4f& aw = a.w;
+        return ax.x * (ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w)
+             + ax.y * (ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x)
+             + ax.z * (ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y)
+             + ax.w * (ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z);
+    }
+
+    lc_m44f transpose(lc_m44f const& a)
+    {
+        return {
+            a.x.x, a.y.x, a.z.x, a.w.x,
+            a.x.y, a.y.y, a.z.y, a.w.y,
+            a.x.z, a.y.z, a.z.z, a.w.z,
+            a.x.w, a.y.w, a.z.w, a.w.w
+        };
+    }
+
+    lc_m44f invert(lc_m44f const& mat)
+    {
+        lc_m44f m = adjugate(mat);
+        float oo_det = 1.f / determinant(mat);
+        float* ptr = &m.x.x;
+        for (int i = 0; i < 16; i++)
+            ptr[i] *= oo_det;
+        return m;
+    }
+
+    lc_m44f rotation_matrix_from_quat(lc_quatf const& v)
+    {
+        lc_v3f xaxis = {
+            1 - 2 * (v.y * v.y + v.z * v.z),
+            2 * (v.x * v.y + v.z * v.w),
+            2 * (v.z * v.x - v.y * v.w),
+        };
+        lc_v3f yaxis = {
+            2 * (v.x * v.y - v.z * v.w),
+            1 - 2 * (v.z * v.z + v.x * v.x),
+            2 * (v.y * v.z + v.x * v.w),
+        };
+        lc_v3f zaxis = {
+            2 * (v.z * v.x + v.y * v.w),
+            2 * (v.y * v.z - v.x * v.w),
+            1 - 2 * (v.y * v.y + v.x * v.x),
+        };
+
+        return {
+            lc_v4f{ xaxis.x, xaxis.y, xaxis.z, 0.f },
+            lc_v4f{ yaxis.x, yaxis.y, yaxis.z, 0.f },
+            lc_v4f{ zaxis.x, zaxis.y, zaxis.z, 0.f },
+            lc_v4f{ 0.f, 0.f, 0.f, 1.f } };
+    }
+
+    lc_m44f rotation_xyz(lc_v3f e)
+    {
+        float cx = cosf(e.x);
+        float cy = cosf(e.y);
+        float cz = cosf(e.z);
+
+        float sx = sinf(e.x);
+        float sy = sinf(e.y);
+        float sz = sinf(e.z);
+
+        lc_m44f m;
+        m.x.x = cx * cz;
+        m.x.y = cx * -sz;
+        m.x.z = -sx;
+        m.x.w = 0;
+
+        m.y.x = sx * sy * cz + cy * sz;
+        m.y.y = sx * sy * sz + cy * cz;
+        m.y.z = cx * sy;
+        m.y.w = 0;
+
+        m.z.x = sx * cy * cz - sy * sz;
+        m.z.y = sx * cy * sz - sy * cz;
+        m.z.z = cx * cy;
+        m.z.w = 0;
+
+        m.w = { 0,0,0,1 };
+        return { m };
+    }
+
+    lc_m44f rotx(float r)
+    {
+        float c = cosf(r);
+        float s = sinf(r);
+        return { 1, 0, 0, 0,
+                 0, c,-s, 0,
+                 0, s, c, 0,
+                 0, 0, 0, 1 };
+    }
+
+    lc_m44f roty(float r)
+    {
+        float c = cosf(r);
+        float s = sinf(r);
+        return { c, 0, s, 0,
+                 0, 1, 0, 0,
+                -s, 0, c, 0,
+                 0, 0, 0, 1 };
+    }
+
+    lc_m44f rotz(float r)
+    {
+        float c = cosf(r);
+        float s = sinf(r);
+        return { c,-s, 0, 0,
+                 s, c, 0, 0,
+                 0, 0, 1, 0,
+                 0, 0, 0, 1 };
+    }
+
+    lc_m44f mat_from_axis_angle(const lc_v3f& axis, float angle)
+    {
+        float length2 = dot(axis, axis);
+        if (length2 < FLT_EPSILON)
+            return m44f_identity;
+
+        lc_v3f n = normalize(axis);
+        float s = sinf(angle);
+        float c = cosf(angle);
+        float k = 1.f - c;
+
+        float xx = n.x * n.x * k + c;
+        float yy = n.y * n.y * k + c;
+        float zz = n.z * n.z * k + c;
+        float xy = n.x * n.y * k;
+        float yz = n.y * n.z * k;
+        float zx = n.z * n.x * k;
+        float xs = n.x * s;
+        float ys = n.y * s;
+        float zs = n.z * s;
+
+        lc_m44f m;
+        m.x.x = xx;
+        m.x.y = xy + zs;
+        m.x.z = zx - ys;
+        m.x.w = 0.f;
+        m.y.x = xy - zs;
+        m.y.y = yy;
+        m.y.z = yz + xs;
+        m.y.w = 0.f;
+        m.z.x = zx + ys;
+        m.z.y = yz - xs;
+        m.z.z = zz;
+        m.z.w = 0.f;
+        m.w.x = 0.f;
+        m.w.y = 0.f;
+        m.w.z = 0.f;
+        m.w.w = 1.f;
+        return m;
+    }
+
+    lc_m44f make_lookat_transform(const lc_v3f& eye, const lc_v3f& target, const lc_v3f& up)
+    {
+        lc_v3f zaxis = normalize(eye - target);
+        lc_v3f xaxis = normalize(cross(up, zaxis));
+        lc_v3f yaxis = cross(zaxis, xaxis);
+        return lc_m44f{ lc_v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
+                     lc_v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
+                     lc_v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
+                     lc_v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
+    }
+
+    //---- quat ops
+
+    inline lc_quatf quat_inverse(const lc_quatf& q)
+    {
+        lc_v4f q1 = { -q.x,-q.y,-q.z,q.w };
+        float d = 1.f / dot(q1, q1);
+        return { q1.x * d, q1.y * d, q1.z * d, q1.w * d };
+    }
+
+
+    // swing twist decomposition.
+    // cf. https://stackoverflow.com/questions/3684269/component-of-a-quaternion-rotation-around-an-axis/4341489
+    // assumes dir is normailzed
+    inline float angle_about_dir(const lc_quatf& q, const lc_v3f& dir)
+    {
+        lc_v3f axis = { q.x, q.y, q.z };
+        float dot_product = dot(dir, axis);
+        lc_v3f projection = mul(dir, dot_product);
+        lc_quatf twist = normalize(lc_quatf{ projection.x, projection.y, projection.z, q.w });
+
+        if (dot_product < 0.0) {
+            // Ensure `twist` points towards `direction`
+            // (if calculating the new axis, then all of twist needs negating)
+            twist.w = -twist.w;
+            // Rotation angle `twist.angle()` is now reliable
         }
+        return 2.f * acosf(twist.w); // if axis and angle is being computed, more work is necessary: https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
+    }
 
-        //---- matrix ops
+    inline lc_quatf rotation_about_dir(const lc_quatf& q, const lc_v3f& dir)
+    {
+        lc_v3f axis = { q.x, q.y, q.z };
+        float dot_product = dot(dir, axis);
+        lc_v3f projection = mul(dir, dot_product);
+        lc_quatf twist = normalize(lc_quatf{ projection.x, projection.y, projection.z, q.w });
 
-        // adjugate from linalg
-        lc_m44f adjugate(const lc_m44f& a)
-        {
-            const lc_v4f& ax = a.x; const lc_v4f& ay = a.y; const lc_v4f& az = a.z; const lc_v4f& aw = a.w;
-            return lc_m44f{
-                lc_v4f{ ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w,
-                     ax.y * aw.z * az.w + az.y * ax.z * aw.w + aw.y * az.z * ax.w - aw.y * ax.z * az.w - az.y * aw.z * ax.w - ax.y * az.z * aw.w,
-                     ax.y * ay.z * aw.w + aw.y * ax.z * ay.w + ay.y * aw.z * ax.w - ax.y * aw.z * ay.w - ay.y * ax.z * aw.w - aw.y * ay.z * ax.w,
-                     ax.y * az.z * ay.w + ay.y * ax.z * az.w + az.y * ay.z * ax.w - ax.y * ay.z * az.w - az.y * ax.z * ay.w - ay.y * az.z * ax.w },
-                lc_v4f{ ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x,
-                     ax.z * az.w * aw.x + aw.z * ax.w * az.x + az.z * aw.w * ax.x - ax.z * aw.w * az.x - az.z * ax.w * aw.x - aw.z * az.w * ax.x,
-                     ax.z * aw.w * ay.x + ay.z * ax.w * aw.x + aw.z * ay.w * ax.x - ax.z * ay.w * aw.x - aw.z * ax.w * ay.x - ay.z * aw.w * ax.x,
-                     ax.z * ay.w * az.x + az.z * ax.w * ay.x + ay.z * az.w * ax.x - ax.z * az.w * ay.x - ay.z * ax.w * az.x - az.z * ay.w * ax.x },
-                lc_v4f{ ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y,
-                     ax.w * aw.x * az.y + az.w * ax.x * aw.y + aw.w * az.x * ax.y - ax.w * az.x * aw.y - aw.w * ax.x * az.y - az.w * aw.x * ax.y,
-                     ax.w * ay.x * aw.y + aw.w * ax.x * ay.y + ay.w * aw.x * ax.y - ax.w * aw.x * ay.y - ay.w * ax.x * aw.y - aw.w * ay.x * ax.y,
-                     ax.w * az.x * ay.y + ay.w * ax.x * az.y + az.w * ay.x * ax.y - ax.w * ay.x * az.y - az.w * ax.x * ay.y - ay.w * az.x * ax.y },
-                lc_v4f{ ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z,
-                     ax.x * az.y * aw.z + aw.x * ax.y * az.z + az.x * aw.y * ax.z - ax.x * aw.y * az.z - az.x * ax.y * aw.z - aw.x * az.y * ax.z,
-                     ax.x * aw.y * ay.z + ay.x * ax.y * aw.z + aw.x * ay.y * ax.z - ax.x * ay.y * aw.z - aw.x * ax.y * ay.z - ay.x * aw.y * ax.z,
-                     ax.x * ay.y * az.z + az.x * ax.y * ay.z + ay.x * az.y * ax.z - ax.x * az.y * ay.z - ay.x * ax.y * az.z - az.x * ay.y * ax.z } };
+        if (dot_product < 0.0) {
+            // Ensure `twist` points towards `direction`
+            twist = mul(twist, -1.f);
+            // Rotation angle `twist.angle()` is now reliable
         }
+        return twist;
+    }
 
-        float determinant(lc_m44f const& a)
+    inline lc_quatf quat_set_rotation_internal(lc_v3f const& f0, lc_v3f const& t0)
+    {
+        lc_v3f h0 = normalize(f0 + t0);
+        lc_v3f v = cross(f0, h0);
+        return { v.x, v.y, v.z, dot(f0, h0) };
+    }
+
+    inline lc_quatf quat_from_vector_to_vector(lc_v3f const& from, lc_v3f const& to)
+    {
+        //
+        // Create a quaternion that rotates vector from into vector to,
+        // such that the rotation is around an axis that is the cross
+        // product of from and to.
+        //
+        // This function calls function setRotationInternal(), which is
+        // numerically accurate only for rotation angles that are not much
+        // greater than pi/2.  In order to achieve good accuracy for angles
+        // greater than pi/2, we split large angles in half, and rotate in
+        // two steps.
+        //
+
+        //
+        // Normalize from and to, yielding f0 and t0.
+        //
+        lc_v3f f0 = normalize(from);
+        lc_v3f t0 = normalize(to);
+        float d = dot(f0, t0);
+        if (d >= 1)
         {
-            const lc_v4f& ax = a.x; const lc_v4f& ay = a.y; const lc_v4f& az = a.z; const lc_v4f& aw = a.w;
-            return ax.x * (ay.y * az.z * aw.w + aw.y * ay.z * az.w + az.y * aw.z * ay.w - ay.y * aw.z * az.w - az.y * ay.z * aw.w - aw.y * az.z * ay.w)
-                 + ax.y * (ay.z * aw.w * az.x + az.z * ay.w * aw.x + aw.z * az.w * ay.x - ay.z * az.w * aw.x - aw.z * ay.w * az.x - az.z * aw.w * ay.x)
-                 + ax.z * (ay.w * az.x * aw.y + aw.w * ay.x * az.y + az.w * aw.x * ay.y - ay.w * aw.x * az.y - az.w * ay.x * aw.y - aw.w * az.x * ay.y)
-                 + ax.w * (ay.x * aw.y * az.z + az.x * ay.y * aw.z + aw.x * az.y * ay.z - ay.x * az.y * aw.z - aw.x * ay.y * az.z - az.x * aw.y * ay.z);
+            // vectors are the same, return an identity quaternion
+            return { 0,0,0,1 };
         }
-
-        lc_m44f transpose(lc_m44f const& a)
+        else if (d <= -1)
         {
-            return {
-                a.x.x, a.y.x, a.z.x, a.w.x,
-                a.x.y, a.y.y, a.z.y, a.w.y,
-                a.x.z, a.y.z, a.z.z, a.w.z,
-                a.x.w, a.y.w, a.z.w, a.w.w
-            };
-        }
+            // f0 and t0 point in exactly opposite directions.
+            // Pick an arbitrary axis that is orthogonal to f0,
+            // and rotate by pi.
 
-        lc_m44f invert(lc_m44f const& mat)
-        {
-            lc_m44f m = adjugate(mat);
-            float oo_det = 1.f / determinant(mat);
-            float* ptr = &m.x.x;
-            for (int i = 0; i < 16; i++)
-                ptr[i] *= oo_det;
-            return m;
-        }
+            lc_v3f f02 = { f0.x * f0.x, f0.y * f0.y, f0.z * f0.z };
+            lc_v3f v;
 
-        lc_m44f rotation_matrix_from_quat(lc_quatf const& v)
-        {
-            lc_v3f xaxis = {
-                1 - 2 * (v.y * v.y + v.z * v.z),
-                2 * (v.x * v.y + v.z * v.w),
-                2 * (v.z * v.x - v.y * v.w),
-            };
-            lc_v3f yaxis = {
-                2 * (v.x * v.y - v.z * v.w),
-                1 - 2 * (v.z * v.z + v.x * v.x),
-                2 * (v.y * v.z + v.x * v.w),
-            };
-            lc_v3f zaxis = {
-                2 * (v.z * v.x + v.y * v.w),
-                2 * (v.y * v.z - v.x * v.w),
-                1 - 2 * (v.y * v.y + v.x * v.x),
-            };
-
-            return {
-                lc_v4f{ xaxis.x, xaxis.y, xaxis.z, 0.f },
-                lc_v4f{ yaxis.x, yaxis.y, yaxis.z, 0.f },
-                lc_v4f{ zaxis.x, zaxis.y, zaxis.z, 0.f },
-                lc_v4f{ 0.f, 0.f, 0.f, 1.f } };
-        }
-
-        lc_m44f rotation_xyz(lc_v3f e)
-        {
-            float cx = cosf(e.x);
-            float cy = cosf(e.y);
-            float cz = cosf(e.z);
-
-            float sx = sinf(e.x);
-            float sy = sinf(e.y);
-            float sz = sinf(e.z);
-
-            lc_m44f m;
-            m.x.x = cx * cz;
-            m.x.y = cx * -sz;
-            m.x.z = -sx;
-            m.x.w = 0;
-
-            m.y.x = sx * sy * cz + cy * sz;
-            m.y.y = sx * sy * sz + cy * cz;
-            m.y.z = cx * sy;
-            m.y.w = 0;
-
-            m.z.x = sx * cy * cz - sy * sz;
-            m.z.y = sx * cy * sz - sy * cz;
-            m.z.z = cx * cy;
-            m.z.w = 0;
-
-            m.w = { 0,0,0,1 };
-            return { m };
-        }
-
-        lc_m44f rotx(float r)
-        {
-            float c = cosf(r);
-            float s = sinf(r);
-            return { 1, 0, 0, 0,
-                     0, c,-s, 0,
-                     0, s, c, 0,
-                     0, 0, 0, 1 };
-        }
-
-        lc_m44f roty(float r)
-        {
-            float c = cosf(r);
-            float s = sinf(r);
-            return { c, 0, s, 0,
-                     0, 1, 0, 0,
-                    -s, 0, c, 0,
-                     0, 0, 0, 1 };
-        }
-
-        lc_m44f rotz(float r)
-        {
-            float c = cosf(r);
-            float s = sinf(r);
-            return { c,-s, 0, 0,
-                     s, c, 0, 0,
-                     0, 0, 1, 0,
-                     0, 0, 0, 1 };
-        }
-
-        lc_m44f mat_from_axis_angle(const lc_v3f& axis, float angle)
-        {
-            float length2 = dot(axis, axis);
-            if (length2 < FLT_EPSILON)
-                return m44f_identity;
-
-            lc_v3f n = normalize(axis);
-            float s = sinf(angle);
-            float c = cosf(angle);
-            float k = 1.f - c;
-
-            float xx = n.x * n.x * k + c;
-            float yy = n.y * n.y * k + c;
-            float zz = n.z * n.z * k + c;
-            float xy = n.x * n.y * k;
-            float yz = n.y * n.z * k;
-            float zx = n.z * n.x * k;
-            float xs = n.x * s;
-            float ys = n.y * s;
-            float zs = n.z * s;
-
-            lc_m44f m;
-            m.x.x = xx;
-            m.x.y = xy + zs;
-            m.x.z = zx - ys;
-            m.x.w = 0.f;
-            m.y.x = xy - zs;
-            m.y.y = yy;
-            m.y.z = yz + xs;
-            m.y.w = 0.f;
-            m.z.x = zx + ys;
-            m.z.y = yz - xs;
-            m.z.z = zz;
-            m.z.w = 0.f;
-            m.w.x = 0.f;
-            m.w.y = 0.f;
-            m.w.z = 0.f;
-            m.w.w = 1.f;
-            return m;
-        }
-
-        lc_m44f make_lookat_transform(const lc_v3f& eye, const lc_v3f& target, const lc_v3f& up)
-        {
-            lc_v3f zaxis = normalize(eye - target);
-            lc_v3f xaxis = normalize(cross(up, zaxis));
-            lc_v3f yaxis = cross(zaxis, xaxis);
-            return lc_m44f{ lc_v4f{ xaxis.x, yaxis.x, zaxis.x, 0.f },
-                         lc_v4f{ xaxis.y, yaxis.y, zaxis.y, 0.f },
-                         lc_v4f{ xaxis.z, yaxis.z, zaxis.z, 0.f },
-                         lc_v4f{ -dot(xaxis, eye), -dot(yaxis, eye), -dot(zaxis, eye), 1.f } };
-        }
-
-        //---- quat ops
-
-        inline lc_quatf quat_inverse(const lc_quatf& q)
-        {
-            lc_quatf q1 = { -q.x,-q.y,-q.z,q.w };
-            float d = 1.f / dot(q1, q1);
-            return { q1.x * d, q1.y * d, q1.z * d, q1.w * d };
-        }
-
-
-        // swing twist decomposition.
-        // cf. https://stackoverflow.com/questions/3684269/component-of-a-quaternion-rotation-around-an-axis/4341489
-        // assumes dir is normailzed
-        inline float angle_about_dir(const lc_quatf& q, const lc_v3f& dir)
-        {
-            lc_v3f axis = { q.x, q.y, q.z };
-            float dot_product = dot(dir, axis);
-            lc_v3f projection = mul(dir, dot_product);
-            lc_quatf twist = normalize(lc_quatf{ projection.x, projection.y, projection.z, q.w });
-
-            if (dot_product < 0.0) {
-                // Ensure `twist` points towards `direction`
-                // (if calculating the new axis, then all of twist needs negating)
-                twist.w = -twist.w;
-                // Rotation angle `twist.angle()` is now reliable
-            }
-            return 2.f * acosf(twist.w); // if axis and angle is being computed, more work is necessary: https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
-        }
-
-        inline lc_quatf rotation_about_dir(const lc_quatf& q, const lc_v3f& dir)
-        {
-            lc_v3f axis = { q.x, q.y, q.z };
-            float dot_product = dot(dir, axis);
-            lc_v3f projection = mul(dir, dot_product);
-            lc_quatf twist = normalize(lc_quatf{ projection.x, projection.y, projection.z, q.w });
-
-            if (dot_product < 0.0) {
-                // Ensure `twist` points towards `direction`
-                twist = mul(twist, -1.f);
-                // Rotation angle `twist.angle()` is now reliable
-            }
-            return twist;
-        }
-
-        inline lc_quatf quat_set_rotation_internal(lc_v3f const& f0, lc_v3f const& t0)
-        {
-            lc_v3f h0 = normalize(f0 + t0);
-            lc_v3f v = cross(f0, h0);
-            return { v.x, v.y, v.z, dot(f0, h0) };
-        }
-
-        inline lc_quatf quat_from_vector_to_vector(lc_v3f const& from, lc_v3f const& to)
-        {
-            //
-            // Create a quaternion that rotates vector from into vector to,
-            // such that the rotation is around an axis that is the cross
-            // product of from and to.
-            //
-            // This function calls function setRotationInternal(), which is
-            // numerically accurate only for rotation angles that are not much
-            // greater than pi/2.  In order to achieve good accuracy for angles
-            // greater than pi/2, we split large angles in half, and rotate in
-            // two steps.
-            //
-
-            //
-            // Normalize from and to, yielding f0 and t0.
-            //
-            lc_v3f f0 = normalize(from);
-            lc_v3f t0 = normalize(to);
-            float d = dot(f0, t0);
-            if (d >= 1)
-            {
-                // vectors are the same, return an identity quaternion
-                return { 0,0,0,1 };
-            }
-            else if (d <= -1)
-            {
-                // f0 and t0 point in exactly opposite directions.
-                // Pick an arbitrary axis that is orthogonal to f0,
-                // and rotate by pi.
-
-                lc_v3f f02 = { f0.x * f0.x, f0.y * f0.y, f0.z * f0.z };
-                lc_v3f v;
-
-                if (f02.x <= f02.y && f02.x <= f02.z)
-                    v = normalize(cross(f0, { 1,0,0 }));
-                else if (f02.y <= f02.z)
-                    v = normalize(cross(f0, { 0,1,0 }));
-                else
-                    v = normalize(cross(f0, { 0,0,1 }));
-
-                return { v.x, v.y, v.z, 0 };
-            }
-
-            if (d >= 0)
-            {
-                // The rotation angle is less than or equal to pi/2.
-                return quat_set_rotation_internal(f0, t0);
-            }
-
-            //
-            // The angle is greater than pi/2.  After computing h0,
-            // which is halfway between f0 and t0, we rotate first
-            // from f0 to h0, then from h0 to t0.
-            //
-
-            lc_v3f h0 = normalize(f0 + t0);
-            lc_quatf q = quat_set_rotation_internal(f0, h0);
-            return mul(q, quat_set_rotation_internal(h0, t0));
-        }
-
-        inline lc_quatf quat_from_axis_angle(lc_v3f v, float a)
-        {
-            lc_quatf Result;
-            float s = std::sin(a * 0.5f);
-            Result.w = std::cos(a * 0.5f);
-            Result.x = v.x * s;
-            Result.y = v.y * s;
-            Result.z = v.z * s;
-            return Result;
-        }
-
-        inline lc_v3f euler_from_quat(const lc_quatf& q)
-        {
-            lc_v3f ypr;
-            const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
-            ypr.x = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
-            ypr.y = float(asin(2. * q1 * q3 - 2. * q0 * q2));
-            ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
-            return ypr;
-        }
-
-        inline lc_quatf quat_from_euler(const lc_v3f& e)
-        {
-            lc_quatf x = quat_from_axis_angle({ 1, 0, 0 }, e.x);
-            lc_quatf y = quat_from_axis_angle({ 0, 1, 0 }, e.y);
-            lc_quatf z = quat_from_axis_angle({ 0, 0, 1 }, e.z);
-            lc_quatf result = normalize(mul(mul(x, y), z));
-            return result;
-        }
-
-        inline lc_quatf quat_from_ypr(const lc_v3f& ypr)
-        {
-            lc_v3f e = { ypr.y, ypr.x, ypr.z };
-            return quat_from_euler(e);
-        }
-
-        // returns a ypr vector consistent with the ypr being used throughout this API
-        // ypr is distinct from an Euler angle in that it is the specific pair of angles
-        // of azimuth and declination, as opposed to an arbitrary but otherwise correct
-        // Euler angle tuple.
-
-        inline lc_v3f ypr_from_quat(const lc_quatf& q)
-        {
-            lc_v3f qz = qzdir(q);
-            lc_v3f ypr = { atan2f(qz.x, qz.z),
-                        atan2f(qz.y, sqrtf(qz.x * qz.x + qz.z * qz.z)),
-                        0 };
-
-            if (ypr.y > pi)
-                ypr.y = 2.f * pi - ypr.y;
+            if (f02.x <= f02.y && f02.x <= f02.z)
+                v = normalize(cross(f0, { 1,0,0 }));
+            else if (f02.y <= f02.z)
+                v = normalize(cross(f0, { 0,1,0 }));
             else
-                ypr.y *= -1.f;
+                v = normalize(cross(f0, { 0,0,1 }));
 
-            if (fabsf(ypr.y) < 0.9995f)
-            {
-                // if not pitched straight up, calculate roll
-                // compute normal to plane of zdir and up, which is parallel to the xz plane
-                lc_v3f world_up = { 0.f, 1.f, 0.f };
-                lc_v3f world_right = normalize(cross(world_up, qz));
-
-                // the area of bivector formed world_right and right is the cosine of the angle between them
-                lc_v3f camera_right = normalize(qxdir(q));
-                float cos_r = dot(world_right, camera_right);
-                float sin_r = length(cross(world_right, camera_right));
-                float roll = std::atan2f(sin_r, cos_r);
-
-                if (std::isfinite(roll))
-                {
-                    ypr.z = roll;
-                }
-
-
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-                lc_v3f qx = qxdir(q);
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-                debug_lines_array[debug_lines_array_idx] = qx.x; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = qx.y; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = qx.z; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-                debug_lines_array[debug_lines_array_idx] = world_right.x; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = world_right.y; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = world_right.z; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            }
-            else
-            {
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 9.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-                debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            }
-
-            return ypr;
+            return { v.x, v.y, v.z, 0 };
         }
 
-        inline lc_v3f quat_rotate_vector(lc_quatf q, const lc_v3f& v)
+        if (d >= 0)
         {
-            // https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
-            lc_v3f u{ q.x, q.y, q.z };
-            float s = q.w;
-
-            return    u * 2.f * dot(u, v)
-                + v * (s * s - dot(u, u))
-                + cross(u, v) * 2.f * s;
+            // The rotation angle is less than or equal to pi/2.
+            return quat_set_rotation_internal(f0, t0);
         }
 
-        lc_quatf quat_from_matrix(const lc_m44f& mat)
+        //
+        // The angle is greater than pi/2.  After computing h0,
+        // which is halfway between f0 and t0, we rotate first
+        // from f0 to h0, then from h0 to t0.
+        //
+
+        lc_v3f h0 = normalize(f0 + t0);
+        lc_quatf q = quat_set_rotation_internal(f0, h0);
+        return mul(q, quat_set_rotation_internal(h0, t0));
+    }
+
+    inline lc_quatf quat_from_axis_angle(lc_v3f v, float a)
+    {
+        lc_quatf Result;
+        float s = std::sin(a * 0.5f);
+        Result.w = std::cos(a * 0.5f);
+        Result.x = v.x * s;
+        Result.y = v.y * s;
+        Result.z = v.z * s;
+        return Result;
+    }
+
+    inline lc_v3f euler_from_quat(const lc_quatf& q)
+    {
+        lc_v3f ypr;
+        const double q0 = q.w, q1 = q.x, q2 = q.y, q3 = q.z;
+        ypr.x = float(atan2(2. * q2 * q3 + 2. * q0 * q1, q3 * q3 - q2 * q2 - q1 * q1 + q0 * q0));
+        ypr.y = float(asin(2. * q1 * q3 - 2. * q0 * q2));
+        ypr.z = float(atan2(2. * q1 * q2 + 2. * q0 * q3, q1 * q1 + q0 * q0 - q3 * q3 - q2 * q2));
+        return ypr;
+    }
+
+    inline lc_quatf quat_from_euler(const lc_v3f& e)
+    {
+        lc_quatf x = quat_from_axis_angle({ 1, 0, 0 }, e.x);
+        lc_quatf y = quat_from_axis_angle({ 0, 1, 0 }, e.y);
+        lc_quatf z = quat_from_axis_angle({ 0, 0, 1 }, e.z);
+        lc_quatf result = normalize(mul(mul(x, y), z));
+        return result;
+    }
+
+    inline lc_quatf quat_from_ypr(const lc_v3f& ypr)
+    {
+        lc_v3f e = { ypr.y, ypr.x, ypr.z };
+        return quat_from_euler(e);
+    }
+
+    // returns a ypr vector consistent with the ypr being used throughout this API
+    // ypr is distinct from an Euler angle in that it is the specific pair of angles
+    // of azimuth and declination, as opposed to an arbitrary but otherwise correct
+    // Euler angle tuple.
+
+    inline lc_v3f ypr_from_quat(const lc_quatf& q)
+    {
+        lc_v3f qz = qzdir(q);
+        lc_v3f ypr = { atan2f(qz.x, qz.z),
+                    atan2f(qz.y, sqrtf(qz.x * qz.x + qz.z * qz.z)),
+                    0 };
+
+        if (ypr.y > pi)
+            ypr.y = 2.f * pi - ypr.y;
+        else
+            ypr.y *= -1.f;
+
+        if (fabsf(ypr.y) < 0.9995f)
         {
-            float s;
-            float q[4];
-            int i, j, k;
-            lc_quatf quat;
+            // if not pitched straight up, calculate roll
+            // compute normal to plane of zdir and up, which is parallel to the xz plane
+            lc_v3f world_up = { 0.f, 1.f, 0.f };
+            lc_v3f world_right = normalize(cross(world_up, qz));
 
-            int nxt[3] = { 1, 2, 0 };
-            float tr = mat.x.x + mat.y.y + mat.z.z;
+            // the area of bivector formed world_right and right is the cosine of the angle between them
+            lc_v3f camera_right = normalize(qxdir(q));
+            float cos_r = dot(world_right, camera_right);
+            float sin_r = length(cross(world_right, camera_right));
+            float roll = std::atan2f(sin_r, cos_r);
 
-            // check the diagonal
-            if (tr > 0.0) {
-                s = sqrtf(tr + 1.f);
-                quat.w = s / 2.f;
+            if (std::isfinite(roll))
+            {
+                ypr.z = roll;
+            }
+
+
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+            lc_v3f qx = qxdir(q);
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+            debug_lines_array[debug_lines_array_idx] = qx.x; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = qx.y; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = qx.z; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+            debug_lines_array[debug_lines_array_idx] = world_right.x; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = world_right.y; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = world_right.z; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+        }
+        else
+        {
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 9.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
+        }
+
+        return ypr;
+    }
+
+    inline lc_v3f quat_rotate_vector(lc_quatf q, const lc_v3f& v)
+    {
+        // https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
+        lc_v3f u{ q.x, q.y, q.z };
+        float s = q.w;
+
+        return    u * 2.f * dot(u, v)
+            + v * (s * s - dot(u, u))
+            + cross(u, v) * 2.f * s;
+    }
+
+    lc_quatf quat_from_matrix(const lc_m44f& mat)
+    {
+        float s;
+        float q[4];
+        int i, j, k;
+        lc_quatf quat;
+
+        int nxt[3] = { 1, 2, 0 };
+        float tr = mat.x.x + mat.y.y + mat.z.z;
+
+        // check the diagonal
+        if (tr > 0.0) {
+            s = sqrtf(tr + 1.f);
+            quat.w = s / 2.f;
+            s = 0.5f / s;
+
+            quat.x = (mat.y.z - mat.z.y) * s;
+            quat.y = (mat.z.x - mat.x.z) * s;
+            quat.z = (mat.x.y - mat.y.x) * s;
+        }
+        else {
+            // diagonal is negative
+            i = 0;
+
+            const lc_v4f* m[3] = { &mat.x, &mat.y, &mat.z };
+
+            if (m[1]->y > m[0]->x)
+                i = 1;
+
+            lc_v4f const* const mat_i = m[i];
+            float const* const f_i = reinterpret_cast<float const* const>(mat_i);
+            if (m[2]->z > f_i[i])
+                i = 2;
+
+            j = nxt[i];
+            k = nxt[j];
+
+            lc_v4f const* const mat_j = m[j];
+            float const* const f_j = reinterpret_cast<float const* const>(mat_j);
+            lc_v4f const* const mat_k = m[k];
+            float const* const f_k = reinterpret_cast<float const* const>(mat_k);
+
+            s = sqrtf((f_i[i] - (f_j[j] + f_k[k])) + 1.f);
+
+            q[i] = s * 0.5f;
+            if (s != 0.f)
                 s = 0.5f / s;
 
-                quat.x = (mat.y.z - mat.z.y) * s;
-                quat.y = (mat.z.x - mat.x.z) * s;
-                quat.z = (mat.x.y - mat.y.x) * s;
-            }
-            else {
-                // diagonal is negative
-                i = 0;
+            q[3] = (f_j[k] - f_k[j]) * s;
+            q[j] = (f_i[j] + f_j[i]) * s;
+            q[k] = (f_i[k] + f_k[i]) * s;
 
-                const lc_v4f* m[3] = { &mat.x, &mat.y, &mat.z };
-
-                if (m[1]->y > m[0]->x)
-                    i = 1;
-
-                lc_v4f const* const mat_i = m[i];
-                float const* const f_i = reinterpret_cast<float const* const>(mat_i);
-                if (m[2]->z > f_i[i])
-                    i = 2;
-
-                j = nxt[i];
-                k = nxt[j];
-
-                lc_v4f const* const mat_j = m[j];
-                float const* const f_j = reinterpret_cast<float const* const>(mat_j);
-                lc_v4f const* const mat_k = m[k];
-                float const* const f_k = reinterpret_cast<float const* const>(mat_k);
-
-                s = sqrtf((f_i[i] - (f_j[j] + f_k[k])) + 1.f);
-
-                q[i] = s * 0.5f;
-                if (s != 0.f)
-                    s = 0.5f / s;
-
-                q[3] = (f_j[k] - f_k[j]) * s;
-                q[j] = (f_i[j] + f_j[i]) * s;
-                q[k] = (f_i[k] + f_k[i]) * s;
-
-                quat.x = q[0];
-                quat.y = q[1];
-                quat.z = q[2];
-                quat.w = q[3];
-            }
-
-            return quat;
+            quat.x = q[0];
+            quat.y = q[1];
+            quat.z = q[2];
+            quat.w = q[3];
         }
 
-        lc_quatf invert(const lc_quatf& q)
-        {
-            float len = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-            lc_quatf result = { -q.x, -q.w, -q.z, q.w };
-            return mul(result, len);
-        }
-
-        //---- rays
-
-        static bool intersect_ray_plane(const lc_ray& ray, const lc_v3f& point, const lc_v3f& normal,
-            lc_v3f* intersection = nullptr, float* outT = nullptr)
-        {
-            const float PLANE_EPSILON = 0.001f;
-            const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
-
-            // Make sure we're not parallel to the plane
-            if (std::abs(d) > PLANE_EPSILON)
-            {
-                float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
-                w = -w;
-
-                float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
-                float t = -distance / d;
-
-                if (t >= PLANE_EPSILON)
-                {
-                    if (outT) *outT = t;
-                    if (intersection)
-                    {
-                        lc_v3f result = ray.pos;
-                        result.x += t * ray.dir.x;
-                        result.y += t * ray.dir.y;
-                        result.z += t * ray.dir.z;
-                        *intersection = result;
-                    }
-                    return true;
-                }
-            }
-            if (outT)
-                *outT = std::numeric_limits<float>::max();
-            return false;
-        }
-
-        lc_ray get_ray(lc_m44f const& inv_projection, lc_v3f const& camera_position, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
-        {
-            // 3d normalized device coordinates
-            const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
-            const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
-
-            // eye coordinates
-            lc_v4f p0 = mul(inv_projection, lc_v4f{ x, y, -1, 1 });
-            lc_v4f p1 = mul(inv_projection, lc_v4f{ x, y, +1, 1 });
-
-            p1 = mul(p1, 1.f / p1.w);
-            p0 = mul(p0, 1.f / p0.w);
-            return { camera_position, normalize(lc_v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
-        }
-
-        float distance_point_to_plane(lc_v3f const& a, lc_v3f const& point, lc_v3f const& normal)
-        {
-            lc_v3f d = point - a;
-            return dot(d, normal);
-        }
-
+        return quat;
     }
-} // lab::camera
+
+    lc_quatf invert(const lc_quatf& q)
+    {
+        float len = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        lc_quatf result = { -q.x, -q.w, -q.z, q.w };
+        return mul(result, len);
+    }
+
+    //---- rays
+
+    static bool intersect_ray_plane(const lc_ray& ray, const lc_v3f& point, const lc_v3f& normal,
+        lc_v3f* intersection = nullptr, float* outT = nullptr)
+    {
+        const float PLANE_EPSILON = 0.001f;
+        const float d = ray.dir.x * normal.x + ray.dir.y * normal.y + ray.dir.z * normal.z;
+
+        // Make sure we're not parallel to the plane
+        if (std::abs(d) > PLANE_EPSILON)
+        {
+            float w = normal.x * point.x + normal.y * point.y + normal.z * point.z;
+            w = -w;
+
+            float distance = ray.pos.x * normal.x + ray.pos.y * normal.y + ray.pos.z * normal.z + w;
+            float t = -distance / d;
+
+            if (t >= PLANE_EPSILON)
+            {
+                if (outT) *outT = t;
+                if (intersection)
+                {
+                    lc_v3f result = ray.pos;
+                    result.x += t * ray.dir.x;
+                    result.y += t * ray.dir.y;
+                    result.z += t * ray.dir.z;
+                    *intersection = result;
+                }
+                return true;
+            }
+        }
+        if (outT)
+            *outT = std::numeric_limits<float>::max();
+        return false;
+    }
+
+    lc_ray get_ray(lc_m44f const& inv_projection, lc_v3f const& camera_position, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
+    {
+        // 3d normalized device coordinates
+        const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
+        const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
+
+        // eye coordinates
+        lc_v4f p0 = mul(inv_projection, lc_v4f{ x, y, -1, 1 });
+        lc_v4f p1 = mul(inv_projection, lc_v4f{ x, y, +1, 1 });
+
+        p1 = mul(p1, 1.f / p1.w);
+        p0 = mul(p0, 1.f / p0.w);
+        return { camera_position, normalize(lc_v3f { p1.x - p0.x, p1.y - p0.y, p1.z - p0.z }) };
+    }
+
+    float distance_point_to_plane(lc_v3f const& a, lc_v3f const& point, lc_v3f const& normal)
+    {
+        lc_v3f d = point - a;
+        return dot(d, normal);
+    }
+
+} // anonymous namespace
 
 void lc_rt_set_identity(lc_rigid_transform* rt)
 {
@@ -659,7 +659,6 @@ void lc_rt_set_op(lc_rigid_transform* rt, lc_quatf orientation, lc_v3f position)
 
 lc_m44f lc_rt_matrix(const lc_rigid_transform* rt)
 {
-    using namespace lab::camera;
     lc_v3f x = mul(qxdir(rt->orientation), rt->scale.x);
     lc_v3f y = mul(qxdir(rt->orientation), rt->scale.y);
     lc_v3f z = mul(qxdir(rt->orientation), rt->scale.z);
@@ -672,14 +671,12 @@ lc_m44f lc_rt_matrix(const lc_rigid_transform* rt)
 
 lc_v3f lc_rt_transform_vector(const lc_rigid_transform* rt, lc_v3f vec)
 {
-    using namespace lab::camera;
     lc_v3f v = { vec.x * rt->scale.x, vec.y * rt->scale.y, vec.z * rt->scale.z };
     return quat_rotate_vector(rt->orientation, v);
 }
 
 lc_v3f lc_rt_detransform_vector(const lc_rigid_transform* rt, lc_v3f vec)
 {
-    using namespace lab::camera;
     lc_quatf o = quat_inverse(rt->orientation);
     lc_v3f r = quat_rotate_vector(o, vec);
     return { r.x / rt->scale.x, r.y / rt->scale.y, r.z / rt->scale.z };
@@ -687,31 +684,26 @@ lc_v3f lc_rt_detransform_vector(const lc_rigid_transform* rt, lc_v3f vec)
 
 lc_v3f lc_rt_transform_point(const lc_rigid_transform* rt, lc_v3f p)
 {
-    using namespace lab::camera;
     return rt->position + lc_rt_transform_vector(rt, p);
 }
 
 lc_v3f lc_rt_detransform_point(const lc_rigid_transform* rt, lc_v3f p)
 {
-    using namespace lab::camera;
     return lc_rt_detransform_vector(rt, p - rt->position);
 }
 
 lc_v3f lc_rt_right(const lc_rigid_transform* rt)
 {
-    using namespace lab::camera;
     return qxdir(rt->orientation);
 }
 
 lc_v3f lc_rt_up(const lc_rigid_transform* rt)
 {
-    using namespace lab::camera;
     return qydir(rt->orientation);
 }
 
 lc_v3f lc_rt_forward(const lc_rigid_transform* rt)
 {
-    using namespace lab::camera;
     return qzdir(rt->orientation);
 }
 
@@ -792,8 +784,6 @@ void lc_i_end_interaction(lc_interaction*, InteractionToken)
 /// @TODO - this belongs under lc_mount
 void lc_i_set_roll(lc_interaction* i, lc_camera* camera, InteractionToken, lc_radians r)
 {
-    using namespace lab::camera;
-
     lc_v3f dir = lc_rt_forward(&camera->mount.transform);
     lc_quatf q = quat_from_axis_angle(dir, r.rad);
     q = mul(q, camera->mount.transform.orientation);
@@ -802,8 +792,6 @@ void lc_i_set_roll(lc_interaction* i, lc_camera* camera, InteractionToken, lc_ra
 
 void lc_interaction::_dolly(lc_camera& camera, const lc_v3f& delta)
 {
-    using namespace lab::camera;
-
     const lc_rigid_transform* cmt = &camera.mount.transform;
     lc_v3f pos = cmt->position;
     lc_v3f camera_to_focus = pos - _orbit_center;
@@ -818,8 +806,6 @@ void lc_interaction::_dolly(lc_camera& camera, const lc_v3f& delta)
 
 void lc_interaction::_turntable(lc_camera& camera, const lc_v2f& delta)
 {
-    using namespace lab::camera;
-
     const lc_rigid_transform* cmt = &camera.mount.transform;
     lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
     lc_v3f fwd = lc_rt_forward(cmt);
@@ -851,8 +837,6 @@ void lc_interaction::_turntable(lc_camera& camera, const lc_v2f& delta)
 
 void lc_interaction::_pantilt(lc_camera& camera, const lc_v2f& delta)
 {
-    using namespace lab::camera;
-
     const lc_rigid_transform* cmt = &camera.mount.transform;
 
     lc_quatf restore_quat = cmt->orientation;
@@ -1013,8 +997,6 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, Interacti
 void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode, lc_v2f current_mouse_, lc_radians roll_hint, float dt)
 {
-    using namespace lab::camera;
-
     const lc_rigid_transform* cmt = &camera->mount.transform;
     switch (mode)
     {
@@ -1105,8 +1087,6 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken
 
     case lc_i_ModePanTilt:
     {
-        using namespace lab::camera;
-
         if (phase == lc_i_PhaseStart)
         {
             i->_init_mouse = current_mouse_;
@@ -1155,8 +1135,6 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i,
     {
     case lc_i_ModeCrane:
     {
-        using namespace lab::camera;
-
         if (phase == lc_i_PhaseStart)
         {
             i->_initial_focus_point = initial_hit_point;
@@ -1173,8 +1151,6 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i,
     }
     case lc_i_ModeDolly:
     {
-        using namespace lab::camera;
-
         if (phase == lc_i_PhaseStart)
         {
             i->_initial_focus_point = initial_hit_point;
@@ -1259,7 +1235,6 @@ void lc_mount_set_default(lc_mount* mnt)
 
 lc_m44f lc_mount_gl_view_transform(const lc_mount* mnt)
 {
-    using namespace lab::camera;
     lc_m44f m = lc_mount_inv_rotation_transform(mnt);
     m.w.x = -dot(lc_v3f{ m.x.x, m.y.x, m.z.x }, mnt->transform.position);
     m.w.y = -dot(lc_v3f{ m.x.y, m.y.y, m.z.y }, mnt->transform.position);
@@ -1269,37 +1244,31 @@ lc_m44f lc_mount_gl_view_transform(const lc_mount* mnt)
 
 lc_m44f lc_mount_gl_view_transform_inv(const lc_mount* mnt)
 {
-    using namespace lab::camera;
     return invert(lc_mount_gl_view_transform(mnt));
 }
 
 lc_m44f lc_mount_model_view_transform_f16(const lc_mount* mnt, float const* const view_matrix)
 {
-    using namespace lab::camera;
     return mul(lc_mount_gl_view_transform(mnt), *(lc_m44f*)view_matrix);
 }
 
 lc_m44f lc_mount_model_view_transform_m44f(const lc_mount* mnt, lc_m44f const* const view_matrix)
 {
-    using namespace lab::camera;
     return mul(lc_mount_gl_view_transform(mnt), *view_matrix);
 }
 
 lc_m44f lc_mount_rotation_transform(const lc_mount* mnt)
 {
-    using namespace lab::camera;
     return rotation_matrix_from_quat(mnt->transform.orientation);
 }
 
 lc_m44f lc_mount_inv_rotation_transform(const lc_mount* mnt)
 {
-    using namespace lab::camera;
     return transpose(lc_mount_rotation_transform(mnt));
 }
 
 void lc_mount_set_view_transform_m44f(lc_mount* mnt, lc_m44f const* const m)
 {
-    using namespace lab::camera;
     lc_v3f p = mul(xyz(m->w), -1.f);
     lc_m44f m2 = *m;
     m2.w = { 0, 0, 0, 1 };
@@ -1310,7 +1279,6 @@ void lc_mount_set_view_transform_m44f(lc_mount* mnt, lc_m44f const* const m)
 
 void lc_mount_set_view_transform_f16(lc_mount* mnt, float const* const m)
 {
-    using namespace lab::camera;
     lc_m44f m2 = *(lc_m44f*)m;
     lc_v3f p = mul(xyz(m2.w), -1.f);
     m2.w = { 0, 0, 0, 1 };
@@ -1322,14 +1290,12 @@ void lc_mount_set_view_transform_f16(lc_mount* mnt, float const* const m)
 
 void lc_mount_set_view_transform_quat_pos(lc_mount* mnt, lc_quatf q, lc_v3f eye)
 {
-    using namespace lab::camera;
     mnt->transform.position = eye;
     mnt->transform.orientation = normalize(q);
 }
 
 void lc_mount_set_view_transform_ypr_eye(lc_mount* mnt, lc_v3f ypr, lc_v3f eye)
 {
-    using namespace lab::camera;
     mnt->transform.orientation = quat_from_euler(ypr);
     mnt->transform.position = eye;
 }
@@ -1337,7 +1303,6 @@ void lc_mount_set_view_transform_ypr_eye(lc_mount* mnt, lc_v3f ypr, lc_v3f eye)
 
 void lc_mount_look_at(lc_mount* mnt, lc_v3f eye, lc_v3f target, lc_v3f up)
 {
-    using namespace lab::camera;
     mnt->transform.position = eye;
     lc_m44f m = make_lookat_transform(eye, target, up);
     mnt->transform.orientation = quat_from_matrix(transpose(m));
@@ -1345,7 +1310,6 @@ void lc_mount_look_at(lc_mount* mnt, lc_v3f eye, lc_v3f target, lc_v3f up)
 
 void lc_mount_set_view(lc_mount* mnt, float distance, lc_quatf orientation, lc_v3f target, lc_v3f up)
 {
-    using namespace lab::camera;
     lc_v3f eye = { 0, 0, distance };
     eye = quat_rotate_vector(orientation, eye);
     lc_mount_look_at(mnt, eye, target, up);
@@ -1353,7 +1317,6 @@ void lc_mount_set_view(lc_mount* mnt, float distance, lc_quatf orientation, lc_v
 
 lc_v3f lc_mount_ypr(const lc_mount* mnt)
 {
-    using namespace lab::camera;
     return ypr_from_quat(mnt->transform.orientation);
 }
 
@@ -1427,9 +1390,8 @@ void lc_camera_set_defaults(lc_camera* cam)
     lc_mount_set_default(&cam->mount);
 }
 
-lc_m44f        lc_camera_perspective(const lc_camera* cam, float aspect)
+lc_m44f lc_camera_perspective(const lc_camera* cam, float aspect)
 {
-    using namespace lab::camera;
     if (fabs(aspect) < std::numeric_limits<float>::epsilon())
         return m44f_identity;
 
@@ -1458,19 +1420,18 @@ lc_m44f        lc_camera_perspective(const lc_camera* cam, float aspect)
     return { result };
 }
 
-lc_m44f        lc_camera_inv_perspective(const lc_camera* cam, float aspect)
+lc_m44f lc_camera_inv_perspective(const lc_camera* cam, float aspect)
 {
-    using namespace lab::camera;
     return invert(lc_camera_perspective(cam, aspect));
 }
 
-lc_radians     lc_camera_vertical_FOV(const lc_camera* cam)
+lc_radians lc_camera_vertical_FOV(const lc_camera* cam)
 {
     float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
     return { 2.f * std::atanf(cam->sensor.aperture.y.mm / (2.f * cropped_f)) };
 }
 
-lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam)
+lc_radians lc_camera_horizontal_FOV(const lc_camera* cam)
 {
     float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
     return { 2.f * std::atanf(cam->optics.squeeze * cam->sensor.aperture.x.mm / (2.f * cropped_f)) };
@@ -1479,7 +1440,6 @@ lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam)
 // move the camera along the view vector such that both bounds are visible
 void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2)
 {
-    using namespace lab::camera;
     const lc_rigid_transform* cmt = &cam->mount.transform;
     float r = 0.5f * length(bound2 - bound1);
     float g = (1.1f * r) / sinf(lc_camera_vertical_FOV(cam).rad * 0.5f);
@@ -1490,7 +1450,6 @@ void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2)
 
 void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f bound1, lc_v3f bound2)
 {
-    using namespace lab::camera;
     float clip_near = FLT_MAX;
     float clip_far = FLT_MIN;
 
@@ -1527,7 +1486,6 @@ void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near,
 
 float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f plane_point, lc_v3f plane_normal)
 {
-    using namespace lab::camera;
     const lc_rigid_transform* cmt = &cam->mount.transform;
     float denom = dot(plane_normal, lc_rt_forward(cmt));
     if (denom > 1.e-6f) {
@@ -1539,7 +1497,6 @@ float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f plane_point, lc_v
 
 lc_m44f lc_camera_view_projection(const lc_camera* cam, float aspect)
 {
-    using namespace lab::camera;
     lc_m44f proj = lc_camera_perspective(cam, aspect);
     lc_m44f view = lc_mount_gl_view_transform(&cam->mount);
     return mul(proj, view);
@@ -1547,7 +1504,6 @@ lc_m44f lc_camera_view_projection(const lc_camera* cam, float aspect)
 
 lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
 {
-    using namespace lab::camera;
     lc_m44f proj = lc_camera_perspective(cam, aspect);
     lc_m44f view = lc_mount_gl_view_transform(&cam->mount);
     return invert(mul(proj, view));
@@ -1557,20 +1513,19 @@ lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f v
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
     lc_m44f inv_projection = lc_camera_inv_view_projection(cam, 1.f);
-    return lab::camera::get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
+    return get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
 }
 
 lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f viewport, lc_v3f plane_point, lc_v3f plane_normal)
 {
     lc_ray ray = lc_camera_get_ray_from_pixel(cam, mouse, { 0, 0 }, viewport);
     lc_hit_result r;
-    r.hit = lab::camera::intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
+    r.hit = intersect_ray_plane(ray, plane_point, plane_normal, &r.point);
     return r;
 }
 
 lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f viewport_origin, lc_v2f viewport_size, lc_v3f point)
 {
-    using namespace lab::camera;
     lc_m44f m = lc_camera_view_projection(cam, 1.f);
 
     lc_v4f p = mul(m, lc_v4f{ point.x, point.y, point.z, 1.f });
