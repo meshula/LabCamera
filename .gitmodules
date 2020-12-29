@@ -7,6 +7,3 @@
 [submodule "examples/Navigator/third/sokol"]
 	path = examples/Navigator/third/sokol
 	url = git@github.com:floooh/sokol.git
-[submodule "examples/Navigator/third/sokol-tools-bin"]
-	path = examples/Navigator/third/sokol-tools-bin
-	url = git@github.com:floooh/sokol-tools-bin
