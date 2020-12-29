@@ -15,7 +15,7 @@ LabCamera collects many useful calculations necessary in interactive and
 computer vision applications, such as calculating hyperfocal distance, the
 circle of confusion, and so on.
 
-LabCamera has no external dependencies, just include LabCamera.cpp in your 
+LabCamera has no external dependencies, just include LabCamera.cpp in your
 project.
 
 LabCameraImgui is a convenient panel implementing various camera controls,
@@ -57,7 +57,7 @@ _________
 
 LabCamera models a physical camera.
 
-```Mount``` describes a camera's location and orientation in space, with the 
+```Mount``` describes a camera's location and orientation in space, with the
 origin of its coordinate system on the sensor plane
 
 ```Sensor``` describes the geometry of the sensor plane
@@ -72,7 +72,7 @@ to update the camera mount.
 ________________________________________________________________________________
 
 
-LabCamera doesn't provide a math library, just these trivial types compatible 
+LabCamera doesn't provide a math library, just these trivial types compatible
 with almost any other library via static casting or copying.
 
 ```
@@ -104,12 +104,12 @@ ________________________________________________________________________________
 The mount's transform is by default, left handed, y is up, -z is forward
 
 ```Sensor``` describes the plane where an image is to be resolved.
-The sensor's coordinate system has its center at (0, 0) and 
+The sensor's coordinate system has its center at (0, 0) and
 its bounds are -1 to 1.
 enlarge is a multiplicative value; and shift is an additive value
 in the sensor's coordinate system.
 
-Shift and enlarge can be used to create projection matrices for 
+Shift and enlarge can be used to create projection matrices for
 subregions of an image. For example, if the default Sensor is to be
 rendered as four tiles, a matrix for rendering the upper left quadrant
 can be computed by setting enlarge to { 2, 2 }, and

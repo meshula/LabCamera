@@ -100,21 +100,21 @@ void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
 void lc_mount_set_view(lc_mount*, float distance, lc_quatf orientation, lc_v3f target, lc_v3f up);
 
 /*-------------------------------------------------------------------------
-   lc_sensor 
-   
+   lc_sensor
+
     describes the plane where an image is to be resolved.
 
     The sensor's coordinate system has its center at (0, 0) and
     its bounds are -1 to 1.
     enlarge is a multiplicative value; and shift is an additive value
     in the sensor's coordinate system.
-    
+
     Shift and enlarge can be used to create projection matrices for
     subregions of an image. For example, if the default lc_sensor is to be
     rendered as four tiles, a matrix for rendering the upper left quadrant
     can be computed by setting enlarge to { 2, 2 }, and
     shift to millimeters{-17.5f}, millimeters{-12.25f}.
-    
+
     The default sensor aperture is as for 35mm DSLR.
 
     A handedness of -1 indicates a left handed camera

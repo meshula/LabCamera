@@ -95,7 +95,7 @@ set(SOKOL_HEADERS
 
 add_library(sokol STATIC ${SOKOL_SRC} ${SOKOL_HEADERS})
 
-target_include_directories(sokol SYSTEM 
+target_include_directories(sokol SYSTEM
     PUBLIC third/sokol third/sokol/util)
 
 target_link_libraries(sokol imgui)
@@ -204,7 +204,7 @@ target_link_libraries(Navigator
     imgui
     tinygizmo
     sokol)
-    
+
 if (APPLE)
 target_link_libraries(Navigator
     "-framework AppKit"

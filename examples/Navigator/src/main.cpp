@@ -356,7 +356,7 @@ void initialize_graphics()
     io.Fonts->TexID = (ImTextureID)(uintptr_t)sg_make_image(&img_desc).id;
 }
 
-void shutdown_graphics() 
+void shutdown_graphics()
 {
     simgui_shutdown();
     sg_imgui_discard(&gApp.sg_imgui);
@@ -410,7 +410,7 @@ bool run_gizmo(MouseState* ms, float width, float height)
     static tinygizmo::rigid_transform xform_a;
     static tinygizmo::rigid_transform xform_a_last;
     static std::once_flag once;
-    std::call_once(once, []() 
+    std::call_once(once, []()
     {
         tinygizmo::m44f tx = xform_a.matrix();
         memcpy(&gApp.gizmo_transform, &tx, sizeof(float) * 16);
@@ -820,7 +820,7 @@ void run_application_logic()
                     &gApp.camera,
                     tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
                     { mouse_pos.x, mouse_pos.y },
-                    gApp.initial_hit_point, 
+                    gApp.initial_hit_point,
                     LCNav_Panel_roll(gApp.navigator_panel),
                     static_cast<float>(delta_time));
                 lc_i_end_interaction(ptc, tok);
@@ -836,7 +836,7 @@ void run_application_logic()
                     ptc,
                     &gApp.camera,
                     tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
-                    { mouse_pos.x, mouse_pos.y }, 
+                    { mouse_pos.x, mouse_pos.y },
                     LCNav_Panel_roll(gApp.navigator_panel),
                     static_cast<float>(delta_time));
                 lc_i_end_interaction(ptc, tok);
@@ -870,7 +870,7 @@ void run_application_logic()
         InteractionToken tok = lc_i_begin_interaction(gApp.joystick_pan_tilt, viewport);
         lc_i_dual_stick_interaction(
             gApp.joystick_pan_tilt,
-            &gApp.camera, 
+            &gApp.camera,
             tok, LCNav_Panel_interaction_mode(gApp.navigator_panel),
             { left_stick.x, 0, left_stick.y }, { right_stick.x, 0, right_stick.y },
             LCNav_Panel_roll(gApp.navigator_panel),
@@ -884,7 +884,7 @@ void imgui_callback_handler(const sapp_event* event)
     simgui_handle_event(event);
 }
 
-sapp_desc sokol_main(int argc, char* argv[]) 
+sapp_desc sokol_main(int argc, char* argv[])
 {
     sapp_desc desc = { };
     desc.init_cb = initialize_graphics;

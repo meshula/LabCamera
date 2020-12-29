@@ -33,17 +33,17 @@ sokol_gamepad.h -- cross-platform gamepad API
     This is the most popular and comprehensive configuration across game systems
     (PS1/PS2/PS3/PS4/Xbox/Xbox360/Xbox One/Switch map directly, just for start)
 
-    To use:  
+    To use:
     - In your app initialization code call sgamepad_init()
     - At the exact time you want to record input state call sgamepad_record_state()
     - Get the state for a particular gamepad like this:
         sgamepad_gamepad_state state;
         int read = sgamepad_get_gamepad_state(0, &state);
       If read equals the first argument, the gamepad was successfully read.
-    
+
     sgamepad_gamepad_state's members are set to the contoller's state as recorded previously.
 
-    Analog stick states are pre-processed to take dead zones into account: in 
+    Analog stick states are pre-processed to take dead zones into account: in
     most cases you should rely on direction_x/direction_y/magnitude for input processing.
 */
 
@@ -208,7 +208,7 @@ _SOKOL_PRIVATE void _sgamepad_generate_analog_stick_state(float x_value, float y
         pstate->normalized_y = y_value;
         magnitude = float_min(sqrtf(x_value * x_value + y_value * y_value), 1.0f);
     }
-        
+
     if (magnitude <= dead_zone_magnitude) {
         pstate->direction_x = 0.0f;
         pstate->direction_y = 0.0f;
@@ -237,7 +237,7 @@ _SOKOL_PRIVATE void _sgamepad_generate_analog_stick_state(float x_value, float y
 
 #elif defined(__ANDROID__)
     #define SGAMEPAD_MAX_SUPPORTED_GAMEPADS 4
-    #include <android/input.h> 
+    #include <android/input.h>
     #include <android/keycodes.h>
 
     /* No access to InputManager without going through the JNI
@@ -312,7 +312,7 @@ _SOKOL_PRIVATE void _sgamepad_record_state() {
             continue;
 
         sgamepad_gamepad_state* target = _sgamepad.gamepad_states + i;
-      
+
         XINPUT_STATE xinput_state;
         ZeroMemory(&xinput_state, sizeof(XINPUT_STATE));
         if (_XInputGetState(i, &xinput_state) != ERROR_SUCCESS)
@@ -373,9 +373,9 @@ _SOKOL_PRIVATE void _sgamepad_record_state() {
             continue;
         }
         target->connected = true;
-        
+
         target_index++;
-        
+
         uint16_t new_flags = 0;
         if (extended_gamepad.dpad.up.pressed) {
             new_flags |= SGAMEPAD_GAMEPAD_DPAD_UP;
@@ -408,10 +408,10 @@ _SOKOL_PRIVATE void _sgamepad_record_state() {
             new_flags |= SGAMEPAD_GAMEPAD_Y;
         }
         target->digital_inputs = new_flags;
-        
+
         _sgamepad_generate_analog_stick_state(extended_gamepad.leftThumbstick.xAxis.value, extended_gamepad.leftThumbstick.yAxis.value, 1.0f, 0.01f, &(target->left_stick));
         _sgamepad_generate_analog_stick_state(extended_gamepad.rightThumbstick.xAxis.value, extended_gamepad.rightThumbstick.yAxis.value, 1.0f, 0.01f, &(target->right_stick));
-        
+
         target->left_shoulder = extended_gamepad.leftShoulder.value;
         target->right_shoulder = extended_gamepad.rightShoulder.value;
         target->left_trigger = extended_gamepad.leftTrigger.value;
@@ -492,7 +492,7 @@ _SOKOL_PRIVATE bool _sgamepad_android_map_keycode_to_button(uint32_t key_code, s
         mapped = false;
         break;
     }
-    
+
     return mapped;
 }
 
@@ -513,7 +513,7 @@ _SOKOL_PRIVATE bool _sgamepad_android_map_keycode_to_shoulder(uint32_t key_code,
     return mapped;
 }
 
-_SOKOL_PRIVATE bool _sgamepad_android_key_handler(const AInputEvent* event) {    
+_SOKOL_PRIVATE bool _sgamepad_android_key_handler(const AInputEvent* event) {
     int player_id = _sgamepad_android_get_player_id(event);
     if (player_id < 0 || player_id >= SGAMEPAD_MAX_SUPPORTED_GAMEPADS) {
         return false;
@@ -601,7 +601,7 @@ _SOKOL_PRIVATE bool _sgamepad_android_motion_handler(const AInputEvent* event) {
     stick_x = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_X, 0);
     stick_y = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Y, 0);
     _sgamepad_generate_analog_stick_state(stick_x, -stick_y, 1.0f, 0.01f, &(target->left_stick));
-        
+
     stick_x = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_Z, 0);
     stick_y = AMotionEvent_getAxisValue(event, AMOTION_EVENT_AXIS_RZ, 0);
     _sgamepad_generate_analog_stick_state(stick_x, -stick_y, 1.0f, 0.01f, &(target->right_stick));

@@ -53,7 +53,7 @@ struct LCNav_Panel
         lc_i_set_speed(pan_tilt, 0.01f, 0.005f);
         lc_camera_set_defaults(&trackball_camera);
     }
- 
+
     ~LCNav_Panel()
     {
         lc_i_free_interactive_controller(pan_tilt);
@@ -701,7 +701,7 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
 
         // renormalize transform, then apply the camera roll
         lc_mount_look_at(&camera->mount, camera->mount.transform.position,
-            lc_i_orbit_center_constraint(navigator_panel->pan_tilt), 
+            lc_i_orbit_center_constraint(navigator_panel->pan_tilt),
             lc_i_world_up_constraint(navigator_panel->pan_tilt));
         InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
         lc_i_set_roll(navigator_panel->pan_tilt, camera, tok, navigator_panel->roll);

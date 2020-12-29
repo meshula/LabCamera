@@ -1142,7 +1142,7 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken
     i->_prev_mouse = current_mouse_;
 }
 
-void lc_i_constrained_ttl_interaction(lc_interaction* i, 
+void lc_i_constrained_ttl_interaction(lc_interaction* i,
     lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode,
     lc_v2f current,
