@@ -309,135 +309,112 @@ lc_v2f lc_camera_project_to_viewport(const lc_camera*, lc_v2f const& viewport_or
 lc_m44f lc_camera_view_projection(const lc_camera*, float aspect = 1.f);
 lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect = 1.f);
 
+
+
+
+typedef uint64_t InteractionToken;
+
+typedef enum
+{
+    lc_i_ModeStatic = 0, lc_i_ModeDolly, lc_i_ModeCrane, lc_i_ModeTurnTableOrbit, lc_i_ModePanTilt, lc_i_ModeArcball
+} lc_i_Mode;
+
+typedef enum
+{
+    lc_i_PhaseNone = 0, lc_i_PhaseRestart, lc_i_PhaseStart, lc_i_PhaseContinue, lc_i_PhaseFinish
+} lc_i_Phase;
+
+struct lc_interaction;
+
+lc_v3f lc_i_world_up_constraint(const lc_interaction*);
+lc_v3f lc_i_orbit_center_constraint(const lc_interaction*);
+void lc_i_set_orbit_center_constraint(lc_interaction*, lc_v3f const& pos);
+void lc_i_set_world_up_constraint(lc_interaction*, lc_v3f const& up);
+void lc_i_set_speed(lc_interaction*, float orbit, float pan_tilt);
+
+// begin_interaction
+//
+// returns an InteractionToken. In the future this will be in aid of
+// multitouch, multidevice interactions on the same camera
+//
+InteractionToken lc_i_begin_interaction(lc_interaction*, lc_v2f const& viewport_size);
+void lc_i_end_interaction(lc_interaction*, InteractionToken);
+
+// Synchronize constraints and epoch to the most recent of the supplied controllers
+void lc_i_sync_constraints(lc_interaction*, lc_interaction*);
+
+void lc_i_set_roll(lc_interaction*, lc_camera& camera, InteractionToken, lc_radians roll);
+
+// delta is the 2d motion of a mouse or gesture in the screen plane, or
+// the absolute value of an analog joystick position.
+//
+// This interaction mode is intended for joystick like behaviors that have an
+// explicit neutral zero point. For example, delta could be computed as
+// delta = mousePos - mouseClickPos;
+//
+void lc_i_single_stick_interaction(
+    lc_interaction*,
+    lc_camera& camera,
+    InteractionToken,
+    lc_i_Mode mode,
+    lc_v2f const& delta_in,
+    lc_radians roll_hint,
+    float dt);
+
+void lc_i_dual_stick_interaction(
+    lc_interaction*,
+    lc_camera& camera,
+    InteractionToken,
+    lc_i_Mode mode,
+    lc_v3f const& pos_delta_in,
+    lc_v3f const& rotation_delta_in,
+    lc_radians roll_hint,
+    float dt);
+
+// This mode is intended for through the lens screen space manipulation.
+// Dolly: the camera will be moved in the view plane to keep initial under current
+// in the horizontal direction, and forward and backward motion will be under a
+// heuristic
+//
+// Crane: the camera will be moved in the view plane to keep initial under current
+//
+// TurnTableOrbit: roughly screen relative tumble motions
+//
+// Gimbal: The camera will be panned and tilted to keep initial under current
+//
+void lc_i_ttl_interaction(
+    lc_interaction*,
+    lc_camera& camera,
+    InteractionToken tok,
+    lc_i_Phase phase,
+    lc_i_Mode mode,
+    lc_v2f const& current,
+    lc_radians roll_hint,
+    float dt);
+
+// through the lens, with a point in world space to keep under the mouse.
+// dolly: hit_point will be constrained to stay under the mouse
+// crane: same
+// gimbal: same
+// turntable orbit, roughly screen relative tumble motions
+//
+void lc_i_constrained_ttl_interaction(
+    lc_interaction*,
+    lc_camera& camera,
+    InteractionToken tok,
+    lc_i_Phase phase,
+    lc_i_Mode mode,
+    lc_v2f const& current,
+    lc_v3f const& initial_hit_point,
+    lc_radians roll_hint,
+    float dt);
+
+lc_interaction* lc_i_create_interactive_controller();
+void lc_i_free_interactive_controller(lc_interaction* i);
+
+
 #ifdef __cplusplus
-}
+}       // extern "C"
 #endif
 
-
-namespace lab {
-    namespace camera {
-
-    typedef uint64_t InteractionToken;
-
-    enum class InteractionMode
-    {
-        Static = 0, Dolly, Crane, TurnTableOrbit, PanTilt, Arcball
-    };
-
-    enum class InteractionPhase
-    {
-        None = 0, Restart, Start, Continue, Finish
-    };
-
-    class PanTiltController
-    {
-        uint64_t _epoch = 0;
-
-        // constraints
-        lc_v3f _world_up{ 0, 1, 0 };
-        lc_v3f _orbit_center{ 0, 0, 0 };
-
-        // local settings
-        float _orbit_speed = 0.5f;
-        float _pan_tilt_speed = 0.25f;
-
-        // working state
-        lc_v2f _viewport_size = { 0, 0 };
-        lc_v3f _initial_focus_point = { 0, 0, 0 };
-        float _initial_focus_distance = 5.f;
-        lc_v2f _init_mouse{ 0,0 };
-        lc_v2f _prev_mouse{ 0,0 };
-        lc_m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
-
-        void _dolly(lc_camera& camera, const lc_v3f& delta);
-        void _turntable(lc_camera& camera, const lc_v2f& delta);
-        void _pantilt(lc_camera& camera, const lc_v2f& delta);
-
-    public:
-        PanTiltController() = default;
-
-        lc_v3f world_up_constraint() const;
-        lc_v3f orbit_center_constraint() const;
-        void set_orbit_center_constraint(lc_v3f const& pos);
-        void set_world_up_constraint(lc_v3f const& up);
-        void set_speed(float orbit, float pan_tilt);
-
-        // begin_interaction
-        //
-        // returns an InteractionToken. In the future this will be in aid of
-        // multitouch, multidevice interactions on the same camera
-        //
-        InteractionToken begin_interaction(lc_v2f const& viewport_size);
-        void end_interaction(InteractionToken);
-
-        // Synchronize constraints and epoch to the most recent of this and controller.
-        void sync_constraints(PanTiltController& controller);
-
-        void set_roll(lc_camera& camera, InteractionToken, lc_radians roll);
-
-        // delta is the 2d motion of a mouse or gesture in the screen plane, or
-        // the absolute value of an analog joystick position.
-        //
-        // This interaction mode is intended for joystick like behaviors that have an
-        // explicit neutral zero point. For example, delta could be computed as
-        // delta = mousePos - mouseClickPos;
-        //
-        void single_stick_interaction(
-            lc_camera& camera,
-            InteractionToken,
-            InteractionMode mode,
-            lc_v2f const& delta_in,
-            lc_radians roll_hint,
-            float dt);
-
-        void dual_stick_interaction(
-            lc_camera& camera,
-            InteractionToken,
-            InteractionMode mode,
-            lc_v3f const& pos_delta_in,
-            lc_v3f const& rotation_delta_in,
-            lc_radians roll_hint,
-            float dt);
-
-        // This mode is intended for through the lens screen space manipulation.
-        // Dolly: the camera will be moved in the view plane to keep initial under current
-        // in the horizontal direction, and forward and backward motion will be under a
-        // heuristic
-        //
-        // Crane: the camera will be moved in the view plane to keep initial under current
-        //
-        // TurnTableOrbit: roughly screen relative tumble motions
-        //
-        // Gimbal: The camera will be panned and tilted to keep initial under current
-        //
-        void ttl_interaction(
-            lc_camera& camera,
-            InteractionToken tok,
-            InteractionPhase phase,
-            InteractionMode mode,
-            lc_v2f const& current,
-            lc_radians roll_hint,
-            float dt);
-
-        // through the lens, with a point in world space to keep under the mouse.
-        // dolly: hit_point will be constrained to stay under the mouse
-        // crane: same
-        // gimbal: same
-        // turntable orbit, roughly screen relative tumble motions
-        //
-        void constrained_ttl_interaction(
-            lc_camera& camera,
-            InteractionToken tok,
-            InteractionPhase phase,
-            InteractionMode mode,
-            lc_v2f const& current,
-            lc_v3f const& initial_hit_point,
-            lc_radians roll_hint,
-            float dt);
-    };
-
-
-}
-} // lab::camera
-#endif // _cplusplus
-
+#endif  // LABCAMERA_H

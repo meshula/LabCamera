@@ -12,48 +12,49 @@
 
 #include "LabCamera.h"
 
-enum LabCameraNavigatorPanelInteraction
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum
 {
     LCNav_Inactive = 0,
     LCNav_ModeChange,
     LCNav_RollInitiated, LCNav_RollContinued, LCNav_RollEnded,
     LCNav_TumbleInitiated, LCNav_TumbleContinued, LCNav_TumbleEnded
-};
+} LabCameraNavigatorPanelInteraction;
 
-enum LCNav_PanelMode
+typedef enum
 {
     LCNav_Mode_PanTilt, LCNav_Mode_Arcball
-};
+} LCNav_PanelMode;
 
-class LCNav_PanelState
-{
-protected:
-    LCNav_PanelState() = default;
-    virtual ~LCNav_PanelState() = default;
-
-public:
-    float nav_radius = 6;
-    lc_radians roll{ 0 };
-    lab::camera::PanTiltController pan_tilt;
-    LabCameraNavigatorPanelInteraction state = LCNav_Inactive;
-    lab::camera::InteractionMode camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
-};
 
 /*
  * The navigator panel takes a viewport, and a camera to mutate.
  * The viewport should be the viewport size in device coordinates.
  */
 
-LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel, lc_camera& camera, float dt);
+struct LCNav_Panel;
 
-LCNav_PanelState* create_navigator_panel();
-void release_navigator_panel(LCNav_PanelState*);
+LabCameraNavigatorPanelInteraction
+run_navigator_panel(LCNav_Panel* navigator_panel, lc_camera& camera, float dt);
+
+LCNav_Panel* create_navigator_panel();
+void release_navigator_panel(LCNav_Panel*);
+
+lc_interaction* LCNav_Panel_interaction_controller(const LCNav_Panel*);
+lc_i_Mode LCNav_Panel_interaction_mode(const LCNav_Panel*);
+lc_radians LCNav_Panel_roll(const LCNav_Panel*);
 
 /*
  * minimap is not ready for primetime
  */
 
 void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lc_v3f lookat);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif

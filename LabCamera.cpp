@@ -715,476 +715,518 @@ lc_v3f lc_rt_forward(const lc_rigid_transform* rt)
     return qzdir(rt->orientation);
 }
 
+struct lc_interaction
+{
+    uint64_t _epoch = 0;
 
-namespace lab {
-    namespace camera {
+    // constraints
+    lc_v3f _world_up{ 0, 1, 0 };
+    lc_v3f _orbit_center{ 0, 0, 0 };
+
+    // local settings
+    float _orbit_speed = 0.5f;
+    float _pan_tilt_speed = 0.25f;
+
+    // working state
+    lc_v2f _viewport_size = { 0, 0 };
+    lc_v3f _initial_focus_point = { 0, 0, 0 };
+    float _initial_focus_distance = 5.f;
+    lc_v2f _init_mouse{ 0,0 };
+    lc_v2f _prev_mouse{ 0,0 };
+    lc_m44f _initial_inv_projection = { 1,0,0,0, 0,1,0,0, 0,0,1,0.2f, 0,0,0,1 };
+
+    void _dolly(lc_camera& camera, const lc_v3f& delta);
+    void _turntable(lc_camera& camera, const lc_v2f& delta);
+    void _pantilt(lc_camera& camera, const lc_v2f& delta);
+};
+
+lc_interaction* lc_i_create_interactive_controller()
+{
+    return new lc_interaction();
+}
+
+void lc_i_free_interactive_controller(lc_interaction* i)
+{
+    if (i)
+        delete i;
+}
+
+
+//-----------------------------------------------------------------------------
+// lc_interaction
+//
+//-----------------------------------------------------------------------------
+
+InteractionToken lc_i_begin_interaction(lc_interaction* i, lc_v2f const& viewport_size)
+{
+    i->_viewport_size = viewport_size;
+    ++i->_epoch;
+    return i->_epoch;
+}
+
+void lc_i_sync_constraints(lc_interaction* i, lc_interaction* ptc)
+{
+    if (ptc->_epoch == i->_epoch)
+        return;
+
+    if (ptc->_epoch > i->_epoch)
+    {
+        // update constarints from incoming controller
+        i->_world_up = ptc->_world_up;
+        i->_orbit_center = ptc->_orbit_center;
+        i->_epoch = ptc->_epoch;
+    }
+    else
+    {
+        // update constarints from incoming controller
+        ptc->_world_up = i->_world_up;
+        ptc->_orbit_center = i->_orbit_center;
+        ptc->_epoch = i->_epoch;
+    }
+}
+
+void lc_i_end_interaction(lc_interaction*, InteractionToken)
+{
+}
+
+/// @TODO - this belongs under lc_mount
+void lc_i_set_roll(lc_interaction* i, lc_camera& camera, InteractionToken, lc_radians r)
+{
+    using namespace lab::camera;
+
+    lc_v3f dir = lc_rt_forward(&camera.mount.transform);
+    lc_quatf q = quat_from_axis_angle(dir, r.rad);
+    q = mul(q, camera.mount.transform.orientation);
+    lc_mount_set_view_transform_quat_pos(&camera.mount, q, camera.mount.transform.position);
+}
+
+void lc_interaction::_dolly(lc_camera& camera, const lc_v3f& delta)
+{
+    using namespace lab::camera;
+
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+    lc_v3f pos = cmt->position;
+    lc_v3f camera_to_focus = pos - _orbit_center;
+    float distance_to_focus = length(camera_to_focus);
+    const float feel = 0.02f;
+    float scale = std::max(0.01f, logf(distance_to_focus) * feel);
+    lc_v3f deltaX = lc_rt_right(cmt) * -delta.x * scale;
+    lc_v3f dP = lc_rt_forward(cmt) * -delta.z * scale - deltaX - lc_rt_up(cmt) * -delta.y * scale;
+    _orbit_center += dP;
+    lc_mount_set_view_transform_quat_pos(&camera.mount, cmt->orientation, cmt->position + dP);
+};
+
+void lc_interaction::_turntable(lc_camera& camera, const lc_v2f& delta)
+{
+    using namespace lab::camera;
+
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+    lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+    lc_v3f fwd = lc_rt_forward(cmt);
+    bool test_inversion = fabsf(dot(up, fwd)) > (1.f - 1.e-5);
+
+    lc_v3f rt = normalize(cross(up, fwd));
+    lc_quatf rx = quat_from_axis_angle(up, delta.x * _orbit_speed);
+    lc_quatf ry = quat_from_axis_angle(rt, -delta.y * _orbit_speed * 0.25f);
+    lc_quatf quat_step = mul(ry, rx);
+    lc_quatf new_quat = mul(cmt->orientation, quat_step);
+
+    lc_v3f pos_pre = cmt->position;
+    lc_v3f pos = pos_pre - _orbit_center;
+    pos = quat_rotate_vector(quat_step, pos) + _orbit_center;
+
+    // because the orientation is synthesized from a motion in world space
+    // and a rotation in camera space, recompose the camera orientation by
+    // constraining the camera's direction to face the orbit center.
+    lc_v3f local_up = { 0, 1, 0 };
+    lc_mount_look_at(&camera.mount, pos, _orbit_center, local_up);
+
+    lc_v3f rt_post = lc_rt_right(cmt);
+    if (dot(rt_post, rt) < -0.5f)
+    {
+        // if the input rotation causes motion past the pole, reset it.
+        lc_mount_look_at(&camera.mount, pos_pre, _orbit_center, local_up);
+    }
+}
+
+void lc_interaction::_pantilt(lc_camera& camera, const lc_v2f& delta)
+{
+    using namespace lab::camera;
+
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+
+    lc_quatf restore_quat = cmt->orientation;
+    lc_v3f restore_pos = cmt->position;
+    lc_v3f restore_orbit = _orbit_center;
+
+    lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
+    lc_v3f rt = normalize(cross(up, lc_rt_forward(cmt)));
+    lc_quatf rx = quat_from_axis_angle(up, -delta.x * _pan_tilt_speed);
+    lc_quatf ry = quat_from_axis_angle(rt, delta.y * _pan_tilt_speed * 0.25f);
+    lc_quatf quat_step = mul(rx, ry);
+    lc_quatf new_quat = mul(cmt->orientation, quat_step);
+
+    lc_v3f pos = restore_orbit - cmt->position;
+    _orbit_center = quat_rotate_vector(quat_step, pos) + cmt->position;
+
+    // because the orientation is synthesized from a motion in world space
+    // and a rotation in camera space, recompose the camera orientation by
+    // constraining the camera's direction to face the orbit center.
+    lc_mount_look_at(&camera.mount, cmt->position, _orbit_center, lc_v3f{ 0,1,0 });
+
+    lc_v3f rt_post = lc_rt_right(cmt);
+    if (dot(rt_post, rt) < -0.5f)
+    {
+        // if the input rotation causes motion past the pole, reset it.
+        lc_mount_set_view_transform_quat_pos(&camera.mount, restore_quat, restore_pos);
+        _orbit_center = restore_orbit;
+    }
+};
 
 
 
-        //-----------------------------------------------------------------------------
-        // PanTiltController
-        //
-        //-----------------------------------------------------------------------------
 
-        InteractionToken PanTiltController::begin_interaction(lc_v2f const& viewport_size)
+// delta is the 2d motion of a mouse or gesture in the screen plane,
+// typically computed as scale * (currMousePos - prevMousePos);
+//
+void lc_i_single_stick_interaction(lc_interaction* i,
+    lc_camera& camera, InteractionToken tok,
+    lc_i_Mode mode, lc_v2f const& delta_in, lc_radians roll_hint, float dt)
+{
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+
+    // joystick mode controls
+    lc_v2f delta = delta_in;
+
+    const float buffer = 4.f;
+
+    // make control less sensitive within the buffer
+    if (fabsf(delta.x) < buffer)
+    {
+        float dx = fabsf(delta.x) / buffer;
+        dx *= dx;
+        delta.x = buffer * copysign(dx, delta.x);
+    }
+    if (fabsf(delta.y) < buffer)
+    {
+        float dy = fabsf(delta.y) / buffer;
+        dy *= dy;
+        delta.y = buffer * copysign(dy, delta.y);
+    }
+
+    switch (mode)
+    {
+    case lc_i_ModeDolly:
+        i->_dolly(camera, { delta.x, 0, delta.y });
+        break;
+
+    case lc_i_ModeCrane:
+        i->_dolly(camera, { delta.x, delta.y, 0 });
+        break;
+
+    case lc_i_ModePanTilt:
+        i->_pantilt(camera, { delta.x, delta.y });
+        lc_i_set_roll(i, camera, tok, roll_hint);
+        break;
+
+    case lc_i_ModeTurnTableOrbit:
+        i->_turntable(camera, delta);
+        lc_i_set_roll(i,camera, tok, roll_hint);
+        break;
+
+    case lc_i_ModeStatic:
+        // do nothing
+        break;
+    case lc_i_ModeArcball:
+        //not supported
+        break;
+    }
+}
+
+
+void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
+    lc_i_Mode mode, lc_v3f const& pos_delta_in, lc_v3f const& rotation_delta_in,
+    lc_radians roll_hint, float dt)
+{
+    lc_v3f pos_delta = pos_delta_in;
+    lc_v3f rotation_delta = rotation_delta_in;
+    auto curve = [&](float& x)
+    {
+        const float buffer = 4.f;
+        if (fabsf(x) < buffer)
         {
-            _viewport_size = viewport_size;
-            ++_epoch;
-            return _epoch;
+            float dx = fabsf(x) / buffer;
+            dx *= dx;
+            x = buffer * copysign(dx, x);
+        }
+    };
+
+    // make control less sensitive within the buffer
+    curve(pos_delta.x);
+    curve(pos_delta.y);
+    curve(rotation_delta.x);
+    curve(rotation_delta.y);
+
+    switch (mode)
+    {
+    case lc_i_ModeDolly:
+    {
+        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
+        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        break;
+    }
+    case lc_i_ModeCrane:
+    {
+        i->_dolly(camera, { pos_delta.x, pos_delta.z, 0 });
+        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        break;
+    }
+
+    case lc_i_ModePanTilt:
+    {
+        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
+        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        break;
+    }
+
+    case lc_i_ModeTurnTableOrbit:
+    {
+        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
+        i->_turntable(camera, { rotation_delta.x, rotation_delta.z });
+        lc_i_set_roll(i, camera, tok, roll_hint);
+        break;
+    }
+
+    case lc_i_ModeStatic:
+        // do nothing
+        break;
+    case lc_i_ModeArcball:
+        //not supported
+        break;
+    }
+}
+
+
+// Initial is the screen position of the beginning of the interaction, current is the
+// current position
+//
+void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
+    lc_i_Phase phase, lc_i_Mode mode, lc_v2f const& current_mouse_, lc_radians roll_hint, float dt)
+{
+    using namespace lab::camera;
+
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+    switch (mode)
+    {
+    case lc_i_ModeArcball:
+    {
+        lc_v2f current_mouse = current_mouse_;
+
+        if (phase == lc_i_PhaseStart)
+        {
+            i->_init_mouse = current_mouse;
+        }
+        else if (phase == lc_i_PhaseFinish)
+        {
         }
 
-        void PanTiltController::sync_constraints(PanTiltController& ptc)
-        {
-            if (ptc._epoch == _epoch)
-                return;
+        float w = i->_viewport_size.x * 0.5f;
+        float h = i->_viewport_size.y * 0.5f;
+        float min_dimension = 1.f / std::min(w, h);
+        lc_v3f v0{ i->_init_mouse.x, i->_init_mouse.y, 0.f };
+        lc_v3f v1{ current_mouse.x, current_mouse.y, 0.f };
 
-            if (ptc._epoch > _epoch)
-            {
-                // update constarints from incoming controller
-                _world_up = ptc._world_up;
-                _orbit_center = ptc._orbit_center;
-                _epoch = ptc._epoch;
-            }
-            else
-            {
-                // update constarints from incoming controller
-                ptc._world_up = _world_up;
-                ptc._orbit_center = _orbit_center;
-                ptc._epoch = _epoch;
-            }
-        }
-
-        void PanTiltController::end_interaction(InteractionToken)
+        auto mouse_to_vec = [w, h, min_dimension](lc_v3f& v)
         {
-        }
-
-        void PanTiltController::set_roll(lc_camera& camera, InteractionToken, lc_radians r)
-        {
-            lc_v3f dir = lc_rt_forward(&camera.mount.transform);
-            lc_quatf q = quat_from_axis_angle(dir, r.rad);
-            q = mul(q, camera.mount.transform.orientation);
-            lc_mount_set_view_transform_quat_pos(&camera.mount, q, camera.mount.transform.position);
-        }
-
-        void PanTiltController::_dolly(lc_camera& camera, const lc_v3f& delta)
-        {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-            lc_v3f pos = cmt->position;
-            lc_v3f camera_to_focus = pos - _orbit_center;
-            float distance_to_focus = length(camera_to_focus);
-            const float feel = 0.02f;
-            float scale = std::max(0.01f, logf(distance_to_focus) * feel);
-            lc_v3f deltaX = lc_rt_right(cmt) * -delta.x * scale;
-            lc_v3f dP = lc_rt_forward(cmt) * -delta.z * scale - deltaX - lc_rt_up(cmt) * -delta.y * scale;
-            _orbit_center += dP;
-            lc_mount_set_view_transform_quat_pos(&camera.mount, cmt->orientation, cmt->position + dP);
+            v.x = -(v.x - w) * min_dimension;
+            v.y = (v.y - h) * min_dimension;
+            float len_squared = v.x * v.x + v.y * v.y;
+            if (len_squared > 1.f)
+                len_squared = 1.f;
+            v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
         };
+        mouse_to_vec(v0);
+        mouse_to_vec(v1);
 
-        void PanTiltController::_turntable(lc_camera& camera, const lc_v2f& delta)
+        if (dot(v0, v0) > 1e-4f && dot(v1, v1) > 1e-4f)
         {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-            lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
-            lc_v3f fwd = lc_rt_forward(cmt);
-            bool test_inversion = fabsf(dot(up, fwd)) > (1.f - 1.e-5);
-
-            lc_v3f rt = normalize(cross(up, fwd));
-            lc_quatf rx = quat_from_axis_angle(up, delta.x * _orbit_speed);
-            lc_quatf ry = quat_from_axis_angle(rt, -delta.y * _orbit_speed * 0.25f);
-            lc_quatf quat_step = mul(ry, rx);
-            lc_quatf new_quat = mul(cmt->orientation, quat_step);
-
+            lc_quatf rot = quat_from_vector_to_vector(v0, v1);
+            rot = mul(cmt->orientation, rot);
+            lc_v3f fwd = { 0, 0, length(cmt->position - i->_orbit_center) };
             lc_v3f pos_pre = cmt->position;
-            lc_v3f pos = pos_pre - _orbit_center;
-            pos = quat_rotate_vector(quat_step, pos) + _orbit_center;
+            lc_v3f pos = quat_rotate_vector(normalize(rot), fwd) + i->_orbit_center;
+            lc_v3f rt = lc_rt_right(cmt); // turntable tilts about the camera right axis
 
             // because the orientation is synthesized from a motion in world space
             // and a rotation in camera space, recompose the camera orientation by
             // constraining the camera's direction to face the orbit center.
             lc_v3f local_up = { 0, 1, 0 };
-            lc_mount_look_at(&camera.mount, pos, _orbit_center, local_up);
+            lc_mount_look_at(&camera.mount, pos, i->_orbit_center, local_up);
+            lc_i_set_roll(i, camera, tok, roll_hint);
 
             lc_v3f rt_post = lc_rt_right(cmt);
             if (dot(rt_post, rt) < -0.5f)
             {
                 // if the input rotation causes motion past the pole, reset it.
-                lc_mount_look_at(&camera.mount, pos_pre, _orbit_center, local_up);
+                lc_mount_look_at(&camera.mount, pos_pre, i->_orbit_center, local_up);
             }
+
+            i->_init_mouse = current_mouse;
         }
-
-        void PanTiltController::_pantilt(lc_camera& camera, const lc_v2f& delta)
-        {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-
-            lc_quatf restore_quat = cmt->orientation;
-            lc_v3f restore_pos = cmt->position;
-            lc_v3f restore_orbit = _orbit_center;
-
-            lc_v3f up = { 0,1,0 };   // turntable orbits about the world up axis
-            lc_v3f rt = normalize(cross(up, lc_rt_forward(cmt)));
-            lc_quatf rx = quat_from_axis_angle(up, -delta.x * _pan_tilt_speed);
-            lc_quatf ry = quat_from_axis_angle(rt, delta.y * _pan_tilt_speed * 0.25f);
-            lc_quatf quat_step = mul(rx, ry);
-            lc_quatf new_quat = mul(cmt->orientation, quat_step);
-
-            lc_v3f pos = restore_orbit - cmt->position;
-            _orbit_center = quat_rotate_vector(quat_step, pos) + cmt->position;
-
-            // because the orientation is synthesized from a motion in world space
-            // and a rotation in camera space, recompose the camera orientation by
-            // constraining the camera's direction to face the orbit center.
-            lc_mount_look_at(&camera.mount, cmt->position, _orbit_center, lc_v3f{ 0,1,0 });
-
-            lc_v3f rt_post = lc_rt_right(cmt);
-            if (dot(rt_post, rt) < -0.5f)
-            {
-                // if the input rotation causes motion past the pole, reset it.
-                lc_mount_set_view_transform_quat_pos(&camera.mount, restore_quat, restore_pos);
-                _orbit_center = restore_orbit;
-            }
-        };
-
-
-
-
-        // delta is the 2d motion of a mouse or gesture in the screen plane,
-        // typically computed as scale * (currMousePos - prevMousePos);
-        //
-        void PanTiltController::single_stick_interaction(lc_camera& camera, InteractionToken tok,
-            InteractionMode mode, lc_v2f const& delta_in, lc_radians roll_hint, float dt)
-        {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-
-            // joystick mode controls
-            lc_v2f delta = delta_in;
-
-            const float buffer = 4.f;
-
-            // make control less sensitive within the buffer
-            if (fabsf(delta.x) < buffer)
-            {
-                float dx = fabsf(delta.x) / buffer;
-                dx *= dx;
-                delta.x = buffer * copysign(dx, delta.x);
-            }
-            if (fabsf(delta.y) < buffer)
-            {
-                float dy = fabsf(delta.y) / buffer;
-                dy *= dy;
-                delta.y = buffer * copysign(dy, delta.y);
-            }
-
-            switch (mode)
-            {
-            case InteractionMode::Dolly:
-                _dolly(camera, { delta.x, 0, delta.y });
-                break;
-
-            case InteractionMode::Crane:
-                _dolly(camera, { delta.x, delta.y, 0 });
-                break;
-
-            case InteractionMode::PanTilt:
-                _pantilt(camera, { delta.x, delta.y });
-                set_roll(camera, tok, roll_hint);
-                break;
-
-            case InteractionMode::TurnTableOrbit:
-                _turntable(camera, delta);
-                set_roll(camera, tok, roll_hint);
-                break;
-
-            case InteractionMode::Static:
-                // do nothing
-                break;
-            case InteractionMode::Arcball:
-                //not supported
-                break;
-            }
-        }
-
-
-        void PanTiltController::dual_stick_interaction(lc_camera& camera, InteractionToken tok,
-            InteractionMode mode, lc_v3f const& pos_delta_in, lc_v3f const& rotation_delta_in,
-            lc_radians roll_hint, float dt)
-        {
-            lc_v3f pos_delta = pos_delta_in;
-            lc_v3f rotation_delta = rotation_delta_in;
-            auto curve = [&](float& x)
-            {
-                const float buffer = 4.f;
-                if (fabsf(x) < buffer)
-                {
-                    float dx = fabsf(x) / buffer;
-                    dx *= dx;
-                    x = buffer * copysign(dx, x);
-                }
-            };
-
-            // make control less sensitive within the buffer
-            curve(pos_delta.x);
-            curve(pos_delta.y);
-            curve(rotation_delta.x);
-            curve(rotation_delta.y);
-
-            switch (mode)
-            {
-            case InteractionMode::Dolly:
-            {
-                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
-                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
-                break;
-            }
-            case InteractionMode::Crane:
-            {
-                _dolly(camera, { pos_delta.x, pos_delta.z, 0 });
-                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
-                break;
-            }
-
-            case InteractionMode::PanTilt:
-            {
-                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
-                _pantilt(camera, { rotation_delta.x, rotation_delta.z });
-                break;
-            }
-
-            case InteractionMode::TurnTableOrbit:
-            {
-                _dolly(camera, { pos_delta.x, 0, pos_delta.z });
-                _turntable(camera, { rotation_delta.x, rotation_delta.z });
-                set_roll(camera, tok, roll_hint);
-                break;
-            }
-
-            case InteractionMode::Static:
-                // do nothing
-                break;
-            case InteractionMode::Arcball:
-                //not supported
-                break;
-            }
-        }
-
-
-        // Initial is the screen position of the beginning of the interaction, current is the
-        // current position
-        //
-        void PanTiltController::ttl_interaction(lc_camera& camera, InteractionToken tok,
-            InteractionPhase phase, InteractionMode mode, lc_v2f const& current_mouse_, lc_radians roll_hint, float dt)
-        {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-            switch (mode)
-            {
-            case InteractionMode::Arcball:
-            {
-                // roll works? Y
-                lc_v2f current_mouse = current_mouse_;
-
-                if (phase == InteractionPhase::Start)
-                {
-                    _init_mouse = current_mouse;
-                }
-                else if (phase == InteractionPhase::Finish)
-                {
-                }
-
-                float w = _viewport_size.x * 0.5f;
-                float h = _viewport_size.y * 0.5f;
-                float min_dimension = 1.f / std::min(w, h);
-                lc_v3f v0{ _init_mouse.x, _init_mouse.y, 0.f };
-                lc_v3f v1{ current_mouse.x, current_mouse.y, 0.f };
-
-                auto mouse_to_vec = [w, h, min_dimension](lc_v3f& v)
-                {
-                    v.x = -(v.x - w) * min_dimension;
-                    v.y = (v.y - h) * min_dimension;
-                    float len_squared = v.x * v.x + v.y * v.y;
-                    if (len_squared > 1.f)
-                        len_squared = 1.f;
-                    v.z = sqrt(1.f - len_squared); // a point on the virtual sphere
-                };
-                mouse_to_vec(v0);
-                mouse_to_vec(v1);
-
-                if (dot(v0, v0) > 1e-4f && dot(v1, v1) > 1e-4f)
-                {
-                    lc_quatf rot = quat_from_vector_to_vector(v0, v1);
-                    rot = mul(cmt->orientation, rot);
-                    lc_v3f fwd = { 0, 0, length(cmt->position - _orbit_center) };
-                    lc_v3f pos_pre = cmt->position;
-                    lc_v3f pos = quat_rotate_vector(normalize(rot), fwd) + _orbit_center;
-                    lc_v3f rt = lc_rt_right(cmt); // turntable tilts about the camera right axis
-
-                    // because the orientation is synthesized from a motion in world space
-                    // and a rotation in camera space, recompose the camera orientation by
-                    // constraining the camera's direction to face the orbit center.
-                    lc_v3f local_up = { 0, 1, 0 };
-                    lc_mount_look_at(&camera.mount, pos, _orbit_center, local_up);
-                    set_roll(camera, tok, roll_hint);
-
-                    lc_v3f rt_post = lc_rt_right(cmt);
-                    if (dot(rt_post, rt) < -0.5f)
-                    {
-                        // if the input rotation causes motion past the pole, reset it.
-                        lc_mount_look_at(&camera.mount, pos_pre, _orbit_center, local_up);
-                    }
-
-                    _init_mouse = current_mouse;
-                }
-            }
-            break;
-
-            case InteractionMode::Crane:
-            case InteractionMode::Dolly:
-            case InteractionMode::TurnTableOrbit:
-            {
-                if (phase == InteractionPhase::Start)
-                {
-                    _init_mouse = current_mouse_;
-                }
-
-                // Joystick mode
-                lc_v2f dp = current_mouse_ - _init_mouse;
-                lc_v2f prev_dp = current_mouse_ - _prev_mouse;
-
-                // reset the anchor if the interaction direction changes on either axis.
-                // this is to increase the feeling of responsiveness
-                if (dp.x * prev_dp.x < 0)
-                    _init_mouse.x = current_mouse_.x;
-                if (dp.y * prev_dp.y < 0)
-                    _init_mouse.y = current_mouse_.y;
-                dp = current_mouse_ - _init_mouse;
-
-                dp.x /= _viewport_size.x;
-                dp.y /= -_viewport_size.y;
-                single_stick_interaction(camera, tok, mode, dp, roll_hint, dt);
-                break;
-            }
-
-            case InteractionMode::PanTilt:
-            {
-                // roll works? N
-                if (phase == InteractionPhase::Start)
-                {
-                    _init_mouse = current_mouse_;
-                    _initial_inv_projection = lc_camera_inv_view_projection(&camera, 1.f);
-                    _initial_focus_point = _orbit_center;
-                }
-
-                lc_v3f pos = camera.mount.transform.position;
-
-                // Through the lens gimbal
-                lc_ray original_ray = get_ray(_initial_inv_projection,
-                    pos, _init_mouse,
-                    { 0, 0 }, _viewport_size);
-                lc_ray new_ray = get_ray(_initial_inv_projection,
-                    pos, current_mouse_,
-                    { 0, 0 }, _viewport_size);
-
-                lc_quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
-
-                lc_v3f rel = _initial_focus_point - pos;
-                rel = quat_rotate_vector(rotation, rel);
-                _orbit_center = pos + rel;
-                lc_mount_look_at(&camera.mount, pos, _orbit_center, world_up_constraint());//  camera.mount.up());
-                set_roll(camera, tok, roll_hint);
-                break;
-            }
-
-            case InteractionMode::Static:
-                // do nothing
-                break;
-            } // switch
-
-            _prev_mouse = current_mouse_;
-        }
-
-        void PanTiltController::constrained_ttl_interaction(lc_camera& camera, InteractionToken tok,
-            InteractionPhase phase, InteractionMode mode,
-            lc_v2f const& current,
-            lc_v3f const& initial_hit_point,
-            lc_radians roll_hint,
-            float dt)
-        {
-            const lc_rigid_transform* cmt = &camera.mount.transform;
-            switch (mode)
-            {
-            case InteractionMode::Crane:
-            {
-                // roll works? Y
-                if (phase == InteractionPhase::Start)
-                {
-                    _initial_focus_point = initial_hit_point;
-                }
-
-                // Through the lens crane
-                lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
-                target_xy = mul(target_xy, 1.f / _viewport_size.x);
-                lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-                delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
-                _orbit_center += delta;
-                lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, cmt->position + delta);
-                break;
-            }
-            case InteractionMode::Dolly:
-            {
-                // roll works? Y
-                if (phase == InteractionPhase::Start)
-                {
-                    _initial_focus_point = initial_hit_point;
-                }
-
-                // Through the lens crane
-                lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, _viewport_size, _initial_focus_point) - current;
-                target_xy = mul(target_xy, 1.f / _viewport_size.x);
-                lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-                lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
-
-                lc_v3f test_pos = cmt->position + delta_fw;
-                float dist = distance_point_to_plane(test_pos, _initial_focus_point, lc_rt_forward(cmt));
-                if (dist < 0)
-                {
-                    // moving forward would not push past the plane (focus_point, mount.forward())?
-                    _orbit_center += delta + delta_fw;
-                    lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, test_pos + delta);
-                }
-                break;
-            }
-
-            default:
-                ttl_interaction(camera, tok, phase, mode, current, roll_hint, dt);
-                break;
-            }
-        }
-
-        lc_v3f PanTiltController::world_up_constraint() const
-        {
-            return _world_up;
-        }
-
-        lc_v3f PanTiltController::orbit_center_constraint() const
-        {
-            return _orbit_center;
-        }
-
-        void PanTiltController::set_orbit_center_constraint(lc_v3f const& pos)
-        {
-            _orbit_center = pos;
-        }
-
-        void PanTiltController::set_world_up_constraint(lc_v3f const& up)
-        {
-            _world_up = up;
-        }
-
-        void PanTiltController::set_speed(float o, float pt)
-        {
-            _orbit_speed = o;
-            _pan_tilt_speed = pt;
-        }
-
     }
-} // lab::Camera
+    break;
+
+    case lc_i_ModeCrane:
+    case lc_i_ModeDolly:
+    case lc_i_ModeTurnTableOrbit:
+    {
+        if (phase == lc_i_PhaseStart)
+        {
+            i->_init_mouse = current_mouse_;
+        }
+
+        // Joystick mode
+        lc_v2f dp = current_mouse_ - i->_init_mouse;
+        lc_v2f prev_dp = current_mouse_ - i->_prev_mouse;
+
+        // reset the anchor if the interaction direction changes on either axis.
+        // this is to increase the feeling of responsiveness
+        if (dp.x * prev_dp.x < 0)
+            i->_init_mouse.x = current_mouse_.x;
+        if (dp.y * prev_dp.y < 0)
+            i->_init_mouse.y = current_mouse_.y;
+        dp = current_mouse_ - i->_init_mouse;
+
+        dp.x /=  i->_viewport_size.x;
+        dp.y /= -i->_viewport_size.y;
+        lc_i_single_stick_interaction(i, camera, tok, mode, dp, roll_hint, dt);
+        break;
+    }
+
+    case lc_i_ModePanTilt:
+    {
+        using namespace lab::camera;
+
+        if (phase == lc_i_PhaseStart)
+        {
+            i->_init_mouse = current_mouse_;
+            i->_initial_inv_projection = lc_camera_inv_view_projection(&camera, 1.f);
+            i->_initial_focus_point = i->_orbit_center;
+        }
+
+        lc_v3f pos = camera.mount.transform.position;
+
+        // Through the lens gimbal
+        lc_ray original_ray = get_ray(i->_initial_inv_projection,
+            pos, i->_init_mouse,
+            { 0, 0 }, i->_viewport_size);
+        lc_ray new_ray = get_ray(i->_initial_inv_projection,
+            pos, current_mouse_,
+            { 0, 0 }, i->_viewport_size);
+
+        lc_quatf rotation = quat_from_vector_to_vector(new_ray.dir, original_ray.dir); // rotate the orbit center in the opposite direction
+
+        lc_v3f rel = i->_initial_focus_point - pos;
+        rel = quat_rotate_vector(rotation, rel);
+        i->_orbit_center = pos + rel;
+        lc_mount_look_at(&camera.mount, pos, i->_orbit_center, lc_i_world_up_constraint(i));//  camera.mount.up());
+        lc_i_set_roll(i, camera, tok, roll_hint);
+        break;
+    }
+
+    case lc_i_ModeStatic:
+        // do nothing
+        break;
+    } // switch
+
+    i->_prev_mouse = current_mouse_;
+}
+
+void lc_i_constrained_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
+    lc_i_Phase phase, lc_i_Mode mode,
+    lc_v2f const& current,
+    lc_v3f const& initial_hit_point,
+    lc_radians roll_hint,
+    float dt)
+{
+    const lc_rigid_transform* cmt = &camera.mount.transform;
+    switch (mode)
+    {
+    case lc_i_ModeCrane:
+    {
+        using namespace lab::camera;
+
+        if (phase == lc_i_PhaseStart)
+        {
+            i->_initial_focus_point = initial_hit_point;
+        }
+
+        // Through the lens crane
+        lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
+        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
+        delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
+        i->_orbit_center += delta;
+        lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, cmt->position + delta);
+        break;
+    }
+    case lc_i_ModeDolly:
+    {
+        using namespace lab::camera;
+
+        if (phase == lc_i_PhaseStart)
+        {
+            i->_initial_focus_point = initial_hit_point;
+        }
+
+        // Through the lens crane
+        lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
+        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
+        lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
+
+        lc_v3f test_pos = cmt->position + delta_fw;
+        float dist = distance_point_to_plane(test_pos, i->_initial_focus_point, lc_rt_forward(cmt));
+        if (dist < 0)
+        {
+            // moving forward would not push past the plane (focus_point, mount.forward())?
+            i->_orbit_center += delta + delta_fw;
+            lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, test_pos + delta);
+        }
+        break;
+    }
+
+    default:
+        lc_i_ttl_interaction(i, camera, tok, phase, mode, current, roll_hint, dt);
+        break;
+    }
+}
+
+lc_v3f lc_i_world_up_constraint(const lc_interaction* i)
+{
+    return i->_world_up;
+}
+
+lc_v3f lc_i_orbit_center_constraint(const lc_interaction* i)
+{
+    return i->_orbit_center;
+}
+
+void lc_i_set_orbit_center_constraint(lc_interaction* i, lc_v3f const& pos)
+{
+    i->_orbit_center = pos;
+}
+
+void lc_i_set_world_up_constraint(lc_interaction* i, lc_v3f const& up)
+{
+    i->_world_up = up;
+}
+
+void lc_i_set_speed(lc_interaction* i, float o, float pt)
+{
+    i->_orbit_speed = o;
+    i->_pan_tilt_speed = pt;
+}
 
 //-----------------------------------------------------------------------------
 // Aperture

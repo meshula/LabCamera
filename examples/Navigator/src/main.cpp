@@ -128,15 +128,27 @@ void mouse_state_update(MouseState* ms,
 
 struct AppState
 {
+    AppState()
+    {
+        main_pan_tilt = lc_i_create_interactive_controller();
+        joystick_pan_tilt = lc_i_create_interactive_controller();
+    }
+
+    ~AppState()
+    {
+        lc_i_free_interactive_controller(main_pan_tilt);
+        lc_i_free_interactive_controller(joystick_pan_tilt);
+    }
+
     // camera and application state
     lc_camera camera;
     lc_v3f initial_hit_point{ 0,0,0 };
-    lab::camera::PanTiltController main_pan_tilt;
-    lab::camera::PanTiltController joystick_pan_tilt;
+    lc_interaction* main_pan_tilt;
+    lc_interaction* joystick_pan_tilt;
     UIStateMachine ui_state = UIStateMachine::UI;
     uint64_t last_time = 0;
     MouseState mouse;
-    LCNav_PanelState* navigator_panel = nullptr;
+    LCNav_Panel* navigator_panel = nullptr;
 
     // gizmo state
     tinygizmo::m44f gizmo_transform;
@@ -294,7 +306,7 @@ void initialize_graphics()
     sgamepad_init();
     lc_camera_set_defaults(&gApp.camera);
 
-    gApp.joystick_pan_tilt.set_speed(0.1f, 0.05f);
+    lc_i_set_speed(gApp.joystick_pan_tilt, 0.1f, 0.05f);
     gApp.navigator_panel = create_navigator_panel();
 
     // setup sokol-gfx, sokol-time and sokol-imgui
@@ -482,7 +494,7 @@ void run_application_logic()
     const float h = (float)sapp_height();
     const double delta_time = std::max(stm_sec(stm_laptime(&gApp.last_time)), 1. / 60.);
 
-    lab::camera::PanTiltController& ptc = gApp.main_pan_tilt;
+    lc_interaction* ptc = gApp.main_pan_tilt;
 
     gApp.camera.optics.squeeze = w / h;
     lc_m44f proj = lc_camera_perspective(&gApp.camera);
@@ -512,7 +524,7 @@ void run_application_logic()
         // display look at
         if (gApp.show_look_at)
         {
-            lc_v3f lookat = gApp.navigator_panel->pan_tilt.orbit_center_constraint();
+            lc_v3f lookat = lc_i_orbit_center_constraint(LCNav_Panel_interaction_controller(gApp.navigator_panel));
             m.w = { lookat.x, lookat.y, lookat.z, 1.f };
             draw_jack(1, m);
         }
@@ -695,7 +707,7 @@ void run_application_logic()
     ImGui::SetCursorScreenPos(cursor_screen_pos);
     ImVec2 mouse_pos = ImGui::GetMousePos();
     lc_v2f viewport{ (float)canvas_size.x, (float)canvas_size.y };
-    lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+    lc_i_Phase phase = lc_i_PhaseContinue;
     bool mouse_in_viewport = update_mouseStatus_in_current_imgui_window(&gApp.mouse);
 
     if (gApp.show_state)
@@ -716,13 +728,13 @@ void run_application_logic()
     LabCameraNavigatorPanelInteraction in = LCNav_Inactive;
     if (gApp.show_navigator)
     {
-        ptc.sync_constraints(gApp.navigator_panel->pan_tilt);
-        ptc.sync_constraints(gApp.joystick_pan_tilt);
+        lc_i_sync_constraints(ptc, LCNav_Panel_interaction_controller(gApp.navigator_panel));
+        lc_i_sync_constraints(ptc, gApp.joystick_pan_tilt);
         in = run_navigator_panel(gApp.navigator_panel, gApp.camera, static_cast<float>(delta_time));
     }
 
     const lc_rigid_transform* rt = &gApp.camera.mount.transform;
-    camera_minimap(320, 240, rt, gApp.main_pan_tilt.orbit_center_constraint());
+    camera_minimap(320, 240, rt, lc_i_orbit_center_constraint(gApp.main_pan_tilt));
 
     if (in > LCNav_Inactive)
     {
@@ -790,9 +802,9 @@ void run_application_logic()
         if (gApp.ui_state == UIStateMachine::DeltaCamera || gApp.ui_state == UIStateMachine::TTLCamera)
         {
             if (gApp.mouse.click_initiated)
-                phase = lab::camera::InteractionPhase::Start;
+                phase = lc_i_PhaseStart;
             else if (gApp.mouse.click_ended)
-                phase = lab::camera::InteractionPhase::Finish;
+                phase = lc_i_PhaseFinish;
 
             ImGui::CaptureMouseFromApp(true);
 
@@ -802,15 +814,16 @@ void run_application_logic()
                 ImGui::TextUnformatted("TTL+");
 
                 // through the lens mode
-                lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
-                ptc.constrained_ttl_interaction(
+                InteractionToken tok = lc_i_begin_interaction(ptc, viewport);
+                lc_i_constrained_ttl_interaction(
+                    ptc,
                     gApp.camera,
-                    tok, phase, gApp.navigator_panel->camera_interaction_mode,
+                    tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point, 
-                    lc_radians{ gApp.navigator_panel->roll }, 
+                    LCNav_Panel_roll(gApp.navigator_panel),
                     static_cast<float>(delta_time));
-                ptc.end_interaction(tok);
+                lc_i_end_interaction(ptc, tok);
             }
             else
             {
@@ -818,14 +831,15 @@ void run_application_logic()
                 ImGui::TextUnformatted("TTL");
 
                 // virtual joystick mode
-                lab::camera::InteractionToken tok = ptc.begin_interaction(viewport);
-                ptc.ttl_interaction(
+                InteractionToken tok = lc_i_begin_interaction(ptc, viewport);
+                lc_i_ttl_interaction(
+                    ptc,
                     gApp.camera,
-                    tok, phase, gApp.navigator_panel->camera_interaction_mode,
+                    tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
                     { mouse_pos.x, mouse_pos.y }, 
-                    lc_radians{ gApp.navigator_panel->roll }, 
+                    LCNav_Panel_roll(gApp.navigator_panel),
                     static_cast<float>(delta_time));
-                ptc.end_interaction(tok);
+                lc_i_end_interaction(ptc, tok);
             }
 
             if (gApp.mouse.click_ended)
@@ -851,16 +865,17 @@ void run_application_logic()
     float len_r = right_stick.x * right_stick.x + right_stick.y * right_stick.y;
     if (len_l > 0.05f || len_r > 0.05f)
     {
-        ptc.sync_constraints(gApp.navigator_panel->pan_tilt);
-        ptc.sync_constraints(gApp.joystick_pan_tilt);
-        lab::camera::InteractionToken tok = gApp.joystick_pan_tilt.begin_interaction(viewport);
-        gApp.joystick_pan_tilt.dual_stick_interaction(
+        lc_i_sync_constraints(ptc, LCNav_Panel_interaction_controller(gApp.navigator_panel));
+        lc_i_sync_constraints(ptc, gApp.joystick_pan_tilt);
+        InteractionToken tok = lc_i_begin_interaction(gApp.joystick_pan_tilt, viewport);
+        lc_i_dual_stick_interaction(
+            gApp.joystick_pan_tilt,
             gApp.camera, 
-            tok, gApp.navigator_panel->camera_interaction_mode, 
+            tok, LCNav_Panel_interaction_mode(gApp.navigator_panel),
             { left_stick.x, 0, left_stick.y }, { right_stick.x, 0, right_stick.y },
-            lc_radians{ gApp.navigator_panel->roll },
+            LCNav_Panel_roll(gApp.navigator_panel),
             static_cast<float>(delta_time));
-        gApp.joystick_pan_tilt.end_interaction(tok);
+        lc_i_end_interaction(gApp.joystick_pan_tilt, tok);
     }
 }
 

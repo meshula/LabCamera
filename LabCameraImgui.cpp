@@ -39,12 +39,24 @@ enum LCNav_Component
 };
 
 
-struct LCNav_Panel : public LCNav_PanelState
+struct LCNav_Panel
 {
+    float nav_radius = 6;
+    lc_radians roll{ 0 };
+    lc_interaction* pan_tilt = nullptr;
+    LabCameraNavigatorPanelInteraction state = LCNav_Inactive;
+    lc_i_Mode camera_interaction_mode = lc_i_ModeTurnTableOrbit;
+
     LCNav_Panel()
     {
-        pan_tilt.set_speed(0.01f, 0.005f);
+        pan_tilt = lc_i_create_interactive_controller();
+        lc_i_set_speed(pan_tilt, 0.01f, 0.005f);
         lc_camera_set_defaults(&trackball_camera);
+    }
+ 
+    ~LCNav_Panel()
+    {
+        lc_i_free_interactive_controller(pan_tilt);
     }
 
     // this camera is for displaying a little gimbal in the trackball widget
@@ -57,16 +69,34 @@ struct LCNav_Panel : public LCNav_PanelState
     const lc_v2f lenskit_size = { 120, 200 };
 };
 
-LCNav_PanelState* create_navigator_panel()
+LCNav_Panel* create_navigator_panel()
 {
     return new LCNav_Panel();
 }
 
-void release_navigator_panel(LCNav_PanelState* p)
+void release_navigator_panel(LCNav_Panel* p)
 {
     LCNav_Panel* ptr = reinterpret_cast<LCNav_Panel*>(p);
     delete ptr;
 }
+
+
+
+lc_interaction* LCNav_Panel_interaction_controller(const LCNav_Panel* p)
+{
+    return p->pan_tilt;
+}
+
+lc_i_Mode LCNav_Panel_interaction_mode(const LCNav_Panel* p)
+{
+    return p->camera_interaction_mode;
+}
+
+lc_radians LCNav_Panel_roll(const LCNav_Panel* p)
+{
+    return lc_radians{ p->roll };
+}
+
 
 static bool DialControl(const char* label, float* p_value)
 {
@@ -507,7 +537,7 @@ bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
 
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float dt)
+run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
     LabCameraNavigatorPanelInteraction result = LCNav_Inactive;
@@ -568,30 +598,30 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float
     ImGui::SetColumnWidth(1, 100);
 
     if (ImGui::Button("Home###NavHome")) {
-        auto up = navigator_panel->pan_tilt.world_up_constraint();
-        lc_mount_look_at(&camera.mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, navigator_panel->pan_tilt.world_up_constraint());
-        navigator_panel->pan_tilt.set_orbit_center_constraint({ 0,0,0 });
+        auto up = lc_i_world_up_constraint(navigator_panel->pan_tilt);
+        lc_mount_look_at(&camera.mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, lc_i_world_up_constraint(navigator_panel->pan_tilt));
+        lc_i_set_orbit_center_constraint(navigator_panel->pan_tilt, { 0,0,0 });
         navigator_panel->roll = lc_radians{ 0 };
         result = LCNav_Inactive;
     }
-    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Crane ? "-Crane-" : " Crane ")) {
-        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Crane;
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lc_i_ModeCrane ? "-Crane-" : " Crane ")) {
+        navigator_panel->camera_interaction_mode = lc_i_ModeCrane;
         result = LCNav_ModeChange;
     }
-    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Dolly ? "-Dolly-" : " Dolly ")) {
-        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Dolly;
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lc_i_ModeDolly ? "-Dolly-" : " Dolly ")) {
+        navigator_panel->camera_interaction_mode = lc_i_ModeDolly;
         result = LCNav_ModeChange;
     }
-    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::TurnTableOrbit ? "-Orbit-" : " Orbit ")) {
-        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::TurnTableOrbit;
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lc_i_ModeTurnTableOrbit ? "-Orbit-" : " Orbit ")) {
+        navigator_panel->camera_interaction_mode = lc_i_ModeTurnTableOrbit;
         result = LCNav_ModeChange;
     }
-    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::PanTilt ? "-PanTilt-" : " PanTilt ")) {
-        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::PanTilt;
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lc_i_ModePanTilt ? "-PanTilt-" : " PanTilt ")) {
+        navigator_panel->camera_interaction_mode = lc_i_ModePanTilt;
         result = LCNav_ModeChange;
     }
-    if (ImGui::Button(navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball ? "-Arcball-" : " Arcball ")) {
-        navigator_panel->camera_interaction_mode = lab::camera::InteractionMode::Arcball;
+    if (ImGui::Button(navigator_panel->camera_interaction_mode == lc_i_ModeArcball ? "-Arcball-" : " Arcball ")) {
+        navigator_panel->camera_interaction_mode = lc_i_ModeArcball;
         result = LCNav_ModeChange;
     }
 
@@ -618,26 +648,27 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float
 
     if (navigator_panel->component == LCNav_Joystick)
     {
-        lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+        lc_i_Phase phase = lc_i_PhaseContinue;
         if (ms.click_initiated)
-            phase = lab::camera::InteractionPhase::Start;
+            phase = lc_i_PhaseStart;
         else if (ms.click_ended)
-            phase = lab::camera::InteractionPhase::Finish;
+            phase = lc_i_PhaseFinish;
 
         if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
 
-        if (navigator_panel->camera_interaction_mode == lab::camera::InteractionMode::Arcball)
+        if (navigator_panel->camera_interaction_mode == lc_i_ModeArcball)
         {
             ImVec2 center_dist = joystick_center - io.MousePos;
-            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-            navigator_panel->pan_tilt.ttl_interaction(
+            InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
+            lc_i_ttl_interaction(
+                navigator_panel->pan_tilt,
                 camera,
                 tok, phase, navigator_panel->camera_interaction_mode,
                 { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f),
                   navigator_panel->trackball_size.y - (center_dist.y + navigator_panel->trackball_size.y * 0.5f) },
                   lc_radians{ navigator_panel->roll }, dt);
-            navigator_panel->pan_tilt.end_interaction(tok);
+            lc_i_end_interaction(navigator_panel->pan_tilt, tok);
         }
         else
         {
@@ -645,22 +676,23 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float
             float scale = speed_scaler / navigator_panel->trackball_size.x;
             float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
             float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
-            lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-            navigator_panel->pan_tilt.single_stick_interaction(
+            InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
+            lc_i_single_stick_interaction(
+                navigator_panel->pan_tilt,
                 camera,
                 tok, navigator_panel->camera_interaction_mode, { dx, dy },
                 lc_radians{ navigator_panel->roll }, dt);
-            navigator_panel->pan_tilt.end_interaction(tok);
+            lc_i_end_interaction(navigator_panel->pan_tilt, tok);
         }
     }
 
     if (navigator_panel->component == LCNav_Roll)
     {
-        lab::camera::InteractionPhase phase = lab::camera::InteractionPhase::Continue;
+        lc_i_Phase phase = lc_i_PhaseContinue;
         if (ms.click_initiated)
-            phase = lab::camera::InteractionPhase::Start;
+            phase = lc_i_PhaseStart;
         else if (ms.click_ended)
-            phase = lab::camera::InteractionPhase::Finish;
+            phase = lc_i_PhaseFinish;
 
         if (ms.click_initiated)
             ImGui::CaptureMouseFromApp(true);
@@ -669,10 +701,11 @@ run_navigator_panel(LCNav_PanelState* navigator_panel_, lc_camera& camera, float
 
         // renormalize transform, then apply the camera roll
         lc_mount_look_at(&camera.mount, camera.mount.transform.position,
-            navigator_panel->pan_tilt.orbit_center_constraint(), navigator_panel->pan_tilt.world_up_constraint());
-        lab::camera::InteractionToken tok = navigator_panel->pan_tilt.begin_interaction(navigator_panel->trackball_size);
-        navigator_panel->pan_tilt.set_roll(camera, tok, navigator_panel->roll);
-        navigator_panel->pan_tilt.end_interaction(tok);
+            lc_i_orbit_center_constraint(navigator_panel->pan_tilt), 
+            lc_i_world_up_constraint(navigator_panel->pan_tilt));
+        InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
+        lc_i_set_roll(navigator_panel->pan_tilt, camera, tok, navigator_panel->roll);
+        lc_i_end_interaction(navigator_panel->pan_tilt, tok);
     }
 
 
