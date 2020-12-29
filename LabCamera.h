@@ -1,10 +1,53 @@
 
 /*------------------------------------------------------------------------------
-   Copyright (c) 2013 Nick Porcino, All rights reserved.
-   License is MIT: http://opensource.org/licenses/MIT
+    Copyright (c) 2013 Nick Porcino, All rights reserved.
+    License is MIT: http://opensource.org/licenses/MIT
 
-   LabCamera has no external dependencies. Include LabCamera.cpp in your
-   project.
+    Version 1.0
+
+    LabCamera has no external dependencies. Include LabCamera.cpp in your
+    project, and LabCamera.h in your include search path.
+
+    The camera is modeled as a set of elements, each with a distinct physical
+    role in the capture of an image. Each element is modeled by a struct, and
+    a camera struct is a composition of those elements.
+
+    lc_mount describes the pose of the camera. The mount is really a virtual
+    mount whose origin is at the lens' entrance pupil. It's up the an
+    application to model a kinematic chain such as a tripod or boom arm. The
+    rigid transform within the mount should be constrained to that kinematic
+    chain.
+
+    Following light from object in the world to sensor plane, the objects are:
+
+    lc_optics - a mathematical description of a simple lens
+    lc_aperture - the lens' exit pupil geometry
+    lc_sensor - geometry of the imaging plane
+
+    LabCamera also provides an interactive controller that modifies camera
+    parameters in response to various input signals. It provides popular
+    cinematic and modeling controls: crane, dolly, tilt-pan, as well as
+    turntable and arcball control.
+
+    The single stick interface responds to an x/y motion vector. This interface
+    can be used where the control is via mouse interaction with a single
+    widget, or drags in an rendered viewport.
+
+    The dual stick interface responds to x/y motion vectors assigned
+    independently to position and orientation. This interface can be used where
+    the control inputs come from a device like a gamepad.
+
+    The through-the-lens interface is meant for control via pointing in a
+    rendered interactive view. Wherever possible, a location under a pointer
+    will remain under the pointer through the interaction. As a use case, the
+    pan-tilt interaction mode enables grabbing a visible feature in the image
+    and pulling that feature to a desired location in image space.
+
+    The constrained through-the-lens control extends the through the lens
+    interface to keep a hit-tested object in world space under the cursor. As a
+    use case, the crane interaction mode enables clicking an object at an
+    arbitrary distance from the camera and moving the camera proportional to
+    the distance to maintain the click point under the cursor as it moves.
  */
 
 #ifndef LAB_CAMERA_H
@@ -53,7 +96,9 @@ inline lc_degrees degrees_from_radians(lc_radians r) {
     return SRET(lc_degrees){ r.rad * 57.2957795131f }; }
 
 /*------------------------------------------------------------------------------
-    rigid transform. Basic utility functions include computation of basis
+    lc_rigid_transform
+  ------------------------------------------------------------------------------
+    Basic utility functions include computation of basis
     vectors, and point and vector transformations.
  */
 
@@ -86,7 +131,11 @@ inline bool lc_rt_has_uniform_scale(const lc_rigid_transform* rt) {
     return rt->scale.x == rt->scale.y && rt->scale.x == rt->scale.z; }
 
 /*------------------------------------------------------------------------------
-    lc_mount is a nodal mount, centered on the camera's sensor
+    lc_mount
+  ------------------------------------------------------------------------------
+    A nodal mount, centered on the lens' entrance pupil, a point typically very
+    near the intersection of the lens' optical axis and the sensor or film.
+
     The mount's transform is left handed, y is up, -z is forward
 
     Utilities are provided to calculate various useful matrices, and to
@@ -127,6 +176,7 @@ void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
 
 /*------------------------------------------------------------------------------
    lc_sensor
+  ------------------------------------------------------------------------------
 
     describes the plane where an image is to be resolved.
 
@@ -160,7 +210,8 @@ void lc_sensor_set_default(lc_sensor* s);
 lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians);
 
 /*------------------------------------------------------------------------------
-    Optics
+    lc_optics
+  ------------------------------------------------------------------------------
 
     A and B are on the sensor plane.
 
@@ -258,6 +309,7 @@ lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance);
 
 /*------------------------------------------------------------------------------
     lc_aperture
+  ------------------------------------------------------------------------------
 
     A slight simplification; the aperture describes both the pupil of the
     aperture and also the shutter.
@@ -279,7 +331,8 @@ typedef struct
 void lc_aperture_set_default(lc_aperture* a);
 
 /*------------------------------------------------------------------------------
-    Camera
+    lc_camera
+  ------------------------------------------------------------------------------
 
     A Camera is comprised of a Mount, a Sensor, and Optics.
     The camera implements interaction and constrain solving.
@@ -355,7 +408,8 @@ lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect);
 /// and sensor plane are not at the same distance necessarily.
 
 /*------------------------------------------------------------------------------
-    Interactive Controller
+   lc_interaction
+  ------------------------------------------------------------------------------
  */
 
 typedef uint64_t InteractionToken;

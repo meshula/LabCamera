@@ -4,19 +4,51 @@ Copyright (c) 2013 Nick Porcino, All rights reserved.
 
 License is MIT: http://opensource.org/licenses/MIT
 
-LabCamera models interactive and computer vision cameras as a collection of
-physical components: optics, aperature, sensor, and mount. Parameters are
-physical, and compatible with real world measurements.
+Version 1.0 alpha
 
-The LabCamera interactive controller offers many popular control models;
-arcball, turntable, a variety of cinematic modes, such as crane and dolly.
+LabCamera has no external dependencies. Include LabCamera.cpp in your
+project, and LabCamera.h in your include search path.
 
-LabCamera collects many useful calculations necessary in interactive and
-computer vision applications, such as calculating hyperfocal distance, the
-circle of confusion, and so on.
+The camera is modeled as a set of elements, each with a distinct physical
+role in the capture of an image. Each element is modeled by a struct, and
+a camera struct is a composition of those elements.
 
-LabCamera has no external dependencies, just include LabCamera.cpp in your
-project.
+lc_mount describes the pose of the camera. The mount is really a virtual
+mount whose origin is at the lens' entrance pupil. It's up the an
+application to model a kinematic chain such as a tripod or boom arm. The
+rigid transform within the mount should be constrained to that kinematic
+chain.
+
+Following light from object in the world to sensor plane, the objects are:
+
+- lc_optics - a mathematical description of a simple lens
+- lc_aperture - the lens' exit pupil geometry
+- lc_sensor - geometry of the imaging plane
+
+LabCamera also provides an interactive controller that modifies camera
+parameters in response to various input signals. It provides popular
+cinematic and modeling controls: crane, dolly, tilt-pan, as well as
+turntable and arcball control.
+
+The single stick interface responds to an x/y motion vector. This interface
+can be used where the control is via mouse interaction with a single
+widget, or drags in an rendered viewport.
+
+The dual stick interface responds to x/y motion vectors assigned
+independently to position and orientation. This interface can be used where
+the control inputs come from a device like a gamepad.
+
+The through-the-lens interface is meant for control via pointing in a
+rendered interactive view. Wherever possible, a location under a pointer
+will remain under the pointer through the interaction. As a use case, the
+pan-tilt interaction mode enables grabbing a visible feature in the image
+and pulling that feature to a desired location in image space.
+
+The constrained through-the-lens control extends the through the lens
+interface to keep a hit-tested object in world space under the cursor. As a
+use case, the crane interaction mode enables clicking an object at an
+arbitrary distance from the camera and moving the camera proportional to
+the distance to maintain the click point under the cursor as it moves.
 
 LabCameraImgui is a convenient panel implementing various camera controls,
 including a lens kit.
@@ -76,26 +108,12 @@ LabCamera doesn't provide a math library, just these trivial types compatible
 with almost any other library via static casting or copying.
 
 ```
-    struct v2f { float x, y; };
-    struct v3f { float x, y, z; };
-    struct v4f { float x, y, z, w; };
-    typedef v4f quatf;
-
-    struct m44f {
-        union {
-            struct { v4f x; v4f y; v4f z; v4f w; };
-            v4f array[4];
-        };
-        constexpr const v4f& operator[] (int j) const { return array[j]; }
-        v4f& operator[] (int j) { return array[j]; }
-    };
-
-    struct Ray { v3f pos; v3f dir; };
-
-    // wrapping of a float value to communicate the unit of the value
-    //
-    struct millimeters { float value; };
-    struct radians { float value; };
+typedef struct { float x, y; }       lc_v2f;
+typedef struct { float x, y, z; }    lc_v3f;
+typedef struct { float x, y, z, w; } lc_v4f;
+typedef struct { float x, y, z, w; } lc_quatf;
+typedef struct { lc_v4f x; lc_v4f y; lc_v4f z; lc_v4f w; } lc_m44f;
+typedef struct { lc_v3f pos; lc_v3f dir; } lc_ray;
 ```
 
 ________________________________________________________________________________

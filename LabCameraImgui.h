@@ -3,6 +3,8 @@
  Copyright (c) 2020 Nick Porcino, All rights reserved.
  License is MIT: http://opensource.org/licenses/MIT
 
+    Version 0.1
+
  LabCameraImgui has no external dependencies besides LabCamera and Dear ImGui.
  Include LabCamera.cpp, and LabCameraImgui.cpp in your project.
 */
