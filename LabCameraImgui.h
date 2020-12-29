@@ -35,10 +35,10 @@ typedef enum
  * The viewport should be the viewport size in device coordinates.
  */
 
-struct LCNav_Panel;
+typedef struct LCNav_Panel LCNav_Panel;
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_Panel* navigator_panel, lc_camera& camera, float dt);
+run_navigator_panel(LCNav_Panel* navigator_panel, lc_camera* camera, float dt);
 
 LCNav_Panel* create_navigator_panel();
 void release_navigator_panel(LCNav_Panel*);

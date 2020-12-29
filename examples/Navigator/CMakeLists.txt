@@ -1,6 +1,6 @@
 
 cmake_minimum_required(VERSION 3.11)
-project(Navigator VERSION 0.1.0 LANGUAGES C CXX)
+project(Navigator VERSION 0.2.0 LANGUAGES C CXX)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -127,6 +127,7 @@ set(NAVIGATOR_SRC
     ../../LabCamera.cpp
     ../../LabCameraImgui.h
     ../../LabCameraImgui.cpp
+    ../../c_canary.c
     src/main.cpp
     src/gizmo.glsl
 )
@@ -195,6 +196,8 @@ set_property(TARGET Navigator PROPERTY CXX_STANDARD_REQUIRED ON)
 if (WIN32)
   set(PLATFORM_LIBS ws2_32 Iphlpapi.lib opengl32.lib)
 endif()
+
+set_property(TARGET Navigator PROPERTY C_STANDARD 99)
 
 target_link_libraries(Navigator
     ${PLATFORM_LIBS}

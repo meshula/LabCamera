@@ -229,7 +229,7 @@ static void draw_grid(float y, const lc_m44f& m)
 {
     sgl_matrix_mode_projection();
 
-    lc_m44f proj = lc_camera_perspective(&gApp.camera);
+    lc_m44f proj = lc_camera_perspective(&gApp.camera, 1.f);
     sgl_load_matrix(&proj.x.x);
 
     lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
@@ -279,7 +279,7 @@ static void draw_debug(const lc_m44f& m)
     if (!debug_lines_array_idx)
         return;
 
-    lc_m44f proj = lc_camera_perspective(&gApp.camera);
+    lc_m44f proj = lc_camera_perspective(&gApp.camera, 1.f);
     sgl_matrix_mode_projection();
     sgl_load_matrix(&proj.x.x);
     lc_m44f mv = lc_mount_model_view_transform_f16(&gApp.camera.mount, &m.x.x);
@@ -497,7 +497,7 @@ void run_application_logic()
     lc_interaction* ptc = gApp.main_pan_tilt;
 
     gApp.camera.optics.squeeze = w / h;
-    lc_m44f proj = lc_camera_perspective(&gApp.camera);
+    lc_m44f proj = lc_camera_perspective(&gApp.camera, 1.f);
     lc_m44f view = lc_mount_gl_view_transform(&gApp.camera.mount);
     lc_m44f view_t = lc_mount_gl_view_transform_inv(&gApp.camera.mount);
     lc_m44f view_proj = lc_camera_view_projection(&gApp.camera, 1.f);
@@ -730,7 +730,7 @@ void run_application_logic()
     {
         lc_i_sync_constraints(ptc, LCNav_Panel_interaction_controller(gApp.navigator_panel));
         lc_i_sync_constraints(ptc, gApp.joystick_pan_tilt);
-        in = run_navigator_panel(gApp.navigator_panel, gApp.camera, static_cast<float>(delta_time));
+        in = run_navigator_panel(gApp.navigator_panel, &gApp.camera, static_cast<float>(delta_time));
     }
 
     const lc_rigid_transform* rt = &gApp.camera.mount.transform;
@@ -817,7 +817,7 @@ void run_application_logic()
                 InteractionToken tok = lc_i_begin_interaction(ptc, viewport);
                 lc_i_constrained_ttl_interaction(
                     ptc,
-                    gApp.camera,
+                    &gApp.camera,
                     tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
                     { mouse_pos.x, mouse_pos.y },
                     gApp.initial_hit_point, 
@@ -834,7 +834,7 @@ void run_application_logic()
                 InteractionToken tok = lc_i_begin_interaction(ptc, viewport);
                 lc_i_ttl_interaction(
                     ptc,
-                    gApp.camera,
+                    &gApp.camera,
                     tok, phase, LCNav_Panel_interaction_mode(gApp.navigator_panel),
                     { mouse_pos.x, mouse_pos.y }, 
                     LCNav_Panel_roll(gApp.navigator_panel),
@@ -870,7 +870,7 @@ void run_application_logic()
         InteractionToken tok = lc_i_begin_interaction(gApp.joystick_pan_tilt, viewport);
         lc_i_dual_stick_interaction(
             gApp.joystick_pan_tilt,
-            gApp.camera, 
+            &gApp.camera, 
             tok, LCNav_Panel_interaction_mode(gApp.navigator_panel),
             { left_stick.x, 0, left_stick.y }, { right_stick.x, 0, right_stick.y },
             LCNav_Panel_roll(gApp.navigator_panel),

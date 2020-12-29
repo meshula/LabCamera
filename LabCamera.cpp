@@ -757,7 +757,7 @@ void lc_i_free_interactive_controller(lc_interaction* i)
 //
 //-----------------------------------------------------------------------------
 
-InteractionToken lc_i_begin_interaction(lc_interaction* i, lc_v2f const& viewport_size)
+InteractionToken lc_i_begin_interaction(lc_interaction* i, lc_v2f viewport_size)
 {
     i->_viewport_size = viewport_size;
     ++i->_epoch;
@@ -790,14 +790,14 @@ void lc_i_end_interaction(lc_interaction*, InteractionToken)
 }
 
 /// @TODO - this belongs under lc_mount
-void lc_i_set_roll(lc_interaction* i, lc_camera& camera, InteractionToken, lc_radians r)
+void lc_i_set_roll(lc_interaction* i, lc_camera* camera, InteractionToken, lc_radians r)
 {
     using namespace lab::camera;
 
-    lc_v3f dir = lc_rt_forward(&camera.mount.transform);
+    lc_v3f dir = lc_rt_forward(&camera->mount.transform);
     lc_quatf q = quat_from_axis_angle(dir, r.rad);
-    q = mul(q, camera.mount.transform.orientation);
-    lc_mount_set_view_transform_quat_pos(&camera.mount, q, camera.mount.transform.position);
+    q = mul(q, camera->mount.transform.orientation);
+    lc_mount_set_view_transform_quat_pos(&camera->mount, q, camera->mount.transform.position);
 }
 
 void lc_interaction::_dolly(lc_camera& camera, const lc_v3f& delta)
@@ -890,10 +890,10 @@ void lc_interaction::_pantilt(lc_camera& camera, const lc_v2f& delta)
 // typically computed as scale * (currMousePos - prevMousePos);
 //
 void lc_i_single_stick_interaction(lc_interaction* i,
-    lc_camera& camera, InteractionToken tok,
-    lc_i_Mode mode, lc_v2f const& delta_in, lc_radians roll_hint, float dt)
+    lc_camera* camera, InteractionToken tok,
+    lc_i_Mode mode, lc_v2f delta_in, lc_radians roll_hint, float dt)
 {
-    const lc_rigid_transform* cmt = &camera.mount.transform;
+    const lc_rigid_transform* cmt = &camera->mount.transform;
 
     // joystick mode controls
     lc_v2f delta = delta_in;
@@ -917,20 +917,20 @@ void lc_i_single_stick_interaction(lc_interaction* i,
     switch (mode)
     {
     case lc_i_ModeDolly:
-        i->_dolly(camera, { delta.x, 0, delta.y });
+        i->_dolly(*camera, { delta.x, 0, delta.y });
         break;
 
     case lc_i_ModeCrane:
-        i->_dolly(camera, { delta.x, delta.y, 0 });
+        i->_dolly(*camera, { delta.x, delta.y, 0 });
         break;
 
     case lc_i_ModePanTilt:
-        i->_pantilt(camera, { delta.x, delta.y });
+        i->_pantilt(*camera, { delta.x, delta.y });
         lc_i_set_roll(i, camera, tok, roll_hint);
         break;
 
     case lc_i_ModeTurnTableOrbit:
-        i->_turntable(camera, delta);
+        i->_turntable(*camera, delta);
         lc_i_set_roll(i,camera, tok, roll_hint);
         break;
 
@@ -944,8 +944,8 @@ void lc_i_single_stick_interaction(lc_interaction* i,
 }
 
 
-void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
-    lc_i_Mode mode, lc_v3f const& pos_delta_in, lc_v3f const& rotation_delta_in,
+void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
+    lc_i_Mode mode, lc_v3f pos_delta_in, lc_v3f rotation_delta_in,
     lc_radians roll_hint, float dt)
 {
     lc_v3f pos_delta = pos_delta_in;
@@ -971,28 +971,28 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera& camera, Interacti
     {
     case lc_i_ModeDolly:
     {
-        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
-        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        i->_dolly(*camera, { pos_delta.x, 0, pos_delta.z });
+        i->_pantilt(*camera, { rotation_delta.x, rotation_delta.z });
         break;
     }
     case lc_i_ModeCrane:
     {
-        i->_dolly(camera, { pos_delta.x, pos_delta.z, 0 });
-        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        i->_dolly(*camera, { pos_delta.x, pos_delta.z, 0 });
+        i->_pantilt(*camera, { rotation_delta.x, rotation_delta.z });
         break;
     }
 
     case lc_i_ModePanTilt:
     {
-        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
-        i->_pantilt(camera, { rotation_delta.x, rotation_delta.z });
+        i->_dolly(*camera, { pos_delta.x, 0, pos_delta.z });
+        i->_pantilt(*camera, { rotation_delta.x, rotation_delta.z });
         break;
     }
 
     case lc_i_ModeTurnTableOrbit:
     {
-        i->_dolly(camera, { pos_delta.x, 0, pos_delta.z });
-        i->_turntable(camera, { rotation_delta.x, rotation_delta.z });
+        i->_dolly(*camera, { pos_delta.x, 0, pos_delta.z });
+        i->_turntable(*camera, { rotation_delta.x, rotation_delta.z });
         lc_i_set_roll(i, camera, tok, roll_hint);
         break;
     }
@@ -1010,12 +1010,12 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera& camera, Interacti
 // Initial is the screen position of the beginning of the interaction, current is the
 // current position
 //
-void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
-    lc_i_Phase phase, lc_i_Mode mode, lc_v2f const& current_mouse_, lc_radians roll_hint, float dt)
+void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
+    lc_i_Phase phase, lc_i_Mode mode, lc_v2f current_mouse_, lc_radians roll_hint, float dt)
 {
     using namespace lab::camera;
 
-    const lc_rigid_transform* cmt = &camera.mount.transform;
+    const lc_rigid_transform* cmt = &camera->mount.transform;
     switch (mode)
     {
     case lc_i_ModeArcball:
@@ -1061,14 +1061,14 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken
             // and a rotation in camera space, recompose the camera orientation by
             // constraining the camera's direction to face the orbit center.
             lc_v3f local_up = { 0, 1, 0 };
-            lc_mount_look_at(&camera.mount, pos, i->_orbit_center, local_up);
+            lc_mount_look_at(&camera->mount, pos, i->_orbit_center, local_up);
             lc_i_set_roll(i, camera, tok, roll_hint);
 
             lc_v3f rt_post = lc_rt_right(cmt);
             if (dot(rt_post, rt) < -0.5f)
             {
                 // if the input rotation causes motion past the pole, reset it.
-                lc_mount_look_at(&camera.mount, pos_pre, i->_orbit_center, local_up);
+                lc_mount_look_at(&camera->mount, pos_pre, i->_orbit_center, local_up);
             }
 
             i->_init_mouse = current_mouse;
@@ -1110,11 +1110,11 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken
         if (phase == lc_i_PhaseStart)
         {
             i->_init_mouse = current_mouse_;
-            i->_initial_inv_projection = lc_camera_inv_view_projection(&camera, 1.f);
+            i->_initial_inv_projection = lc_camera_inv_view_projection(camera, 1.f);
             i->_initial_focus_point = i->_orbit_center;
         }
 
-        lc_v3f pos = camera.mount.transform.position;
+        lc_v3f pos = camera->mount.transform.position;
 
         // Through the lens gimbal
         lc_ray original_ray = get_ray(i->_initial_inv_projection,
@@ -1129,7 +1129,7 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken
         lc_v3f rel = i->_initial_focus_point - pos;
         rel = quat_rotate_vector(rotation, rel);
         i->_orbit_center = pos + rel;
-        lc_mount_look_at(&camera.mount, pos, i->_orbit_center, lc_i_world_up_constraint(i));//  camera.mount.up());
+        lc_mount_look_at(&camera->mount, pos, i->_orbit_center, lc_i_world_up_constraint(i));
         lc_i_set_roll(i, camera, tok, roll_hint);
         break;
     }
@@ -1142,14 +1142,15 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken
     i->_prev_mouse = current_mouse_;
 }
 
-void lc_i_constrained_ttl_interaction(lc_interaction* i, lc_camera& camera, InteractionToken tok,
+void lc_i_constrained_ttl_interaction(lc_interaction* i, 
+    lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode,
-    lc_v2f const& current,
-    lc_v3f const& initial_hit_point,
+    lc_v2f current,
+    lc_v3f initial_hit_point,
     lc_radians roll_hint,
     float dt)
 {
-    const lc_rigid_transform* cmt = &camera.mount.transform;
+    const lc_rigid_transform* cmt = &camera->mount.transform;
     switch (mode)
     {
     case lc_i_ModeCrane:
@@ -1162,12 +1163,12 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i, lc_camera& camera, Inte
         }
 
         // Through the lens crane
-        lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
+        lc_v2f target_xy = lc_camera_project_to_viewport(camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
         target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
         lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
         delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
         i->_orbit_center += delta;
-        lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, cmt->position + delta);
+        lc_mount_set_view_transform_quat_pos(&camera->mount, camera->mount.transform.orientation, cmt->position + delta);
         break;
     }
     case lc_i_ModeDolly:
@@ -1180,7 +1181,7 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i, lc_camera& camera, Inte
         }
 
         // Through the lens crane
-        lc_v2f target_xy = lc_camera_project_to_viewport(&camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
+        lc_v2f target_xy = lc_camera_project_to_viewport(camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
         target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
         lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
         lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
@@ -1191,7 +1192,7 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i, lc_camera& camera, Inte
         {
             // moving forward would not push past the plane (focus_point, mount.forward())?
             i->_orbit_center += delta + delta_fw;
-            lc_mount_set_view_transform_quat_pos(&camera.mount, camera.mount.transform.orientation, test_pos + delta);
+            lc_mount_set_view_transform_quat_pos(&camera->mount, camera->mount.transform.orientation, test_pos + delta);
         }
         break;
     }
@@ -1212,12 +1213,12 @@ lc_v3f lc_i_orbit_center_constraint(const lc_interaction* i)
     return i->_orbit_center;
 }
 
-void lc_i_set_orbit_center_constraint(lc_interaction* i, lc_v3f const& pos)
+void lc_i_set_orbit_center_constraint(lc_interaction* i, lc_v3f pos)
 {
     i->_orbit_center = pos;
 }
 
-void lc_i_set_world_up_constraint(lc_interaction* i, lc_v3f const& up)
+void lc_i_set_world_up_constraint(lc_interaction* i, lc_v3f up)
 {
     i->_world_up = up;
 }
@@ -1476,7 +1477,7 @@ lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam)
 }
 
 // move the camera along the view vector such that both bounds are visible
-void lc_camera_frame(lc_camera* cam, lc_v3f const& bound1, lc_v3f const& bound2)
+void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2)
 {
     using namespace lab::camera;
     const lc_rigid_transform* cmt = &cam->mount.transform;
@@ -1487,7 +1488,7 @@ void lc_camera_frame(lc_camera* cam, lc_v3f const& bound1, lc_v3f const& bound2)
     lc_mount_look_at(&cam->mount, position, focus_point, lc_rt_up(cmt));
 }
 
-void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2)
+void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f bound1, lc_v3f bound2)
 {
     using namespace lab::camera;
     float clip_near = FLT_MAX;
@@ -1524,7 +1525,7 @@ void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near,
     cam->optics.zfar = clip_far;
 }
 
-float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f const& plane_point, lc_v3f const& plane_normal)
+float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f plane_point, lc_v3f plane_normal)
 {
     using namespace lab::camera;
     const lc_rigid_transform* cmt = &cam->mount.transform;
@@ -1552,14 +1553,14 @@ lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
     return invert(mul(proj, view));
 }
 
-lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
+lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f viewport_origin, lc_v2f viewport_size)
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
     lc_m44f inv_projection = lc_camera_inv_view_projection(cam, 1.f);
     return lab::camera::get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
 }
 
-lc_hit_result lc_camera_hit_test(const lc_camera* cam, const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal)
+lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f viewport, lc_v3f plane_point, lc_v3f plane_normal)
 {
     lc_ray ray = lc_camera_get_ray_from_pixel(cam, mouse, { 0, 0 }, viewport);
     lc_hit_result r;
@@ -1567,7 +1568,7 @@ lc_hit_result lc_camera_hit_test(const lc_camera* cam, const lc_v2f& mouse, cons
     return r;
 }
 
-lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point)
+lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f viewport_origin, lc_v2f viewport_size, lc_v3f point)
 {
     using namespace lab::camera;
     lc_m44f m = lc_camera_view_projection(cam, 1.f);

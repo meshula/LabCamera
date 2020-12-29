@@ -537,7 +537,7 @@ bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
 
 
 LabCameraNavigatorPanelInteraction
-run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
+run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
 {
     LCNav_Panel* navigator_panel = reinterpret_cast<LCNav_Panel*>(navigator_panel_);
     LabCameraNavigatorPanelInteraction result = LCNav_Inactive;
@@ -561,8 +561,8 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
     ImVec2 p0, p1;
     bool joystick_gizmo_clicked = check_joystick_gizmo(navigator_panel, p0, p1);
     bool joystick_gizmo_hovered = ImGui::IsItemHovered();
-    draw_roll_widget(navigator_panel, camera, p0, p1);
-    draw_joystick_widget(navigator_panel, camera, p0, p1);
+    draw_roll_widget(navigator_panel, *camera, p0, p1);
+    draw_joystick_widget(navigator_panel, *camera, p0, p1);
 
     if (!(ms.click_initiated || ms.dragging))
         navigator_panel->component = LCNav_None;
@@ -599,7 +599,7 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
 
     if (ImGui::Button("Home###NavHome")) {
         auto up = lc_i_world_up_constraint(navigator_panel->pan_tilt);
-        lc_mount_look_at(&camera.mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, lc_i_world_up_constraint(navigator_panel->pan_tilt));
+        lc_mount_look_at(&camera->mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, lc_i_world_up_constraint(navigator_panel->pan_tilt));
         lc_i_set_orbit_center_constraint(navigator_panel->pan_tilt, { 0,0,0 });
         navigator_panel->roll = lc_radians{ 0 };
         result = LCNav_Inactive;
@@ -636,9 +636,9 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
     ImVec2 pos = ImGui::GetCursorScreenPos();
     ImVec2 sz = { navigator_panel->lenskit_size.x, navigator_panel->lenskit_size.y };
     ImGui::SetCursorPosY(pos.y + 8);
-    if (LensKit("Lens###NavHome", &focal_length, camera, lenses, lens_count, sz))
+    if (LensKit("Lens###NavHome", &focal_length, *camera, lenses, lens_count, sz))
     {
-        camera.optics.focal_length = lc_millimeters{ focal_length };
+        camera->optics.focal_length = lc_millimeters{ focal_length };
     }
 
 
@@ -700,7 +700,7 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera& camera, float dt)
         navigator_panel->roll = lc_radians{ roll_hint };
 
         // renormalize transform, then apply the camera roll
-        lc_mount_look_at(&camera.mount, camera.mount.transform.position,
+        lc_mount_look_at(&camera->mount, camera->mount.transform.position,
             lc_i_orbit_center_constraint(navigator_panel->pan_tilt), 
             lc_i_world_up_constraint(navigator_panel->pan_tilt));
         InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);

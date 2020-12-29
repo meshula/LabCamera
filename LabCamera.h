@@ -8,10 +8,14 @@
 #ifndef LAB_CAMERA_H
 #define LAB_CAMERA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
+#define SRET(a) a
+#else
+#define SRET(a) (a)
 #endif
 
 //-------------------------------------------------------------------------
@@ -30,13 +34,13 @@ typedef struct { lc_v3f pos; lc_v3f dir; } lc_ray;
 //
 typedef struct { float m; } lc_meters;
 typedef struct { float mm; } lc_millimeters;
-inline lc_millimeters m_as_mm(lc_meters m) { return lc_millimeters{ m.m * 1.e3f }; }
-inline lc_meters mm_as_m(lc_millimeters m) { return lc_meters{ m.mm * 1.e-3f }; }
+inline lc_millimeters m_as_mm(lc_meters m) { return SRET(lc_millimeters){ m.m * 1.e3f }; }
+inline lc_meters mm_as_m(lc_millimeters m) { return SRET(lc_meters){ m.mm * 1.e-3f }; }
 
 typedef struct { float rad; } lc_radians;
 typedef struct { float deg; } lc_degrees;
-inline lc_radians radians_from_degrees(lc_degrees d) { return { d.deg * 0.01745329251f }; }
-inline lc_degrees degrees_from_radians(lc_radians r) { return { r.rad * 57.2957795131f }; }
+inline lc_radians radians_from_degrees(lc_degrees d) { return SRET(lc_radians){ d.deg * 0.01745329251f }; }
+inline lc_degrees degrees_from_radians(lc_radians r) { return SRET(lc_degrees){ r.rad * 57.2957795131f }; }
 
 //-------------------------------------------------------------------------
 // rigid transform
@@ -284,30 +288,30 @@ void lc_camera_set_defaults(lc_camera*);
 // perspective and field of view are computed from the sensor
 // and optics of the camera.
 //
-lc_m44f        lc_camera_perspective(const lc_camera* cam, float aspect = 1.f);
-lc_m44f        lc_camera_inv_perspective(const lc_camera* cam, float aspect = 1.f);
-lc_radians     lc_camera_vertical_FOV(const lc_camera* cam);
-lc_radians     lc_camera_horizontal_FOV(const lc_camera* cam);
+lc_m44f    lc_camera_perspective(const lc_camera* cam, float aspect);
+lc_m44f    lc_camera_inv_perspective(const lc_camera* cam, float aspect);
+lc_radians lc_camera_vertical_FOV(const lc_camera* cam);
+lc_radians lc_camera_horizontal_FOV(const lc_camera* cam);
 
 // focal length of the lens, divided by the diameter of the iris opening
 inline float lc_camera_f_stop(lc_camera* cam) { return cam->optics.focal_length.mm / cam->aperture.iris.mm; }
 
 // move the camera along the view vector such that both bounds are visible
-void lc_camera_frame(lc_camera* cam, lc_v3f const& bound1, lc_v3f const& bound2);
+void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2);
 
-void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f const& bound1, lc_v3f const& bound2);
+void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f bound1, lc_v3f bound2);
 
-float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f const& planePoint, lc_v3f const& planeNormal);
+float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f planePoint, lc_v3f planeNormal);
 
 // Returns a world-space ray through the given pixel, originating at the camera
-lc_ray lc_camera_get_ray_from_pixel(const lc_camera*, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size);
+lc_ray lc_camera_get_ray_from_pixel(const lc_camera*, lc_v2f pixel, lc_v2f viewport_origin, lc_v2f viewport_size);
 
-lc_hit_result lc_camera_hit_test(const lc_camera*, const lc_v2f& mouse, const lc_v2f& viewport, const lc_v3f& plane_point, const lc_v3f& plane_normal);
+lc_hit_result lc_camera_hit_test(const lc_camera*, lc_v2f mouse, lc_v2f viewport, lc_v3f plane_point, lc_v3f plane_normal);
 
-lc_v2f lc_camera_project_to_viewport(const lc_camera*, lc_v2f const& viewport_origin, lc_v2f const& viewport_size, const lc_v3f& point);
+lc_v2f lc_camera_project_to_viewport(const lc_camera*, lc_v2f viewport_origin, lc_v2f viewport_size, lc_v3f point);
 
-lc_m44f lc_camera_view_projection(const lc_camera*, float aspect = 1.f);
-lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect = 1.f);
+lc_m44f lc_camera_view_projection(const lc_camera*, float aspect);
+lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect);
 
 
 
@@ -324,12 +328,12 @@ typedef enum
     lc_i_PhaseNone = 0, lc_i_PhaseRestart, lc_i_PhaseStart, lc_i_PhaseContinue, lc_i_PhaseFinish
 } lc_i_Phase;
 
-struct lc_interaction;
+typedef struct lc_interaction lc_interaction;
 
 lc_v3f lc_i_world_up_constraint(const lc_interaction*);
 lc_v3f lc_i_orbit_center_constraint(const lc_interaction*);
-void lc_i_set_orbit_center_constraint(lc_interaction*, lc_v3f const& pos);
-void lc_i_set_world_up_constraint(lc_interaction*, lc_v3f const& up);
+void lc_i_set_orbit_center_constraint(lc_interaction*, lc_v3f pos);
+void lc_i_set_world_up_constraint(lc_interaction*, lc_v3f up);
 void lc_i_set_speed(lc_interaction*, float orbit, float pan_tilt);
 
 // begin_interaction
@@ -337,13 +341,13 @@ void lc_i_set_speed(lc_interaction*, float orbit, float pan_tilt);
 // returns an InteractionToken. In the future this will be in aid of
 // multitouch, multidevice interactions on the same camera
 //
-InteractionToken lc_i_begin_interaction(lc_interaction*, lc_v2f const& viewport_size);
+InteractionToken lc_i_begin_interaction(lc_interaction*, lc_v2f viewport_size);
 void lc_i_end_interaction(lc_interaction*, InteractionToken);
 
 // Synchronize constraints and epoch to the most recent of the supplied controllers
 void lc_i_sync_constraints(lc_interaction*, lc_interaction*);
 
-void lc_i_set_roll(lc_interaction*, lc_camera& camera, InteractionToken, lc_radians roll);
+void lc_i_set_roll(lc_interaction*, lc_camera* camera, InteractionToken, lc_radians roll);
 
 // delta is the 2d motion of a mouse or gesture in the screen plane, or
 // the absolute value of an analog joystick position.
@@ -354,20 +358,20 @@ void lc_i_set_roll(lc_interaction*, lc_camera& camera, InteractionToken, lc_radi
 //
 void lc_i_single_stick_interaction(
     lc_interaction*,
-    lc_camera& camera,
+    lc_camera* camera,
     InteractionToken,
     lc_i_Mode mode,
-    lc_v2f const& delta_in,
+    lc_v2f delta_in,
     lc_radians roll_hint,
     float dt);
 
 void lc_i_dual_stick_interaction(
     lc_interaction*,
-    lc_camera& camera,
+    lc_camera* camera,
     InteractionToken,
     lc_i_Mode mode,
-    lc_v3f const& pos_delta_in,
-    lc_v3f const& rotation_delta_in,
+    lc_v3f pos_delta_in,
+    lc_v3f rotation_delta_in,
     lc_radians roll_hint,
     float dt);
 
@@ -384,11 +388,11 @@ void lc_i_dual_stick_interaction(
 //
 void lc_i_ttl_interaction(
     lc_interaction*,
-    lc_camera& camera,
+    lc_camera* camera,
     InteractionToken tok,
     lc_i_Phase phase,
     lc_i_Mode mode,
-    lc_v2f const& current,
+    lc_v2f current,
     lc_radians roll_hint,
     float dt);
 
@@ -400,12 +404,12 @@ void lc_i_ttl_interaction(
 //
 void lc_i_constrained_ttl_interaction(
     lc_interaction*,
-    lc_camera& camera,
+    lc_camera* camera,
     InteractionToken tok,
     lc_i_Phase phase,
     lc_i_Mode mode,
-    lc_v2f const& current,
-    lc_v3f const& initial_hit_point,
+    lc_v2f current,
+    lc_v3f initial_hit_point,
     lc_radians roll_hint,
     float dt);
 
@@ -416,5 +420,6 @@ void lc_i_free_interactive_controller(lc_interaction* i);
 #ifdef __cplusplus
 }       // extern "C"
 #endif
+#undef SRET
 
 #endif  // LABCAMERA_H
