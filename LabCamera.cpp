@@ -4,10 +4,6 @@
 #include <cmath>
 #include <cfloat>
 
-extern float debug_lines_array[32768];
-extern int debug_lines_array_sz;
-extern int debug_lines_array_idx;
-
 
 // an anonymous namespace to prevent symbol exposure
 namespace {
@@ -423,67 +419,6 @@ namespace {
             {
                 ypr.z = roll;
             }
-
-
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-            lc_v3f qx = qxdir(q);
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-            debug_lines_array[debug_lines_array_idx] = qx.x; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = qx.y; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = qx.z; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-            debug_lines_array[debug_lines_array_idx] = world_right.x; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = world_right.y; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = world_right.z; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-        }
-        else
-        {
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.5f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 9.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 1.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
-            debug_lines_array[debug_lines_array_idx] = 0.f; debug_lines_array_idx++;
         }
 
         return ypr;
