@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cfloat>
 
-
 // an anonymous namespace to prevent symbol exposure
 namespace {
 
