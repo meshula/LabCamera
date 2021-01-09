@@ -72,15 +72,15 @@ target_compile_definitions(imgui PRIVATE
 
 if (APPLE)
     set(SOKOL_SRC
-        src/sokol.mm)
+        sokol.mm)
 else()
     set(SOKOL_SRC
-        src/sokol.cc)
+        sokol.cc)
 endif()
 
 set(SOKOL_HEADERS
-    src/lab_sokol_config.h
-    src/sokol_gamepad.h
+    lab_sokol_config.h
+    sokol_gamepad.h
     third/sokol/sokol_app.h
     third/sokol/sokol_args.h
     third/sokol/sokol_audio.h
@@ -122,15 +122,15 @@ install(
 #-------------------------------------------------------------------------------
 
 set(NAVIGATOR_SRC
-    src/gizmo.c
-    ../../LabCamera.h
-    ../../LabCamera.cpp
-    ../../LabCameraImgui.h
-    ../../LabCameraImgui.cpp
-    ../../c_canary.c
-    src/main.cpp
-    src/gizmo.glsl
-    src/gizmo_glsl.h
+    gizmo.c
+    ../../cpp/include/LabCamera.h
+    ../../cpp/LabCamera.cpp
+    ../../cpp/include/LabCameraImgui.h
+    ../../cpp/LabCameraImgui.cpp
+    ../../cpp/c_canary.c
+    main.cpp
+    gizmo.glsl
+    gizmo_glsl.h
 )
 
 set(NAVIGATOR_SHADERS
@@ -144,19 +144,19 @@ if (REGENERATE_SHADER)
         if (WIN32)
             add_custom_command(
                 OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/win32/sokol-shdc.exe --input ${CMAKE_CURRENT_SOURCE_DIR}/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
                 COMMENT "Running sokol-shdc for ${SHADER}.glsl"
             )
         elseif (APPLE)
             add_custom_command(
                 OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/osx/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/osx/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
                 COMMENT "Running sokol-shdc for ${SHADER}.glsl"
             )
         else()
             add_custom_command(
                 OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h
-                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/linux/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/src/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-tools-bin/bin/linux/sokol-shdc --input ${CMAKE_CURRENT_SOURCE_DIR}/${SHADER}.glsl --output ${CMAKE_CURRENT_BINARY_DIR}/generated_src/${SHADER}_glsl.h --slang glsl330:hlsl5:metal_macos
                 COMMENT "Running sokol-shdc for ${SHADER}.glsl"
             )
         endif()
