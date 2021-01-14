@@ -1,6 +1,6 @@
 import XCTest
 
-import fooTests
+import labcamera-swift-tests
 
 var tests = [XCTestCaseEntry]()
 tests += fooTests.allTests()
