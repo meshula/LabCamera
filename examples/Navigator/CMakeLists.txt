@@ -34,9 +34,9 @@ endif()
 #-------------------------------------------------------------------------------
 # tinygizmo
 #-------------------------------------------------------------------------------
-
-add_library(tinygizmo STATIC third/tinygizmo/tiny-gizmo.cpp
-                             third/tinygizmo/tiny-gizmo.hpp)
+message(INFO ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(tinygizmo STATIC ${CMAKE_CURRENT_SOURCE_DIR}/third/tinygizmo/tiny-gizmo.cpp
+                             ${CMAKE_CURRENT_SOURCE_DIR}/third/tinygizmo/tiny-gizmo.hpp)
 
 target_include_directories(tinygizmo SYSTEM PUBLIC third/tinygizmo)
 target_compile_definitions(tinygizmo PRIVATE ${PLATFORM_DEFS})
@@ -46,18 +46,18 @@ target_compile_definitions(tinygizmo PRIVATE ${PLATFORM_DEFS})
 #-------------------------------------------------------------------------------
 
 set(IMGUI_SRC
-    third/imgui/imgui.cpp
-    third/imgui/imgui.h
-    third/imgui/imgui_demo.cpp
-    third/imgui/imgui_draw.cpp
-    third/imgui/imgui_internal.h
-    third/imgui/imgui_widgets.cpp
-    third/ImGui.natvis
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui_demo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui_draw.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui_internal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/imgui_widgets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/ImGui.natvis
 )
 
 add_library(imgui STATIC ${IMGUI_SRC})
 
-target_include_directories(imgui SYSTEM PUBLIC third/imgui)
+target_include_directories(imgui SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui)
 
 target_compile_definitions(imgui PRIVATE
     ${ST_GFX_DEFS}
@@ -72,31 +72,31 @@ target_compile_definitions(imgui PRIVATE
 
 if (APPLE)
     set(SOKOL_SRC
-        sokol.mm)
+        ${CMAKE_CURRENT_SOURCE_DIR}/sokol.mm)
 else()
     set(SOKOL_SRC
-        sokol.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/sokol.cc)
 endif()
 
 set(SOKOL_HEADERS
-    lab_sokol_config.h
-    sokol_gamepad.h
-    third/sokol/sokol_app.h
-    third/sokol/sokol_args.h
-    third/sokol/sokol_audio.h
-    third/sokol/sokol_fetch.h
-    third/sokol/sokol_gfx.h
-    third/sokol/sokol_time.h
-    third/sokol/util/sokol_fontstash.h
-    third/sokol/util/sokol_gfx_imgui.h
-    third/sokol/util/sokol_gl.h
-    third/sokol/util/sokol_imgui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/lab_sokol_config.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/sokol_gamepad.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_app.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_args.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_audio.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_fetch.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_gfx.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/sokol_time.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/util/sokol_fontstash.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/util/sokol_gfx_imgui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/util/sokol_gl.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol/util/sokol_imgui.h
 )
 
 add_library(sokol STATIC ${SOKOL_SRC} ${SOKOL_HEADERS})
 
 target_include_directories(sokol SYSTEM
-    PUBLIC third/sokol third/sokol/util)
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol third/sokol/util)
 
 target_link_libraries(sokol imgui)
 add_dependencies(sokol imgui)
@@ -122,15 +122,15 @@ install(
 #-------------------------------------------------------------------------------
 
 set(NAVIGATOR_SRC
-    gizmo.c
-    ../../cpp/include/LabCamera.h
-    ../../cpp/LabCamera.cpp
-    ../../cpp/include/LabCameraImgui.h
-    ../../cpp/LabCameraImgui.cpp
-    ../../cpp/c_canary.c
-    main.cpp
-    gizmo.glsl
-    gizmo_glsl.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/gizmo.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include/LabCamera.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/LabCamera.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include/LabCameraImgui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/LabCameraImgui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/c_canary.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gizmo.glsl
+    ${CMAKE_CURRENT_SOURCE_DIR}/gizmo_glsl.h
 )
 
 set(NAVIGATOR_SHADERS
@@ -182,15 +182,15 @@ target_compile_definitions(Navigator PRIVATE
 )
 
 target_include_directories(Navigator SYSTEM
-    PRIVATE third/sokol-samples/sapp
-    PRIVATE third/sokol-samples/libs
-    PRIVATE third/imgui
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-samples/sapp
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third/sokol-samples/libs
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui
 )
 
 target_include_directories(Navigator
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include
 #    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated_src
-    PRIVATE third/imgui/examples
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/examples
 )
 
 set_property(TARGET Navigator PROPERTY CXX_STANDARD 17)
