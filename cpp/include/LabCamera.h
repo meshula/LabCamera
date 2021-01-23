@@ -435,6 +435,8 @@ typedef enum
 
 typedef struct lc_interaction lc_interaction;
 
+lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click);;
+
 lc_interaction* lc_i_create_interactive_controller();
 void            lc_i_free_interactive_controller(lc_interaction* i);
 

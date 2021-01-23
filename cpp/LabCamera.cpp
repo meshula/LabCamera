@@ -677,6 +677,31 @@ void lc_i_free_interactive_controller(lc_interaction* i)
         delete i;
 }
 
+lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click)
+{
+    if (button_click)
+    {
+        switch (current_phase) {
+        case lc_i_PhaseNone:     return lc_i_PhaseStart;
+        case lc_i_PhaseRestart:  return lc_i_PhaseRestart;
+        case lc_i_PhaseStart:    return lc_i_PhaseContinue;
+        case lc_i_PhaseContinue: return lc_i_PhaseContinue;
+        case lc_i_PhaseFinish:   return lc_i_PhaseRestart;
+        }
+    }
+    else
+    {
+        switch (current_phase) {
+        case lc_i_PhaseNone:     return lc_i_PhaseNone;
+        case lc_i_PhaseRestart:  return lc_i_PhaseRestart;
+        case lc_i_PhaseStart:    return lc_i_PhaseFinish;
+        case lc_i_PhaseContinue: return lc_i_PhaseFinish;
+        case lc_i_PhaseFinish: return lc_i_PhaseNone;
+        }
+    }
+}
+
+
 
 //-----------------------------------------------------------------------------
 // lc_interaction
@@ -809,8 +834,11 @@ void lc_interaction::_pantilt(lc_camera& camera, const lc_v2f& delta)
 //
 void lc_i_single_stick_interaction(lc_interaction* i,
     lc_camera* camera, InteractionToken tok,
-    lc_i_Mode mode, lc_v2f delta_in, lc_radians roll_hint, float dt)
+    lc_i_Mode mode, lc_v2f delta_in, lc_radians roll_hint, float /*dt*/)
 {
+    //if (phase == lc_i_PhaseNone)
+    //    return;
+
     const lc_rigid_transform* cmt = &camera->mount.transform;
 
     // joystick mode controls
@@ -864,8 +892,11 @@ void lc_i_single_stick_interaction(lc_interaction* i,
 
 void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
     lc_i_Mode mode, lc_v3f pos_delta_in, lc_v3f rotation_delta_in,
-    lc_radians roll_hint, float dt)
+    lc_radians roll_hint, float /*dt*/)
 {
+    //if (phase == lc_i_PhaseNone)
+    //    return;
+
     lc_v3f pos_delta = pos_delta_in;
     lc_v3f rotation_delta = rotation_delta_in;
     auto curve = [&](float& x)
@@ -931,6 +962,9 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, Interacti
 void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode, lc_v2f current_mouse_, lc_radians roll_hint, float dt)
 {
+    if (phase == lc_i_PhaseNone)
+        return;
+
     const lc_rigid_transform* cmt = &camera->mount.transform;
     switch (mode)
     {
@@ -1064,6 +1098,9 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i,
     lc_radians roll_hint,
     float dt)
 {
+    if (phase == lc_i_PhaseNone)
+        return;
+
     const lc_rigid_transform* cmt = &camera->mount.transform;
     switch (mode)
     {
