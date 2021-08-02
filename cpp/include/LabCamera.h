@@ -283,7 +283,12 @@ lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians);
 
 typedef struct
 {
+    //  fstop is focal length / diameter of effective aperture (entrance pupil) of the lens
     float fStop;
+
+    // the amount of light loss that occurs as light travels through the optics
+    // tStop is computed as fStop / sqrt(transmittance)
+    float transmittance;
 
     // effective focal_length, matching a lens' field of view.
     lc_millimeters focal_length;
