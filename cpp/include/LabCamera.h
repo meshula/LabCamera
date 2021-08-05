@@ -440,6 +440,9 @@ typedef enum
 
 typedef struct lc_interaction lc_interaction;
 
+/* If the system being interfaced has a mouse motion, button cilcked/unclicked
+   style interface, lc_update_phase simplifies Phase management.
+ */
 lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click);;
 
 lc_interaction* lc_i_create_interactive_controller();

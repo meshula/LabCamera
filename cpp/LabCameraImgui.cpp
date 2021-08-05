@@ -43,20 +43,20 @@ struct LCNav_Panel
 {
     float nav_radius = 6;
     lc_radians roll{ 0 };
-    lc_interaction* pan_tilt = nullptr;
+    lc_interaction* interactive_controller = nullptr;
     LabCameraNavigatorPanelInteraction state = LCNav_Inactive;
     lc_i_Mode camera_interaction_mode = lc_i_ModeTurnTableOrbit;
 
     LCNav_Panel()
     {
-        pan_tilt = lc_i_create_interactive_controller();
-        lc_i_set_speed(pan_tilt, 0.01f, 0.005f);
+        interactive_controller = lc_i_create_interactive_controller();
+        lc_i_set_speed(interactive_controller, 0.01f, 0.005f);
         lc_camera_set_defaults(&trackball_camera);
     }
 
     ~LCNav_Panel()
     {
-        lc_i_free_interactive_controller(pan_tilt);
+        lc_i_free_interactive_controller(interactive_controller);
     }
 
     // this camera is for displaying a little gimbal in the trackball widget
@@ -84,7 +84,7 @@ void release_navigator_panel(LCNav_Panel* p)
 
 lc_interaction* LCNav_Panel_interaction_controller(const LCNav_Panel* p)
 {
-    return p->pan_tilt;
+    return p->interactive_controller;
 }
 
 lc_i_Mode LCNav_Panel_interaction_mode(const LCNav_Panel* p)
@@ -567,7 +567,6 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
     if (!(ms.click_initiated || ms.dragging))
         navigator_panel->component = LCNav_None;
 
-
     ImVec2 joystick_center = (p0 + p1) * 0.5f;
     if (joystick_gizmo_hovered && navigator_panel->component == LCNav_None && ms.click_initiated)
     {
@@ -591,16 +590,15 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
         roll_hint = -atan2f(center_dist.x, center_dist.y);
     }
 
-
     ImGui::SetCursorScreenPos({ cursor_screen_pos.x, cursor_screen_pos.y + navigator_panel->trackball_size.y });
 
     ImGui::NextColumn();
     ImGui::SetColumnWidth(1, 100);
 
     if (ImGui::Button("Home###NavHome")) {
-        auto up = lc_i_world_up_constraint(navigator_panel->pan_tilt);
-        lc_mount_look_at(&camera->mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, lc_i_world_up_constraint(navigator_panel->pan_tilt));
-        lc_i_set_orbit_center_constraint(navigator_panel->pan_tilt, { 0,0,0 });
+        auto up = lc_i_world_up_constraint(navigator_panel->interactive_controller);
+        lc_mount_look_at(&camera->mount, { 0.f, 0.2f, navigator_panel->nav_radius }, { 0, 0, 0 }, lc_i_world_up_constraint(navigator_panel->interactive_controller));
+        lc_i_set_orbit_center_constraint(navigator_panel->interactive_controller, { 0,0,0 });
         navigator_panel->roll = lc_radians{ 0 };
         result = LCNav_Inactive;
     }
@@ -641,7 +639,6 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
         camera->optics.focal_length = lc_millimeters{ focal_length };
     }
 
-
     // end of columns.
 
     ImGui::End();
@@ -660,15 +657,15 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
         if (navigator_panel->camera_interaction_mode == lc_i_ModeArcball)
         {
             ImVec2 center_dist = joystick_center - io.MousePos;
-            InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
+            InteractionToken tok = lc_i_begin_interaction(navigator_panel->interactive_controller, navigator_panel->trackball_size);
             lc_i_ttl_interaction(
-                navigator_panel->pan_tilt,
+                navigator_panel->interactive_controller,
                 camera,
                 tok, phase, navigator_panel->camera_interaction_mode,
                 { navigator_panel->trackball_size.x - (center_dist.x + navigator_panel->trackball_size.x * 0.5f),
                   navigator_panel->trackball_size.y - (center_dist.y + navigator_panel->trackball_size.y * 0.5f) },
                   lc_radians{ navigator_panel->roll }, dt);
-            lc_i_end_interaction(navigator_panel->pan_tilt, tok);
+            lc_i_end_interaction(navigator_panel->interactive_controller, tok);
         }
         else
         {
@@ -676,13 +673,13 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
             float scale = speed_scaler / navigator_panel->trackball_size.x;
             float dx = (navigator_panel->mouse_state.mousex - navigator_panel->mouse_state.initial_mousex) * scale;
             float dy = (navigator_panel->mouse_state.mousey - navigator_panel->mouse_state.initial_mousey) * -scale;
-            InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
+            InteractionToken tok = lc_i_begin_interaction(navigator_panel->interactive_controller, navigator_panel->trackball_size);
             lc_i_single_stick_interaction(
-                navigator_panel->pan_tilt,
+                navigator_panel->interactive_controller,
                 camera,
                 tok, navigator_panel->camera_interaction_mode, { dx, dy },
                 lc_radians{ navigator_panel->roll }, dt);
-            lc_i_end_interaction(navigator_panel->pan_tilt, tok);
+            lc_i_end_interaction(navigator_panel->interactive_controller, tok);
         }
     }
 
@@ -701,13 +698,12 @@ run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
 
         // renormalize transform, then apply the camera roll
         lc_mount_look_at(&camera->mount, camera->mount.transform.position,
-            lc_i_orbit_center_constraint(navigator_panel->pan_tilt),
-            lc_i_world_up_constraint(navigator_panel->pan_tilt));
-        InteractionToken tok = lc_i_begin_interaction(navigator_panel->pan_tilt, navigator_panel->trackball_size);
-        lc_i_set_roll(navigator_panel->pan_tilt, camera, tok, navigator_panel->roll);
-        lc_i_end_interaction(navigator_panel->pan_tilt, tok);
+            lc_i_orbit_center_constraint(navigator_panel->interactive_controller),
+            lc_i_world_up_constraint(navigator_panel->interactive_controller));
+        InteractionToken tok = lc_i_begin_interaction(navigator_panel->interactive_controller, navigator_panel->trackball_size);
+        lc_i_set_roll(navigator_panel->interactive_controller, camera, tok, navigator_panel->roll);
+        lc_i_end_interaction(navigator_panel->interactive_controller, tok);
     }
-
 
     return result;
 }

@@ -76,20 +76,20 @@ static bool intersect_ray_plane(const lc_ray& ray, const lc_v3f& point, const lc
     Application State
  */
 
-enum class UIStateMachine
+enum class UI_Mode
 {
     None = 0, UI, Gizmo, DeltaCamera, TTLCamera
 };
 
-const char* name_state(UIStateMachine s)
+const char* name_state(UI_Mode s)
 {
     switch (s)
     {
-    case UIStateMachine::None: return "None";
-    case UIStateMachine::UI: return "UI";
-    case UIStateMachine::Gizmo: return "Gizmo";
-    case UIStateMachine::DeltaCamera: return "DeltaCamera";
-    case UIStateMachine::TTLCamera: return "TTLCamera";
+    case UI_Mode::None: return "None";
+    case UI_Mode::UI: return "UI";
+    case UI_Mode::Gizmo: return "Gizmo";
+    case UI_Mode::DeltaCamera: return "DeltaCamera";
+    case UI_Mode::TTLCamera: return "TTLCamera";
     }
     return "";
 }
@@ -145,7 +145,7 @@ struct AppState
     lc_v3f initial_hit_point{ 0,0,0 };
     lc_interaction* main_pan_tilt;
     lc_interaction* joystick_pan_tilt;
-    UIStateMachine ui_state = UIStateMachine::UI;
+    UI_Mode ui_state = UI_Mode::UI;
     uint64_t last_time = 0;
     MouseState mouse;
     LCNav_Panel* navigator_panel = nullptr;
@@ -297,8 +297,6 @@ static void draw_debug(const lc_m44f& m)
     sgl_end();
     debug_lines_array_idx = 0;
 }
-
-
 
 
 void initialize_graphics()
@@ -738,24 +736,24 @@ void run_application_logic()
 
     if (in > LCNav_Inactive)
     {
-        gApp.ui_state = UIStateMachine::None;
+        gApp.ui_state = UI_Mode::None;
         run_gizmo(&gApp.mouse, (float)window_width, (float)window_height);
     }
     else if (mouse_in_viewport)
     {
-        if (gApp.ui_state == UIStateMachine::Gizmo)
+        if (gApp.ui_state == UI_Mode::Gizmo)
         {
             if (!run_gizmo(&gApp.mouse, (float)window_width, (float)window_height))
             {
-                gApp.ui_state = UIStateMachine::None;
+                gApp.ui_state = UI_Mode::None;
                 sapp_lock_mouse(false);
             }
         }
-        else if (gApp.ui_state <= UIStateMachine::UI)
+        else if (gApp.ui_state <= UI_Mode::UI)
         {
             if (run_gizmo(&gApp.mouse, (float)window_width, (float)window_height))
             {
-                gApp.ui_state = UIStateMachine::Gizmo;
+                gApp.ui_state = UI_Mode::Gizmo;
             }
             else if (gApp.mouse.click_initiated)
             {
@@ -766,12 +764,12 @@ void run_application_logic()
                     *(lc_v3f*)(&gApp.gizmo_transform.w),
                     *(lc_v3f*)(&gApp.gizmo_transform.y));
 
-                if (gApp.mouse.click_initiated && gApp.ui_state <= UIStateMachine::UI)
+                if (gApp.mouse.click_initiated && gApp.ui_state <= UI_Mode::UI)
                 {
                     if (hit.hit)
                     {
                         gApp.initial_hit_point = hit.point;
-                        gApp.ui_state = UIStateMachine::TTLCamera;
+                        gApp.ui_state = UI_Mode::TTLCamera;
                     }
                     else
                     {
@@ -792,14 +790,14 @@ void run_application_logic()
                         if (hit.hit)
                         {
                             gApp.initial_hit_point = hit.point;
-                            gApp.ui_state = UIStateMachine::DeltaCamera;
+                            gApp.ui_state = UI_Mode::DeltaCamera;
                         }
                     }
                 }
             }
         }
 
-        if (gApp.ui_state == UIStateMachine::DeltaCamera || gApp.ui_state == UIStateMachine::TTLCamera)
+        if (gApp.ui_state == UI_Mode::DeltaCamera || gApp.ui_state == UI_Mode::TTLCamera)
         {
             if (gApp.mouse.click_initiated)
                 phase = lc_i_PhaseStart;
@@ -808,7 +806,7 @@ void run_application_logic()
 
             ImGui::CaptureMouseFromApp(true);
 
-            if (gApp.ui_state == UIStateMachine::TTLCamera)
+            if (gApp.ui_state == UI_Mode::TTLCamera)
             {
                 ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
                 ImGui::TextUnformatted("TTL+");
@@ -844,7 +842,7 @@ void run_application_logic()
 
             if (gApp.mouse.click_ended)
             {
-                gApp.ui_state = UIStateMachine::None;
+                gApp.ui_state = UI_Mode::None;
                 sapp_lock_mouse(false);
             }
         }

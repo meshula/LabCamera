@@ -699,6 +699,7 @@ lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click)
         case lc_i_PhaseFinish: return lc_i_PhaseNone;
         }
     }
+    return lc_i_PhaseNone;
 }
 
 
