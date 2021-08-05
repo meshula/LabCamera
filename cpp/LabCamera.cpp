@@ -538,11 +538,25 @@ namespace {
         return false;
     }
 
-    lc_ray get_ray(lc_m44f const& inv_projection, lc_v3f const& camera_position, lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
+    lc_ray get_ray(lc_m44f const& inv_projection, lc_v3f const& camera_position, 
+            lc_v2f const& pixel, lc_v2f const& viewport_origin, lc_v2f const& viewport_size)
     {
         // 3d normalized device coordinates
         const float x = 2 * (pixel.x - viewport_origin.x) / viewport_size.x - 1;
         const float y = 1 - 2 * (pixel.y - viewport_origin.y) / viewport_size.y;
+
+        /// @TODO circle of confusion can be modelled by offsetting x and y
+        // by a random amount, with a 1/r^2 distribution, according to the
+        // standard Guassian thin lens model.
+        //
+        // the Panini projection can be accomodated with a second projection
+        // see Listing 3-6 in Ray Tracing Gems II
+        //
+        // 3-7 has a fisheye projection.
+        // 3-8 has a fisheye lenslet array
+        // 3-9 is an octrahedral mapping
+        // 3-10 cube rays (similar to that in OpenEXR)
+        // 3-11 orthographic
 
         // eye coordinates
         lc_v4f p0 = mul(inv_projection, lc_v4f{ x, y, -1, 1 });
