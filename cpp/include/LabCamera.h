@@ -178,7 +178,7 @@ void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
    lc_sensor
   ------------------------------------------------------------------------------
 
-    describes the plane where an image is to be resolved.
+    describes the geometry of the plane where an image is to be resolved.
 
     The sensor's coordinate system has its center at (0, 0) and
     its bounds are -1 to 1.
@@ -194,6 +194,9 @@ void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
     The default sensor aperture is as for 35mm DSLR.
 
     A handedness of -1 indicates a left handed camera
+
+    lc_sensor does not describe the electrical or photochemical characteristics
+    of a sensor.
  */
 
 typedef struct
@@ -279,11 +282,18 @@ lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians);
 
     @TODO introduce at least Orthographic, in addtion to the present model
     which would be Perspective.
+
+    Note that this struct does not model lens imperfections such as focus
+    breathing, vignetting, distortion, flaring, spherical aberration or 
+    chromatic aberration. Nor does it model field curvature or diffraction.
  */
 
 typedef struct
 {
-    //  fstop is focal length / diameter of effective aperture (entrance pupil) of the lens
+    //  fstop is focal length / diameter of effective aperture (entrance pupil)
+    //   of the lens. The effective aperture is the appearance of the aperture
+    //   as viewed from the front of the lens, the aperture "seen" by the 
+    //   photons entering the front lens element.
     float fStop;
 
     // the amount of light loss that occurs as light travels through the optics
@@ -322,6 +332,9 @@ lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance);
     Currently the shape of the aperture is modeled as a straight sided polygon.
     In the future, an arbitrary mask could be specified to use in convolution
     or raytracing.
+
+    shutter angle is the shutter duration * frame rate * 360 degrees, and not
+    computed here.
  */
 
 typedef struct
