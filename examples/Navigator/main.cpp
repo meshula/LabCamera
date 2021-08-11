@@ -5,8 +5,8 @@
 
 #include "lab_sokol_config.h"
 
-#include "LabCamera.h"
-#include "LabCameraImgui.h"
+#include <LabCamera/LabCamera.h>
+#include <LabCamera/LabCameraImgui.h>
 
 #define SOKOL_TRACE_HOOKS
 #include "sokol_app.h"

@@ -1,4 +1,4 @@
-#include "LabCamera.h"
+#include "LabCamera/LabCamera.h"
 
 #include <algorithm>
 #include <cmath>
@@ -575,6 +575,7 @@ namespace {
 
 } // anonymous namespace
 
+extern "C"
 void lc_rt_set_identity(lc_rigid_transform* rt)
 {
     if (!rt)
@@ -585,6 +586,7 @@ void lc_rt_set_identity(lc_rigid_transform* rt)
     rt->scale = { 1.f, 1.f, 1.f };
 }
 
+extern "C"
 void lc_rt_set_ops(lc_rigid_transform* rt, lc_quatf orientation, lc_v3f position, lc_v3f scale)
 {
     rt->orientation = orientation;
@@ -592,6 +594,7 @@ void lc_rt_set_ops(lc_rigid_transform* rt, lc_quatf orientation, lc_v3f position
     rt->scale = scale;
 }
 
+extern "C"
 void lc_rt_set_op_uniform_scale(lc_rigid_transform* rt, lc_quatf orientation, lc_v3f position, float scale)
 {
     rt->orientation = orientation;
@@ -599,12 +602,14 @@ void lc_rt_set_op_uniform_scale(lc_rigid_transform* rt, lc_quatf orientation, lc
     rt->scale = lc_v3f{ scale, scale, scale };
 }
 
+extern "C"
 void lc_rt_set_op(lc_rigid_transform* rt, lc_quatf orientation, lc_v3f position)
 {
     rt->orientation = orientation;
     rt->position = position;
 }
 
+extern "C"
 lc_m44f lc_rt_matrix(const lc_rigid_transform* rt)
 {
     lc_v3f x = mul(qxdir(rt->orientation), rt->scale.x);
@@ -617,12 +622,14 @@ lc_m44f lc_rt_matrix(const lc_rigid_transform* rt)
     return result;
 }
 
+extern "C"
 lc_v3f lc_rt_transform_vector(const lc_rigid_transform* rt, lc_v3f vec)
 {
     lc_v3f v = { vec.x * rt->scale.x, vec.y * rt->scale.y, vec.z * rt->scale.z };
     return quat_rotate_vector(rt->orientation, v);
 }
 
+extern "C"
 lc_v3f lc_rt_detransform_vector(const lc_rigid_transform* rt, lc_v3f vec)
 {
     lc_quatf o = quat_inverse(rt->orientation);
@@ -630,26 +637,31 @@ lc_v3f lc_rt_detransform_vector(const lc_rigid_transform* rt, lc_v3f vec)
     return { r.x / rt->scale.x, r.y / rt->scale.y, r.z / rt->scale.z };
 }
 
+extern "C"
 lc_v3f lc_rt_transform_point(const lc_rigid_transform* rt, lc_v3f p)
 {
     return rt->position + lc_rt_transform_vector(rt, p);
 }
 
+extern "C"
 lc_v3f lc_rt_detransform_point(const lc_rigid_transform* rt, lc_v3f p)
 {
     return lc_rt_detransform_vector(rt, p - rt->position);
 }
 
+extern "C"
 lc_v3f lc_rt_right(const lc_rigid_transform* rt)
 {
     return qxdir(rt->orientation);
 }
 
+extern "C"
 lc_v3f lc_rt_up(const lc_rigid_transform* rt)
 {
     return qydir(rt->orientation);
 }
 
+extern "C"
 lc_v3f lc_rt_forward(const lc_rigid_transform* rt)
 {
     return qzdir(rt->orientation);
@@ -680,17 +692,20 @@ struct lc_interaction
     void _pantilt(lc_camera& camera, const lc_v2f& delta);
 };
 
+extern "C"
 lc_interaction* lc_i_create_interactive_controller()
 {
     return new lc_interaction();
 }
 
+extern "C"
 void lc_i_free_interactive_controller(lc_interaction* i)
 {
     if (i)
         delete i;
 }
 
+extern "C"
 lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click)
 {
     if (button_click)
@@ -723,6 +738,7 @@ lc_i_Phase lc_update_phase(lc_i_Phase current_phase, bool button_click)
 //
 //-----------------------------------------------------------------------------
 
+extern "C"
 InteractionToken lc_i_begin_interaction(lc_interaction* i, lc_v2f viewport_size)
 {
     i->_viewport_size = viewport_size;
@@ -730,6 +746,7 @@ InteractionToken lc_i_begin_interaction(lc_interaction* i, lc_v2f viewport_size)
     return i->_epoch;
 }
 
+extern "C"
 void lc_i_sync_constraints(lc_interaction* i, lc_interaction* ptc)
 {
     if (ptc->_epoch == i->_epoch)
@@ -751,11 +768,13 @@ void lc_i_sync_constraints(lc_interaction* i, lc_interaction* ptc)
     }
 }
 
+extern "C"
 void lc_i_end_interaction(lc_interaction*, InteractionToken)
 {
 }
 
 /// @TODO - this belongs under lc_mount
+extern "C"
 void lc_i_set_roll(lc_interaction* i, lc_camera* camera, InteractionToken, lc_radians r)
 {
     lc_v3f dir = lc_rt_forward(&camera->mount.transform);
@@ -847,6 +866,7 @@ void lc_interaction::_pantilt(lc_camera& camera, const lc_v2f& delta)
 // delta is the 2d motion of a mouse or gesture in the screen plane,
 // typically computed as scale * (currMousePos - prevMousePos);
 //
+extern "C"
 void lc_i_single_stick_interaction(lc_interaction* i,
     lc_camera* camera, InteractionToken tok,
     lc_i_Mode mode, lc_v2f delta_in, lc_radians roll_hint, float /*dt*/)
@@ -905,6 +925,7 @@ void lc_i_single_stick_interaction(lc_interaction* i,
 }
 
 
+extern "C"
 void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
     lc_i_Mode mode, lc_v3f pos_delta_in, lc_v3f rotation_delta_in,
     lc_radians roll_hint, float /*dt*/)
@@ -974,6 +995,7 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, Interacti
 // Initial is the screen position of the beginning of the interaction, current is the
 // current position
 //
+extern "C"
 void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode, lc_v2f current_mouse_, lc_radians roll_hint, float dt)
 {
@@ -1105,6 +1127,7 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken
     i->_prev_mouse = current_mouse_;
 }
 
+extern "C"
 void lc_i_constrained_ttl_interaction(lc_interaction* i,
     lc_camera* camera, InteractionToken tok,
     lc_i_Phase phase, lc_i_Mode mode,
@@ -1165,26 +1188,31 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i,
     }
 }
 
+extern "C"
 lc_v3f lc_i_world_up_constraint(const lc_interaction* i)
 {
     return i->_world_up;
 }
 
+extern "C"
 lc_v3f lc_i_orbit_center_constraint(const lc_interaction* i)
 {
     return i->_orbit_center;
 }
 
+extern "C"
 void lc_i_set_orbit_center_constraint(lc_interaction* i, lc_v3f pos)
 {
     i->_orbit_center = pos;
 }
 
+extern "C"
 void lc_i_set_world_up_constraint(lc_interaction* i, lc_v3f up)
 {
     i->_world_up = up;
 }
 
+extern "C"
 void lc_i_set_speed(lc_interaction* i, float o, float pt)
 {
     i->_orbit_speed = o;
@@ -1196,6 +1224,7 @@ void lc_i_set_speed(lc_interaction* i, float o, float pt)
 //
 //-----------------------------------------------------------------------------
 
+extern "C"
 void lc_aperture_set_default(lc_aperture* a)
 {
     if (!a)
@@ -1213,12 +1242,14 @@ void lc_aperture_set_default(lc_aperture* a)
 //-----------------------------------------------------------------------------
 
 
+extern "C"
 void lc_mount_set_default(lc_mount* mnt)
 {
     lc_rt_set_identity(&mnt->transform);
     lc_mount_look_at(mnt, lc_v3f{ 0, 1.f, 10.f }, lc_v3f{ 0,0,0 }, lc_v3f{ 0,1,0 });
 }
 
+extern "C"
 lc_m44f lc_mount_gl_view_transform(const lc_mount* mnt)
 {
     lc_m44f m = lc_mount_inv_rotation_transform(mnt);
@@ -1228,31 +1259,37 @@ lc_m44f lc_mount_gl_view_transform(const lc_mount* mnt)
     return m;
 }
 
+extern "C"
 lc_m44f lc_mount_gl_view_transform_inv(const lc_mount* mnt)
 {
     return invert(lc_mount_gl_view_transform(mnt));
 }
 
+extern "C"
 lc_m44f lc_mount_model_view_transform_f16(const lc_mount* mnt, float const* const view_matrix)
 {
     return mul(lc_mount_gl_view_transform(mnt), *(lc_m44f*)view_matrix);
 }
 
+extern "C"
 lc_m44f lc_mount_model_view_transform_m44f(const lc_mount* mnt, lc_m44f const* const view_matrix)
 {
     return mul(lc_mount_gl_view_transform(mnt), *view_matrix);
 }
 
+extern "C"
 lc_m44f lc_mount_rotation_transform(const lc_mount* mnt)
 {
     return rotation_matrix_from_quat(mnt->transform.orientation);
 }
 
+extern "C"
 lc_m44f lc_mount_inv_rotation_transform(const lc_mount* mnt)
 {
     return transpose(lc_mount_rotation_transform(mnt));
 }
 
+extern "C"
 void lc_mount_set_view_transform_m44f(lc_mount* mnt, lc_m44f const* const m)
 {
     lc_v3f p = mul(xyz(m->w), -1.f);
@@ -1263,6 +1300,7 @@ void lc_mount_set_view_transform_m44f(lc_mount* mnt, lc_m44f const* const m)
     mnt->transform.orientation = quat_from_matrix(*m);
 }
 
+extern "C"
 void lc_mount_set_view_transform_f16(lc_mount* mnt, float const* const m)
 {
     lc_m44f m2 = *(lc_m44f*)m;
@@ -1274,12 +1312,14 @@ void lc_mount_set_view_transform_f16(lc_mount* mnt, float const* const m)
 }
 
 
+extern "C"
 void lc_mount_set_view_transform_quat_pos(lc_mount* mnt, lc_quatf q, lc_v3f eye)
 {
     mnt->transform.position = eye;
     mnt->transform.orientation = normalize(q);
 }
 
+extern "C"
 void lc_mount_set_view_transform_ypr_eye(lc_mount* mnt, lc_v3f ypr, lc_v3f eye)
 {
     mnt->transform.orientation = quat_from_euler(ypr);
@@ -1287,6 +1327,7 @@ void lc_mount_set_view_transform_ypr_eye(lc_mount* mnt, lc_v3f ypr, lc_v3f eye)
 }
 
 
+extern "C"
 void lc_mount_look_at(lc_mount* mnt, lc_v3f eye, lc_v3f target, lc_v3f up)
 {
     mnt->transform.position = eye;
@@ -1294,6 +1335,7 @@ void lc_mount_look_at(lc_mount* mnt, lc_v3f eye, lc_v3f target, lc_v3f up)
     mnt->transform.orientation = quat_from_matrix(transpose(m));
 }
 
+extern "C"
 void lc_mount_set_view(lc_mount* mnt, float distance, lc_quatf orientation, lc_v3f target, lc_v3f up)
 {
     lc_v3f eye = { 0, 0, distance };
@@ -1301,6 +1343,7 @@ void lc_mount_set_view(lc_mount* mnt, float distance, lc_quatf orientation, lc_v
     lc_mount_look_at(mnt, eye, target, up);
 }
 
+extern "C"
 lc_v3f lc_mount_ypr(const lc_mount* mnt)
 {
     return ypr_from_quat(mnt->transform.orientation);
@@ -1312,6 +1355,7 @@ lc_v3f lc_mount_ypr(const lc_mount* mnt)
 //
 //-----------------------------------------------------------------------------
 
+extern "C"
 void lc_optics_set_default(lc_optics* o)
 {
     if (!o)
@@ -1324,11 +1368,13 @@ void lc_optics_set_default(lc_optics* o)
     o->squeeze = 1.f;
 }
 
+extern "C"
 lc_meters lc_optics_hyperfocal_distance(lc_optics* o, lc_millimeters CoC)
 {
     return { mm_as_m(o->focal_length).m * mm_as_m(o->focal_length).m / (o->fStop * mm_as_m(CoC).m) };
 }
 
+extern "C"
 lc_v2f lc_optics_focus_range(lc_optics* o, lc_millimeters h)
 {
     lc_v2f r;
@@ -1343,6 +1389,7 @@ lc_v2f lc_optics_focus_range(lc_optics* o, lc_millimeters h)
 //
 //-----------------------------------------------------------------------------
 
+extern "C"
 void lc_sensor_set_default(lc_sensor* s)
 {
     s->shift.x.mm = 0;
@@ -1354,6 +1401,7 @@ void lc_sensor_set_default(lc_sensor* s)
     s->enlarge.y = 1.f;
 }
 
+extern "C"
 lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor* s, lc_radians fov)
 {
     if (fov.rad < 0 || fov.rad > 3.141592653589793238f)
@@ -1368,6 +1416,7 @@ lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor* s, lc_radians
 //
 //-----------------------------------------------------------------------------
 
+extern "C"
 void lc_camera_set_defaults(lc_camera* cam)
 {
     lc_optics_set_default(&cam->optics);
@@ -1376,6 +1425,7 @@ void lc_camera_set_defaults(lc_camera* cam)
     lc_mount_set_default(&cam->mount);
 }
 
+extern "C"
 lc_m44f lc_camera_perspective(const lc_camera* cam, float aspect)
 {
     if (fabs(aspect) < std::numeric_limits<float>::epsilon())
@@ -1406,17 +1456,20 @@ lc_m44f lc_camera_perspective(const lc_camera* cam, float aspect)
     return { result };
 }
 
+extern "C"
 lc_m44f lc_camera_inv_perspective(const lc_camera* cam, float aspect)
 {
     return invert(lc_camera_perspective(cam, aspect));
 }
 
+extern "C"
 lc_radians lc_camera_vertical_FOV(const lc_camera* cam)
 {
     float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
     return { 2.f * std::atanf(cam->sensor.aperture.y.mm / (2.f * cropped_f)) };
 }
 
+extern "C"
 lc_radians lc_camera_horizontal_FOV(const lc_camera* cam)
 {
     float cropped_f = cam->optics.focal_length.mm * cam->sensor.enlarge.y;
@@ -1424,6 +1477,7 @@ lc_radians lc_camera_horizontal_FOV(const lc_camera* cam)
 }
 
 // move the camera along the view vector such that both bounds are visible
+extern "C"
 void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2)
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
@@ -1434,6 +1488,7 @@ void lc_camera_frame(lc_camera* cam, lc_v3f bound1, lc_v3f bound2)
     lc_mount_look_at(&cam->mount, position, focus_point, lc_rt_up(cmt));
 }
 
+extern "C"
 void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near, float max_far, lc_v3f bound1, lc_v3f bound2)
 {
     float clip_near = FLT_MAX;
@@ -1470,6 +1525,7 @@ void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near,
     cam->optics.zfar = clip_far;
 }
 
+extern "C"
 float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f plane_point, lc_v3f plane_normal)
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
@@ -1481,6 +1537,7 @@ float lc_camera_distance_to_plane(const lc_camera* cam, lc_v3f plane_point, lc_v
     return FLT_MAX; // ray and plane are parallel
 }
 
+extern "C"
 lc_m44f lc_camera_view_projection(const lc_camera* cam, float aspect)
 {
     lc_m44f proj = lc_camera_perspective(cam, aspect);
@@ -1488,6 +1545,7 @@ lc_m44f lc_camera_view_projection(const lc_camera* cam, float aspect)
     return mul(proj, view);
 }
 
+extern "C"
 lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
 {
     lc_m44f proj = lc_camera_perspective(cam, aspect);
@@ -1495,6 +1553,7 @@ lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
     return invert(mul(proj, view));
 }
 
+extern "C"
 lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f viewport_origin, lc_v2f viewport_size)
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
@@ -1502,6 +1561,7 @@ lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f v
     return get_ray(inv_projection, cmt->position, pixel, viewport_origin, viewport_size);
 }
 
+extern "C"
 lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f viewport, lc_v3f plane_point, lc_v3f plane_normal)
 {
     lc_ray ray = lc_camera_get_ray_from_pixel(cam, mouse, { 0, 0 }, viewport);
@@ -1510,6 +1570,7 @@ lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f view
     return r;
 }
 
+extern "C"
 lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f viewport_origin, lc_v2f viewport_size, lc_v3f point)
 {
     lc_m44f m = lc_camera_view_projection(cam, 1.f);

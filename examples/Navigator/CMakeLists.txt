@@ -110,7 +110,7 @@ target_compile_definitions(sokol PRIVATE
 
 install(
     TARGETS sokol
-    EXPORT pxrTargets
+    EXPORT sokol
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -123,11 +123,6 @@ install(
 
 set(NAVIGATOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/gizmo.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include/LabCamera.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/LabCamera.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include/LabCameraImgui.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/LabCameraImgui.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/c_canary.c
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gizmo.glsl
     ${CMAKE_CURRENT_SOURCE_DIR}/gizmo_glsl.h
@@ -188,8 +183,6 @@ target_include_directories(Navigator SYSTEM
 )
 
 target_include_directories(Navigator
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../cpp/include
-#    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated_src
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third/imgui/examples
 )
 
@@ -202,27 +195,31 @@ endif()
 
 set_property(TARGET Navigator PROPERTY C_STANDARD 99)
 
-target_link_libraries(Navigator
-    ${PLATFORM_LIBS}
-    imgui
-    tinygizmo
-    sokol)
-
 if (APPLE)
-target_link_libraries(Navigator
-    "-framework AppKit"
-    "-framework CoreGraphics"
-    "-framework Foundation"
-    "-framework GameController"
-    "-framework Metal"
-    "-framework MetalKit"
-    "-framework QuartzCore"
+    set(APPLE_FRAMEWORKS
+        "-framework AppKit"
+        "-framework CoreGraphics"
+        "-framework Foundation"
+        "-framework GameController"
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework QuartzCore"
     )
 endif()
 
+
+target_link_libraries(Navigator PUBLIC
+    ${PLATFORM_LIBS}
+    ${APPLE_FRAMEWORKS}
+    Lab::LabCamera
+    Lab::LabCameraImGui
+    imgui
+    tinygizmo
+    sokol)
 
 #-------------------------------------------------------------------------------
 # Installer
 #-------------------------------------------------------------------------------
 
 install(TARGETS Navigator DESTINATION bin)
+

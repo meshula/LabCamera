@@ -1,0 +1,6 @@
+#ifndef LABCAMERA_VERSION_H
+#define LABCAMERA_VERSION_H
+# define LabCamera_VERSION_MAJOR @LabCamera_VERSION_MAJOR@
+# define LabCamera_VERSION_MINOR @LabCamera_VERSION_MINOR@
+#endif
+

@@ -12,9 +12,10 @@
      Demonstrate navigation via a virtual joystick hosted in a little window
  */
 
-#include "LabCameraImgui.h"
+#include "LabCamera/LabCameraImgui.h"
 #define TRACE_INTERACTION 0
 #include "imgui.h"
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui_internal.h"
 #include <algorithm>
 #include <stdio.h>
@@ -69,11 +70,13 @@ struct LCNav_Panel
     const lc_v2f lenskit_size = { 120, 200 };
 };
 
+extern "C"
 LCNav_Panel* create_navigator_panel()
 {
     return new LCNav_Panel();
 }
 
+extern "C"
 void release_navigator_panel(LCNav_Panel* p)
 {
     LCNav_Panel* ptr = reinterpret_cast<LCNav_Panel*>(p);
@@ -82,16 +85,19 @@ void release_navigator_panel(LCNav_Panel* p)
 
 
 
+extern "C"
 lc_interaction* LCNav_Panel_interaction_controller(const LCNav_Panel* p)
 {
     return p->interactive_controller;
 }
 
+extern "C"
 lc_i_Mode LCNav_Panel_interaction_mode(const LCNav_Panel* p)
 {
     return p->camera_interaction_mode;
 }
 
+extern "C"
 lc_radians LCNav_Panel_roll(const LCNav_Panel* p)
 {
     return lc_radians{ p->roll };
@@ -409,6 +415,7 @@ static bool LensKit(const char* label, float* p_value,
 
 
 
+extern "C"
 void LCNav_mouse_state_update(LCNav_MouseState* ms,
     float mousex, float mousey, bool left_button_down)
 {
@@ -433,6 +440,7 @@ void LCNav_mouse_state_update(LCNav_MouseState* ms,
 
 const float roll_track_sz = 8.f;
 
+extern "C"
 void
 draw_roll_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
@@ -465,6 +473,7 @@ draw_roll_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     draw_list->PopClipRect();
 }
 
+extern "C"
 void
 draw_joystick_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     ImVec2 const& p0, ImVec2 const& p1)
@@ -508,6 +517,7 @@ draw_joystick_widget(LCNav_Panel* navigator_panel, const lc_camera& camera,
     draw_list->PopClipRect();
 }
 
+extern "C"
 bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
 {
     ImVec2 sz{ navigator_panel->trackball_size.x, navigator_panel->trackball_size.y };
@@ -536,6 +546,7 @@ bool check_joystick_gizmo(LCNav_Panel* navigator_panel, ImVec2& p0, ImVec2& p1)
 #endif
 
 
+extern "C"
 LabCameraNavigatorPanelInteraction
 run_navigator_panel(LCNav_Panel* navigator_panel_, lc_camera* camera, float dt)
 {
@@ -713,6 +724,7 @@ static float len(float x, float y)
     return sqrtf(x * x + y * y);
 }
 
+extern "C"
 void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, float t, const lc_rigid_transform* cam, const lc_v3f lookat)
 {
     float min_dim = std::min(sz.x, sz.y);
@@ -734,6 +746,7 @@ void FX_minimap(ImDrawList* d, ImVec2 a, ImVec2 b, ImVec2 sz, ImVec4 mouse, floa
 // to extract a drawable region covering the whole window.
 // https://gist.github.com/ocornut/51367cc7dfd2c41d607bb0acfa6caf66
 //
+extern "C"
 void camera_minimap(int w, int h, const lc_rigid_transform* cam, const lc_v3f lookat)
 {
     ImGuiIO& io = ImGui::GetIO();
