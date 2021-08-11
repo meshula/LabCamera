@@ -1,3 +1,3 @@
 @PACKAGE_INIT@
-include { "${CMAKE_CURRENT_LIST_DIR}/LabCameraTargets.cmake" )
+include ( "${CMAKE_CURRENT_LIST_DIR}/LabCameraTargets.cmake" )
 
