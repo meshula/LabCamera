@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS False)
 
 option(LABCAMERA_IMGUI "Build LabCamera DearImgui binding" OFF)
-option(LABCAMERA_EXAMPLES "Build LabCamera examples" ON)
+option(LABCAMERA_EXAMPLES "Build LabCamera examples" OFF)
 set(LABCAMERA_IMGUI_PATH "examples/Navigator/third/imgui" CACHE FILEPATH "path to Dear ImGui")
 
 configure_file(cpp/LabCameraVersion.h.in LabCameraVersion.h)
