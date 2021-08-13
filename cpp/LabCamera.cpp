@@ -996,8 +996,10 @@ void lc_i_dual_stick_interaction(lc_interaction* i, lc_camera* camera, Interacti
 // current position
 //
 extern "C"
-void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken tok,
-    lc_i_Phase phase, lc_i_Mode mode, lc_v2f current_mouse_, lc_radians roll_hint, float dt)
+void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera,
+                          InteractionToken tok,
+                          lc_i_Phase phase, lc_i_Mode mode,
+                          lc_v2f current_mouse_, lc_radians roll_hint, float dt)
 {
     if (phase == lc_i_PhaseNone)
         return;
@@ -1064,7 +1066,94 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera, InteractionToken
     break;
 
     case lc_i_ModeCrane:
+    {
+        lc_v2f current = current_mouse_;
+
+        if (phase == lc_i_PhaseStart)
+        {
+            //i->_initial_focus_point = initial_hit_point;
+            lc_v3f cam_pos = camera->mount.transform.position;
+            lc_v3f cam_nrm = lc_rt_forward(&camera->mount.transform);
+            cam_nrm.x *= -1.f;
+            cam_nrm.y *= -1.f;
+            cam_nrm.z *= -1.f;
+            const float forward_bias = 5.f;     /// @TODO this should be a parameter
+            cam_pos.x += forward_bias * cam_nrm.x;
+            cam_pos.y += forward_bias * cam_nrm.y;
+            cam_pos.z += forward_bias * cam_nrm.z;
+
+            lc_hit_result hit = lc_camera_hit_test(camera,
+                current,
+                i->_viewport_size,
+                cam_pos, cam_nrm);
+            
+            if (hit.hit) {
+                i->_initial_focus_point = hit.point;
+            }
+        }
+
+        // Through the lens crane
+        lc_v2f target_xy = lc_camera_project_to_viewport(
+                                            camera, lc_v2f{ 0,0 },
+                                            i->_viewport_size,
+                                            i->_initial_focus_point) - current;
+        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
+        delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
+        i->_orbit_center += delta;
+        lc_mount_set_view_transform_quat_pos(&camera->mount,
+                                             camera->mount.transform.orientation,
+                                             cmt->position + delta);
+        break;
+    }
     case lc_i_ModeDolly:
+    {
+        lc_v2f current = current_mouse_;
+        if (phase == lc_i_PhaseStart)
+        {
+            //i->_initial_focus_point = initial_hit_point;
+            lc_v3f cam_pos = camera->mount.transform.position;
+            lc_v3f cam_nrm = lc_rt_forward(&camera->mount.transform);
+            cam_nrm.x *= -1.f;
+            cam_nrm.y *= -1.f;
+            cam_nrm.z *= -1.f;
+            const float forward_bias = 5.f;     /// @TODO this should be a parameter
+            cam_pos.x += forward_bias * cam_nrm.x;
+            cam_pos.y += forward_bias * cam_nrm.y;
+            cam_pos.z += forward_bias * cam_nrm.z;
+
+            lc_hit_result hit = lc_camera_hit_test(camera,
+                current,
+                i->_viewport_size,
+                cam_pos, cam_nrm);
+            
+            if (hit.hit) {
+                i->_initial_focus_point = hit.point;
+            }
+        }
+
+        // Through the lens crane
+        lc_v2f target_xy = lc_camera_project_to_viewport(
+                                            camera, lc_v2f{ 0,0 },
+                                            i->_viewport_size,
+                                            i->_initial_focus_point) - current;
+        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
+        lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
+        lc_v3f test_pos = cmt->position + delta_fw;
+        float dist = distance_point_to_plane(
+                            test_pos, i->_initial_focus_point, lc_rt_forward(cmt));
+        if (dist < 0)
+        {
+            // moving forward would not push past the
+            // plane (focus_point, mount.forward())?
+            i->_orbit_center += delta + delta_fw;
+            lc_mount_set_view_transform_quat_pos(
+                &camera->mount, camera->mount.transform.orientation, test_pos + delta);
+        }
+        break;
+    }
+        
     case lc_i_ModeTurnTableOrbit:
     {
         if (phase == lc_i_PhaseStart)
@@ -1139,53 +1228,17 @@ void lc_i_constrained_ttl_interaction(lc_interaction* i,
     if (phase == lc_i_PhaseNone)
         return;
 
-    const lc_rigid_transform* cmt = &camera->mount.transform;
-    switch (mode)
-    {
-    case lc_i_ModeCrane:
+    lc_i_Phase curr_phase = phase;
+    if (mode == lc_i_ModeCrane || mode == lc_i_ModeDolly)
     {
         if (phase == lc_i_PhaseStart)
         {
             i->_initial_focus_point = initial_hit_point;
+            curr_phase = lc_i_PhaseContinue;
         }
-
-        // Through the lens crane
-        lc_v2f target_xy = lc_camera_project_to_viewport(camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
-        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
-        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-        delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
-        i->_orbit_center += delta;
-        lc_mount_set_view_transform_quat_pos(&camera->mount, camera->mount.transform.orientation, cmt->position + delta);
-        break;
     }
-    case lc_i_ModeDolly:
-    {
-        if (phase == lc_i_PhaseStart)
-        {
-            i->_initial_focus_point = initial_hit_point;
-        }
-
-        // Through the lens crane
-        lc_v2f target_xy = lc_camera_project_to_viewport(camera, lc_v2f{ 0,0 }, i->_viewport_size, i->_initial_focus_point) - current;
-        target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
-        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-        lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
-
-        lc_v3f test_pos = cmt->position + delta_fw;
-        float dist = distance_point_to_plane(test_pos, i->_initial_focus_point, lc_rt_forward(cmt));
-        if (dist < 0)
-        {
-            // moving forward would not push past the plane (focus_point, mount.forward())?
-            i->_orbit_center += delta + delta_fw;
-            lc_mount_set_view_transform_quat_pos(&camera->mount, camera->mount.transform.orientation, test_pos + delta);
-        }
-        break;
-    }
-
-    default:
-        lc_i_ttl_interaction(i, camera, tok, phase, mode, current, roll_hint, dt);
-        break;
-    }
+    
+    lc_i_ttl_interaction(i, camera, tok, curr_phase, mode, current, roll_hint, dt);
 }
 
 extern "C"
@@ -1554,7 +1607,8 @@ lc_m44f lc_camera_inv_view_projection(const lc_camera* cam, float aspect)
 }
 
 extern "C"
-lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f viewport_origin, lc_v2f viewport_size)
+lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel,
+                                    lc_v2f viewport_origin, lc_v2f viewport_size)
 {
     const lc_rigid_transform* cmt = &cam->mount.transform;
     lc_m44f inv_projection = lc_camera_inv_view_projection(cam, 1.f);
@@ -1562,7 +1616,9 @@ lc_ray lc_camera_get_ray_from_pixel(const lc_camera* cam, lc_v2f pixel, lc_v2f v
 }
 
 extern "C"
-lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f viewport, lc_v3f plane_point, lc_v3f plane_normal)
+lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse,
+                                 lc_v2f viewport,
+                                 lc_v3f plane_point, lc_v3f plane_normal)
 {
     lc_ray ray = lc_camera_get_ray_from_pixel(cam, mouse, { 0, 0 }, viewport);
     lc_hit_result r;
@@ -1571,7 +1627,8 @@ lc_hit_result lc_camera_hit_test(const lc_camera* cam, lc_v2f mouse, lc_v2f view
 }
 
 extern "C"
-lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f viewport_origin, lc_v2f viewport_size, lc_v3f point)
+lc_v2f lc_camera_project_to_viewport(const lc_camera* cam, lc_v2f viewport_origin,
+                                     lc_v2f viewport_size, lc_v3f point)
 {
     lc_m44f m = lc_camera_view_projection(cam, 1.f);
 

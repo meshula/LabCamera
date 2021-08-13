@@ -102,8 +102,7 @@ inline lc_degrees degrees_from_radians(lc_radians r) {
     vectors, and point and vector transformations.
  */
 
-typedef struct
-{
+typedef struct {
     lc_quatf orientation;
     lc_v3f   position;
     lc_v3f   scale;
@@ -142,8 +141,7 @@ inline bool lc_rt_has_uniform_scale(const lc_rigid_transform* rt) {
     extract yaw, pitch, and roll.
  */
 
-typedef struct
-{
+typedef struct {
     lc_rigid_transform transform;
 } lc_mount;
 
@@ -199,8 +197,7 @@ void lc_mount_look_at(lc_mount*, lc_v3f eye, lc_v3f target, lc_v3f up);
     of a sensor.
  */
 
-typedef struct
-{
+typedef struct {
     struct { lc_millimeters x, y; } shift;
     struct { float x, y; }          enlarge;
     struct { lc_millimeters x, y; } aperture;
@@ -288,8 +285,7 @@ lc_millimeters lc_sensor_focal_length_from_vertical_FOV(lc_sensor*, lc_radians);
     chromatic aberration. Nor does it model field curvature or diffraction.
  */
 
-typedef struct
-{
+typedef struct {
     //  fstop is focal length / diameter of effective aperture (entrance pupil)
     //   of the lens. The effective aperture is the appearance of the aperture
     //   as viewed from the front of the lens, the aperture "seen" by the 
@@ -337,8 +333,7 @@ lc_v2f    lc_optics_focus_range(lc_optics*, lc_millimeters hyperfocal_distance);
     computed here.
  */
 
-typedef struct
-{
+typedef struct {
     float          shutter_open;     // offset in seconds from start of exposure
     float          shutter_duration; // duration of exposure, in seconds
     unsigned int   shutter_blades;   // default 6
@@ -370,14 +365,12 @@ void lc_aperture_set_default(lc_aperture* a);
     point when begin_interaction() is invoked.
   */
 
-typedef struct
-{
+typedef struct {
     bool hit;
     lc_v3f point;
 } lc_hit_result;
 
-typedef struct
-{
+typedef struct {
     lc_mount    mount;
     lc_optics   optics;
     lc_aperture aperture;
@@ -432,8 +425,7 @@ lc_m44f lc_camera_inv_view_projection(const lc_camera*, float aspect);
 
 typedef uint64_t InteractionToken;
 
-typedef enum
-{
+typedef enum {
     lc_i_ModeStatic = 0,
     lc_i_ModeDolly,
     lc_i_ModeCrane,
@@ -442,8 +434,7 @@ typedef enum
     lc_i_ModeArcball
 } lc_i_Mode;
 
-typedef enum
-{
+typedef enum {
     lc_i_PhaseNone = 0,
     lc_i_PhaseRestart,
     lc_i_PhaseStart,
@@ -509,13 +500,16 @@ void lc_i_dual_stick_interaction(
     lc_radians roll_hint,
     float dt);
 
-/* This mode is intended for through the lens screen space manipulation.
+/* The through the lens interaction mode is intended for through as much
+   through the lens interaction as is possible without a ray cast into
+   the 3d world.
+  
    Dolly: the camera will be moved in the view plane to keep initial under
-   current in the horizontal direction, and forward and backward motion will
-   be under a heuristic.
+          current in the horizontal direction, and forward and backward motion
+          will be subject to a heuristic.
 
-   Crane: the camera will be moved in the view plane to keep initial under
-          current
+   Crane: the camera will be moved in the view plane to keep the initial 
+          click location under the pointer.
 
    TurnTableOrbit: roughly screen relative tumble motions
 
@@ -554,3 +548,4 @@ void lc_i_constrained_ttl_interaction(
 #undef SRET
 
 #endif  // LABCAMERA_H
+

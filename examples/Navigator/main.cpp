@@ -146,6 +146,8 @@ struct AppState
     lc_interaction* main_pan_tilt;
     lc_interaction* joystick_pan_tilt;
     UI_Mode ui_state = UI_Mode::UI;
+    bool ui_UseDeltaCamera = false;     // debugging value to force a mode
+
     uint64_t last_time = 0;
     MouseState mouse;
     LCNav_Panel* navigator_panel = nullptr;
@@ -527,7 +529,8 @@ void run_application_logic()
             draw_jack(1, m);
         }
 
-        m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y, gApp.initial_hit_point.z, 1.f };
+        m.w = { gApp.initial_hit_point.x, gApp.initial_hit_point.y,
+                gApp.initial_hit_point.z, 1.f };
         draw_jack(0.25, m);
 
         // hit point on manipulator plane
@@ -806,7 +809,9 @@ void run_application_logic()
 
             ImGui::CaptureMouseFromApp(true);
 
-            if (gApp.ui_state == UI_Mode::TTLCamera)
+            UI_Mode selected_mode = gApp.ui_UseDeltaCamera? UI_Mode::DeltaCamera : UI_Mode::TTLCamera;
+
+            if (selected_mode == UI_Mode::TTLCamera)
             {
                 ImGui::SetCursorScreenPos(ImVec2{ mouse_pos.x, mouse_pos.y });
                 ImGui::TextUnformatted("TTL+");
