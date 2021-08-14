@@ -1071,16 +1071,17 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera,
 
         if (phase == lc_i_PhaseStart)
         {
-            //i->_initial_focus_point = initial_hit_point;
             lc_v3f cam_pos = camera->mount.transform.position;
             lc_v3f cam_nrm = lc_rt_forward(&camera->mount.transform);
             cam_nrm.x *= -1.f;
             cam_nrm.y *= -1.f;
             cam_nrm.z *= -1.f;
-            const float forward_bias = 5.f;     /// @TODO this should be a parameter
-            cam_pos.x += forward_bias * cam_nrm.x;
-            cam_pos.y += forward_bias * cam_nrm.y;
-            cam_pos.z += forward_bias * cam_nrm.z;
+            
+            lc_v3f orbit_delta = cam_pos - i->_orbit_center;
+            float forward_distance = length(orbit_delta);
+            cam_pos.x += forward_distance * cam_nrm.x;
+            cam_pos.y += forward_distance * cam_nrm.y;
+            cam_pos.z += forward_distance * cam_nrm.z;
 
             lc_hit_result hit = lc_camera_hit_test(camera,
                 current,
@@ -1111,16 +1112,17 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera,
         lc_v2f current = current_mouse_;
         if (phase == lc_i_PhaseStart)
         {
-            //i->_initial_focus_point = initial_hit_point;
             lc_v3f cam_pos = camera->mount.transform.position;
             lc_v3f cam_nrm = lc_rt_forward(&camera->mount.transform);
             cam_nrm.x *= -1.f;
             cam_nrm.y *= -1.f;
             cam_nrm.z *= -1.f;
-            const float forward_bias = 5.f;     /// @TODO this should be a parameter
-            cam_pos.x += forward_bias * cam_nrm.x;
-            cam_pos.y += forward_bias * cam_nrm.y;
-            cam_pos.z += forward_bias * cam_nrm.z;
+            
+            lc_v3f orbit_delta = cam_pos - i->_orbit_center;
+            float forward_distance = length(orbit_delta);
+            cam_pos.x += forward_distance * cam_nrm.x;
+            cam_pos.y += forward_distance * cam_nrm.y;
+            cam_pos.z += forward_distance * cam_nrm.z;
 
             lc_hit_result hit = lc_camera_hit_test(camera,
                 current,
