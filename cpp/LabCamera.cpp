@@ -1099,8 +1099,8 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera,
                                             i->_viewport_size,
                                             i->_initial_focus_point) - current;
         target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
-        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-        delta += mul(lc_rt_up(cmt), target_xy.y * -1.f);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 20.f);
+        delta += mul(lc_rt_up(cmt), target_xy.y * -20.f);
         i->_orbit_center += delta;
         lc_mount_set_view_transform_quat_pos(&camera->mount,
                                              camera->mount.transform.orientation,
@@ -1134,14 +1134,14 @@ void lc_i_ttl_interaction(lc_interaction* i, lc_camera* camera,
             }
         }
 
-        // Through the lens crane
+        // Through the lens dolly
         lc_v2f target_xy = lc_camera_project_to_viewport(
                                             camera, lc_v2f{ 0,0 },
                                             i->_viewport_size,
                                             i->_initial_focus_point) - current;
         target_xy = mul(target_xy, 1.f / i->_viewport_size.x);
-        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 1.f);
-        lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -1.f);
+        lc_v3f delta = mul(lc_rt_right(cmt), target_xy.x * 20.f);
+        lc_v3f delta_fw = mul(lc_rt_forward(cmt), target_xy.y * -20.f);
         lc_v3f test_pos = cmt->position + delta_fw;
         float dist = distance_point_to_plane(
                             test_pos, i->_initial_focus_point, lc_rt_forward(cmt));
