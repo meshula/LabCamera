@@ -355,7 +355,7 @@ void lc_aperture_set_default(lc_aperture* a);
     begin_interaction/end_interaction pair.
 
     Explicit constraints are the position of the camera, the world_up vector,
-    and the focus_point. These constraints may be modified by the interaction
+    and the focus point. These constraints may be modified by the interaction
     methods; otherwise, they may be modified freely outside of a begin-end
     interaction block.
 
