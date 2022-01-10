@@ -14,7 +14,7 @@ role in the capture of an image. Each element is modeled by a struct, and
 a camera struct is a composition of those elements.
 
 lc_mount describes the pose of the camera. The mount is really a virtual
-mount whose origin is at the lens' entrance pupil. It's up the an
+mount whose origin is at the lens' entrance pupil. It's up the
 application to model a kinematic chain such as a tripod or boom arm. The
 rigid transform within the mount should be constrained to that kinematic
 chain.
@@ -61,7 +61,7 @@ _________
 
 ### Modeling
 
-- Physical camera modeling of optics, aperature, sensor, and mount
+- Physical camera modeling of optics, aperture, sensor, and mount
 - Support for offset frustums for sensor shift and image tiling
 
 ### Interaction
@@ -118,7 +118,7 @@ typedef struct { lc_v3f pos; lc_v3f dir; } lc_ray;
 
 ________________________________________________________________________________
 
-```Mount``` is a nodal mount, centered on the camera's sensor
+```Mount``` is a nodal mount, centered on the camera's sensor.
 The mount's transform is by default, left handed, y is up, -z is forward
 
 ```Sensor``` describes the plane where an image is to be resolved.
@@ -180,7 +180,7 @@ infinity are in focus.
     Infinity       hyperfocal distance         Sensor plane
 ````
 
-If a camera is focussed at the hyperfocal distance, then objects from 1/2 H to
+If a camera is focused at the hyperfocal distance, then objects from 1/2 H to
 infinity are in focus.
 
 ````
@@ -188,7 +188,7 @@ infinity are in focus.
     Infinity       hyperfocal distance         Sensor plane
 ````
 
-Given a focus distance, and the hyperfocal distance, the in focus range is
+Given a focus distance, and the hyperfocal distance, the in-focus range is
 given by
 
 ````
