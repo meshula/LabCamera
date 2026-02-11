@@ -6,8 +6,8 @@ This article explains how real camera measurements made on set map into optical 
 
 There are two regimes of interest:
 
-**Practical model** — what you can measure externally and assume safely
-**Technical model** — what you can compute when a lens datasheet provides optical reference planes
+* **Practical model** — what you can measure externally and assume safely
+* **Technical model** — what you can compute when a lens datasheet provides optical reference planes
 
 This article will cover the concepts and mathematics of both, and will provide useful Python illustrations that can be immediately incorporated into tools and workflows.
 
