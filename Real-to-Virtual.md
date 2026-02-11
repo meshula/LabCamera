@@ -284,19 +284,9 @@ Under that approximation:
 * one can back-solve a thin-lens layout
 * errors are usually small for mid-focus distances
 
-That’s a workable approximation, but it is an assumption.
----
+That’s a workable approximation given the many assumptions. On set one measures sensor to subject distance because it is the only invariant external datum. For parallax rotation one uses the entrance pupil. From focal length, f-stop, and sensor size one can derive projection and DOF behavior.
 
-Bottom line
-
-On set you measure sensor → subject because it is the only invariant external datum — correct.
-
-For parallax rotation you use the entrance pupil — correct.
-
-From focal length, f-stop, and sensor size you can derive projection and DOF behavior — correct.
-
-But you cannot uniquely derive H1 and H2 locations from those alone. You need principal plane or nodal offset data from the lens design, or you must assume a thin-lens surrogate model where they coincide.
-
+But one cannot uniquely derive ***H1*** and ***H2*** locations from those alone. Either the principal plane and nodal offset data is available from the lens design or data sheets, or it's necessary to fall back to a thin-lens surrogate model where the planes coincide.
 
 ---
 
@@ -306,7 +296,7 @@ Function A — Practical On-Set Thin-Lens Calculator
 
 Assumptions:
 
-* Thin lens model (H1 = H2).
+* Thin lens model (***H1*** = ***H2***).
 * Marked focus distance is measured from sensor plane.
 * That distance ≈ object distance s.
 * Principal plane located at lens entrance pupil ≈ lens center (user can measure).
@@ -321,7 +311,7 @@ Ask the user to measure (non-invasive):
 * sensor_to_lens_front_mm (tape measure)
 * lens_length_mm (physical barrel length)
 
-We estimate principal plane near barrel midpoint.
+From that we can estimate the principal plane near barrel midpoint.
 
 ```python
 import math
