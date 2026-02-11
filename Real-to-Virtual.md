@@ -1,7 +1,8 @@
 
-# Introduction to Practical On-Set and Virtual Production Camera
+# Practical On-Set and Virtual Production Camera
+## In the OpenUSD and RenderMan Universe
 
-This article explains how real camera measurements made on set map into optical models, and how those models map into virtual cameras used in OpenUSD and RenderMan pipelines. The goal is to provide reliable, first-order results for layout, matchmove, and rendering, bridging the gap between physical cinematography and virtual production.
+This article explains how real camera measurements made on set map into optical models, and how those models map into virtual cameras used in **OpenUSD** and **RenderMan** pipelines. The goal is to provide reliable, first-order results for layout, matchmove, and rendering, bridging the gap between physical cinematography and virtual production.
 
 There are two regimes of interest:
 
