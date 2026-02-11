@@ -61,15 +61,15 @@ Therefore two workflows exist.
 
 ### Practical workflow:
 
-Assume a thin lens. Treat the measured focus distance as object distance. Assume principal plane near lens center. This yields stable first-order behavior for FOV, focus, and DOF.
+Assume a thin lens. Treat the measured focus distance as the object distance. Assume the principal plane exists near the lens center. This yields stable first-order behavior for FOV, focus, and DOF.
 
-Technical workflow:
+### Technical workflow:
 
 Use datasheet values for:
 
-H1 offset
-H2 offset
-Entrance pupil offset
+* H1 offset
+* H2 offset
+* Entrance pupil offset
 
 Convert measured distances into true Gaussian distances before computing focus and DOF. This removes bias from retrofocus and telephoto designs.
 
@@ -79,13 +79,13 @@ Convert measured distances into true Gaussian distances before computing focus a
 
 Depth of field comes from the thin-lens model plus an acceptable blur diameter on the sensor, called the circle of confusion.
 
-Given focal length f, f-number N, focus distance s, and CoC c:
+Given focal length ***f***, f-number ***N***, focus distance ***s***, and CoC ***c***:
 
-Hyperfocal distance:
+The hyperfocal distance is:
 
 H = f² / (N c) + f
 
-Near and far DOF limits:
+Near and far DOF limits are:
 
 Dnear = (H s) / (H + (s − f))
 Dfar  = (H s) / (H − (s − f))  or infinity if s ≥ H
@@ -108,13 +108,13 @@ While the paraxial models described above assume spherical elements, anamorphic 
 
 Parallax-free rotation does not occur about the sensor plane. It occurs about the entrance pupil (often called the nodal point on set).
 
-With a datasheet, use the provided entrance pupil offset.
+When a datasheet is available, use the provided entrance pupil offset.
 
 Without one, estimate from external measurements:
 
-Measure sensor → lens front
-Measure lens length
-Assume the entrance pupil lies roughly 30–50% of lens length behind the front element
+* Measure the distance from the sensor to the front of the lens
+* Measure the lens length
+* Assume the entrance pupil lies roughly 30–50% of lens length behind the front element
 
 Virtual cameras should rotate about this pivot for matchmove and nodal pan accuracy.
 
@@ -124,21 +124,21 @@ Virtual cameras should rotate about this pivot for matchmove and nodal pan accur
 
 USD GfCamera is filmback + focal length based. Key parameters:
 
-Focal length
-Horizontal and vertical aperture
-Focus distance
-F-stop
+* Focal length
+* Horizontal and vertical aperture
+* Focus distance
+* F-stop
 
 Field of view is derived from focal length and aperture.
 
 RenderMan cameras are projection driven. Key parameters:
 
-Field of view
-Screen window
-F-stop
-Focal distance
+* Field of view
+* Screen window
+* F-stop
+* Focal distance
 
-FOV is primary; filmback is implicit via the screen window.
+The FOV is primary; filmback is implicit via the screen window.
 
 Both ultimately encode the same paraxial projection, but with different parameterizations.
 
@@ -148,23 +148,27 @@ Both ultimately encode the same paraxial projection, but with different paramete
 
 The mapping pipeline is:
 
-On-set measurements → choose model → solve Gaussian distances → compute DOF → emit renderer camera
+1. On-set measurements
+2. Choose model
+3. Solve Gaussian distances
+4. Compute DOF
+5. Create the renderer camera
 
-Practical path:
+### Practical path:
 
-Use thin-lens solver
-Use measured focus distance directly
-Derive FOV from focal length and sensor
-Estimate entrance pupil for pivot
-Emit GfCamera and PrMan parameters
+1. Use thin-lens solver
+2. Use measured focus distance directly
+3. Derive FOV from focal length and sensor
+4. Estimate entrance pupil for pivot
+5. Emit GfCamera and PrMan parameters
 
-Technical path:
+### Technical path:
 
-Use datasheet H1/H2 offsets
-Convert measured focus to true object distance
-Compute DOF from Gaussian distance
-Use datasheet entrance pupil
-Emit cameras with corrected focus distance
+1. Use datasheet H1/H2 offsets
+2. Convert measured focus to true object distance
+3. Compute DOF from Gaussian distance
+4. Use datasheet entrance pupil
+5. Emit cameras with corrected focus distance
 
 Both paths produce renderer-usable cameras. The technical path reduces systematic error when lens metadata is available.
 
@@ -172,62 +176,41 @@ Both paths produce renderer-usable cameras. The technical path reduces systemati
 
 # Appendices
 
----
 
-## Appendix - Deriving the Principal Planes
+## Appendix A - Deriving the Principal Planes
 
-Reconciling real world measurements and ideal mathematical models requires some attention. One cannot generally derive H1 and H2 locations from film-back focus distance, focal length, f-stop, and sensor size alone. You can derive image distance and magnification, but not the principal plane offsets, unless you also know the lens’s principal plane or nodal point offsets (which are lens design data).
+Reconciling real world measurements and ideal mathematical models requires some attention. One cannot generally derive ***H1*** and ***H2*** locations from film-back focus distance, focal length, f-stop, and sensor size alone. You can derive image distance and magnification, but not the principal plane offsets, unless you also know the lens’s principal plane or nodal point offsets (which are lens design data).
 
-On-set measurement: film back to focus distance
-
-On set, focus pullers measure:
-
-film plane (sensor mark Φ) → subject distance
-
-because:
+On set, focus pullers measure the distance from the film plane (sensor mark `Φ`) to the focused subject distance, because:
 
 * the film/sensor plane is externally marked
 * it is invariant under focusing
 * it is mechanically well-defined
 
-This distance is **not** the Gaussian object distance s. Gaussian object distance is measured from **H1**, not from the sensor plane.
+This distance is **not** the Gaussian object distance s. Gaussian object distance is measured from ***H1***, not from the sensor plane.
 
 So what you measure on set is:
 
 D_measured = sensor → subject
 
-But Gaussian wants:
+But the Gaussian wants:
 
-s = H1 → subject
-s′ = H2 → sensor
+s = ***H1*** → subject
+s′ = ***H2*** → sensor
 
 Those differ by principal plane offsets.
 
----
-
-“Treat it as nodal point for rotation purposes”
-
-Yes — operationally correct, and this is standard cinematography practice.
+Treating that distance as the nodal point for rotation purposes is operationally correct, and standard cinematography practice.
 
 For camera rotation (pan/tilt to avoid parallax):
 
 * You rotate about the **entrance pupil** (often loosely called the nodal point on set).
-* That point is close to the front nodal point N1.
+* That point is close to the front nodal point ***N1***.
 * In air, nodal points and principal points are often near each other, but not guaranteed identical.
 
-So for parallax-free rotation:
+For parallax-free rotation, we use the entrance pupil and nodal point, not the sensor plane, nor the principal plane strictly speaking.
 
-use entrance pupil / nodal point
-not sensor plane
-not principal plane strictly speaking
-
-This is a different constraint than Gaussian distance measurement.
-
-Different task → different reference point.
-
----
-
-Given focal length, f-stop, sensor size — what can you derive?
+This is a different constraint than Gaussian distance measurement. So, given focal length, f-stop, sensor size — what can we derive?
 
 From:
 
@@ -236,26 +219,26 @@ From:
 * focus distance (sensor → subject)
 * f-stop N
 
-you can derive:
+we can derive:
 
-Field of view (from focal length + sensor size)
-Magnification (if object distance is known relative to principal plane)
-Image distance s′ (if object distance s is known relative to principal plane)
-Circle of confusion / DOF behavior (approx)
+* Field of view (from focal length + sensor size)
+* Magnification (if object distance is known relative to principal plane)
+* Image distance s′ (if object distance s is known relative to principal plane)
+* Circle of confusion / DOF behavior (approx)
 
-But you still need principal plane offsets to connect the measured distance to s and s′.
+But we still need principal plane offsets to connect the measured distance to s and s′.
 
 ---
 
-Why H1 and H2 cannot be derived from that data alone
+### A.1 Why H1 and H2 cannot be derived from that data alone
 
-Gaussian relations give you:
+Gaussian relations give:
 
 1/f = 1/s + 1/s′
 
 But s and s′ are measured from H1 and H2.
 
-Your measurement gives:
+On set measurement gives:
 
 D = sensor → subject
 
@@ -278,7 +261,7 @@ Therefore: the system is underdetermined without lens design metadata.
 
 ---
 
-What lens makers sometimes provide
+### A.2 What lens makers sometimes provide
 
 High-end lens data sheets sometimes include:
 
@@ -287,13 +270,7 @@ High-end lens data sheets sometimes include:
 * nodal point locations
 * focus breathing curves
 
-With that data, yes — you can reconstruct H1 and H2 positions in a Gaussian equivalent model.
-
-Without it: no.
-
----
-
-Where your reasoning *does* hold approximately
+With that data, one can reconstruct H1 and H2 positions in a Gaussian equivalent model; without that data it's not possible.
 
 In many practical cine / VFX pipelines, people assume:
 
@@ -304,11 +281,10 @@ In many practical cine / VFX pipelines, people assume:
 Under that approximation:
 
 * measured focus distance ≈ s + s′
-* you can back-solve a thin-lens layout
+* one can back-solve a thin-lens layout
 * errors are usually small for mid-focus distances
 
-That’s a workable approximation — but it is an assumption, not a derivation.
-
+That’s a workable approximation, but it is an assumption.
 ---
 
 Bottom line
