@@ -1571,9 +1571,7 @@ void lc_camera_set_clipping_planes_within_bounds(lc_camera* cam, float min_near,
 
     if (clip_far < clip_near)
     {
-        float temp = clip_far;
-        clip_far = clip_near;
-        clip_near = clip_far;
+        std::swap(clip_far, clip_near);
     }
 
     cam->optics.znear = clip_near;
