@@ -290,9 +290,9 @@ But one cannot uniquely derive ***H1*** and ***H2*** locations from those alone.
 
 ---
 
-## Appendix - On Set Calculators
+## Appendix B - A Practical On-Set Calculator
 
-Function A — Practical On-Set Thin-Lens Calculator
+### B.1 Calculation from Thin Film Approximation
 
 Assumptions:
 
@@ -334,7 +334,8 @@ def onset_thin_lens_calculator(
     s_prime = 1.0 / (1.0/f - 1.0/s)
 
     # Estimate principal plane location (thin lens) near lens center
-    H_offset_from_sensor = sensor_to_lens_front_mm - lens_length_mm * 0.5
+    H_offset_from_sensor = 
+        sensor_to_lens_front_mm - lens_length_mm * 0.5
 
     # Derived quantities
     magnification = s_prime / s
@@ -360,22 +361,16 @@ def onset_thin_lens_calculator(
     }
 ```
 
----
+Extra on-set measurements to improve `onset_thin_lens_calculator` without tearing the camera apart:
 
-Extra on-set measurements that improve Function A (no disassembly)
-
-You can ask crew to:
-
-* Measure sensor mark → lens front
+* Measure sensor mark to the lens front
 * Measure lens physical length
 * Find entrance pupil by parallax test (slide camera sideways vs near/far object)
 * Measure subject distance at two focus marks → estimate focus breathing
 
 Those refine the principal plane estimate.
 
----
-
-Function B — Datasheet Gaussian Calculator
+### B.2 Datasheet Gaussian Model Calculator
 
 Assumes lens datasheet provides:
 
@@ -445,15 +440,15 @@ def datasheet_gaussian_calculator(
 
 Practical distinction
 
-Function A answers:
+Function B.1 answers:
 “What camera should I simulate for blocking, previs, matchmove bootstrap?”
 
-Function B answers:
+Function B.2 answers:
 “Given real optical reference planes, where is the Gaussian equivalent system and what is the exact conjugate geometry?”
 
 ---
 
-## Appendix - Constructing Virtual Cameras from Optics
+## Appendix C - Constructing Virtual Cameras from Optics
 
 Next, we wire the optics math to camera construction, in an implementation-oriented and renderer-facing manner.
 
@@ -491,7 +486,7 @@ def calc_datasheet_gaussian(f_mm, H1_mm, H2_mm, sensor_mm, marked_focus_mm):
 
 ---
 
-GfCamera builders
+### C1. GfCamera builders
 
 GfCamera cares about:
 
@@ -509,7 +504,7 @@ Technical = datasheet principal planes respected for focus distance.
 
 ---
 
-GfCamera — practical on-set
+**GfCamera — practical on-set**
 
 ```python
 def build_gfcamera_practical(
@@ -537,9 +532,9 @@ def build_gfcamera_practical(
 
 ---
 
-GfCamera — technical (datasheet)
+**GfCamera — technical (datasheet)**
 
-Here we convert measured focus to true Gaussian object distance from H1 and use that as focusDistance.
+Here we convert measured focus to true Gaussian object distance from ***H1*** and use that as focusDistance.
 
 ```python
 def build_gfcamera_technical(
@@ -576,7 +571,7 @@ def build_gfcamera_technical(
 
 ---
 
-RenderMan camera builders
+### C2. RenderMan camera builders
 
 RenderMan cameras are FOV + screenwindow driven. We convert:
 
@@ -595,7 +590,7 @@ Screenwindow is symmetric unless lens shift is provided.
 
 ---
 
-RenderMan — practical on-set
+**RenderMan — practical on-set**
 
 ```python
 def build_prman_camera_practical(
@@ -628,9 +623,9 @@ def build_prman_camera_practical(
 
 ---
 
-RenderMan — technical (datasheet)
+**RenderMan — technical (datasheet)**
 
-Use Gaussian object distance s (from H1) as focaldistance.
+Use Gaussian object distance s (from ***H1***) as focaldistance.
 
 ```python
 def build_prman_camera_technical(
@@ -674,13 +669,13 @@ def build_prman_camera_technical(
 
 ---
 
-Practical variants collapse principal planes and treat marked focus as object distance. That corresponds to the Gaussian thin-lens reduction where H1 = H2.
+Practical variants collapse principal planes and treat marked focus as object distance. That corresponds to the Gaussian thin-lens reduction where ***H1*** = ***H2***.
 
-Technical variants respect a separated H1/H2 and convert sensor-mark focus distance into true Gaussian distances before emitting camera parameters.
+Technical variants respect a separated ***H1***/***H2*** and convert sensor-mark focus distance into true Gaussian distances before emitting camera parameters.
 
 ---
 
-# Appendix - Circle of Confusion and DOF Ranges
+## Appendix D: Circle of Confusion and DOF Ranges
 
 We extend the model in a renderer-useful way and keep the optics consistent with the two regimes we defined:
 
@@ -695,11 +690,11 @@ We’ll add:
 * far DOF limit
 * total DOF span
 
-All formulas are first-order thin-lens DOF relations. Even in the technical model (separated principal planes), DOF math is still thin-lens based — we just feed it the correct Gaussian object distance s.
+All formulas are first-order thin-lens DOF relations. Even in the technical model (separated principal planes), DOF math is still thin-lens based, based on the correct Gaussian object distance s.
 
 ---
 
-Core DOF math (shared)
+### D.1 Core DOF math (shared)
 
 Conventions:
 
@@ -756,7 +751,7 @@ def dof_from_object_distance(f_mm, f_number, coc_mm, s_mm):
 
 ---
 
-Tie DOF to Practical (thin-lens) camera
+### D.2 Tie DOF to Practical (thin-lens) camera
 
 Here object distance is just the marked focus distance (our earlier assumption).
 
@@ -789,7 +784,7 @@ def onset_practical_dof(
 
 ---
 
-Tie DOF to Technical (datasheet Gaussian) camera
+### D.3 Tie DOF to Technical (datasheet Gaussian) camera
 
 Here we first compute true Gaussian object distance from H1, then feed that into DOF math.
 
@@ -830,9 +825,9 @@ def onset_technical_dof(
 
 ---
 
-Augment GfCamera builders with DOF + CoC
+### D.4 Augment GfCamera builders with DOF + CoC
 
-We just merge results into the returned dicts.
+We merge results into the returned dicts.
 
 Example — practical GfCamera:
 
@@ -864,21 +859,19 @@ def build_gfcamera_practical_with_dof(
     return cam
 ```
 
-Technical variant is analogous — call `onset_technical_dof` and attach.
-
-Same pattern applies to the two PrMan builders.
+Technical variant is analogous — call `onset_technical_dof` and attach. The same pattern applies to the two PrMan builders.
 
 ---
 
-Renderer interpretation notes (important)
+### D.4 Renderer interpretation notes
 
-USD / GfCamera:
+**USD / GfCamera**:
 
-* CoC is not stored directly in schema — but you should record it in metadata if you want deterministic DOF reproduction across delegates.
+* **CoC** is not stored directly in schema — but you should record it in metadata if you want deterministic DOF reproduction across delegates.
 * focusDistance + fStop + focalLength are what Hydra delegates use for lens blur.
 * Different delegates assume different CoC criteria internally — your stored CoC makes validation possible.
 
-RenderMan:
+**RenderMan**:
 
 * DOF is driven by fstop + focaldistance + focalLength/FOV.
 * CoC is emergent from sampling, not an explicit knob.
@@ -886,11 +879,11 @@ RenderMan:
 
 ---
 
-## Appendix - Inverting Matchmove and Lens Forensics
+## Appendix E: Inverting Matchmove and Lens Forensics
 
 Next, we add the inverse layer used in matchmove and lens forensics: solve for effective f-number or acceptable CoC from measured DOF brackets. This is standard first-order optics inversion and fits cleanly on top of the paraxial model.
 
-We proceed from the same thin-lens DOF equations. Start from hyperfocal:
+We proceed from the same thin-lens DOF equations. Start from the hyperfocal equation:
 
 H = f² / (N c) + f
 
@@ -899,7 +892,7 @@ Near/far limits for focus distance s:
 D_near = (H s) / (H + (s − f))
 D_far  = (H s) / (H − (s − f))
 
-If you measure near and far acceptable focus distances on set (or from plate analysis), you can solve for H first, then recover either N or c.
+If we measure near and far acceptable focus distances on set (or from plate analysis), we can solve for H first, then recover either N or c.
 
 From the near equation we can isolate H directly:
 
@@ -1030,13 +1023,13 @@ def dof_consistency_error(
     }
 ```
 
-How this ties back to our two camera models.
+### E.1 How this ties back to our two camera models.
 
-Practical camera path:
+**Practical camera path**:
 
 Use marked focus distance directly as s. Feed that into the inverse DOF solver. This yields an effective f-number or CoC consistent with the thin-lens onset model. Good for quick lens reports and matchmove bootstrap.
 
-Technical (datasheet) path:
+**Technical (datasheet) path**:
 
 First convert marked focus distance to true Gaussian object distance from H1 using the datasheet calculator:
 
@@ -1044,17 +1037,44 @@ s, s′, _ = calc_datasheet_gaussian(...)
 
 Then pass that s into the inverse DOF solver. That removes principal-plane bias and gives a physically cleaner estimate.
 
-Operationally useful workflows:
+**Operationally useful workflows**:
 
-You know f, focus mark, near/far acceptable focus from plate → solve effective f-number → compare to lens ring (detect T-stop vs F-stop drift, filtration, diffusion).
+If we know 
 
-You know f, focus mark, f-number → solve effective CoC → choose renderer CoC threshold so CG blur matches plate blur.
+* f, 
+* focus mark, 
+* near/far acceptable focus from plate
 
-You know near/far and f-number but not exact focus mark → solve H from near, then invert near equation for s.
+Then
+
+* solve effective f-number
+* compare to lens ring (detect T-stop vs F-stop drift, filtration, diffusion).
+
+If we know 
+
+* f, 
+* focus mark, 
+* f-number
+
+Then
+
+* solve effective CoC
+* choose renderer CoC threshold so CG blur matches plate blur.
+
+If we know 
+
+* near/far and
+* f-number 
+* but not exact focus mark
+
+Then
+
+* solve H from near, then 
+* invert near equation for s.
 
 ---
 
-## Appendix - Single Lens Report Solver
+## Appendix F: Single Lens Report Solver
 
 Next, we may construct a single **lens report solver** that ties everything together and emits a structured payload suitable for pipeline ingestion.
 
@@ -1075,7 +1095,7 @@ All distances in mm.
 
 ---
 
-Core optics helpers
+**Core optics helpers**
 
 ```python
 import math
@@ -1118,7 +1138,7 @@ def dof_from_H(f_mm, s_mm, H_mm):
 
 ---
 
-Camera parameter builders
+**Camera parameter builders**
 
 ```python
 def gf_params(f_mm, sensor_w, sensor_h, fstop, focus_mm):
@@ -1146,7 +1166,7 @@ def prman_params(f_mm, sensor_w, sensor_h, fstop, focus_mm):
 
 ---
 
-Main lens report solver
+**Main lens report solver**
 
 Modes:
 
@@ -1258,31 +1278,31 @@ def lens_report_solver(
 
 ---
 
-What this gives you in practice
+### F.1 Workflow
 
-On-set quick pass:
+**On-set quick pass**:
 
 You know focal length, focus mark, T-stop, sensor → get GfCamera + PrMan + DOF immediately.
 
-Matchmove forensic pass:
+**Matchmove forensic pass**:
 
 You measure near DOF limit from plate, know focal length + focus mark → solver estimates effective f-number or CoC and emits renderer-ready cameras consistent with observed blur.
 
-Lens datasheet pass:
+**Lens datasheet pass**:
 
 Provide H1/H2 offsets → solver switches to true Gaussian distances and removes principal-plane bias from focus and DOF.
 
 ---
 
-## Appendix — Entrance pupil and nodal rotation pivot extension
+## Appendix G: Entrance pupil and nodal rotation pivot extension
 
-Operational facts we rely on:
+**Operational facts we rely on**:
 
 On set, the parallax-free rotation point is the entrance pupil (often loosely called the nodal point). Lens datasheets sometimes provide entrance pupil offset vs focus distance. If not, we estimate it from external measurements.
 
 We support two modes again.
 
-Practical pivot estimate:
+**Practical pivot estimate**:
 
 User can measure without disassembly:
 
@@ -1291,11 +1311,11 @@ User can measure without disassembly:
 
 We approximate entrance pupil near a fraction of lens length behind the front element. Empirically, 0.3–0.5 works for many lenses; we expose it as a parameter.
 
-Technical pivot estimate:
+**Technical pivot estimate**:
 
 If datasheet gives entrance pupil offset from mount flange (or another reference), we use it directly.
 
-Add these helpers.
+Here are the helper functions:
 
 ```python
 def estimate_entrance_pupil_practical(
@@ -1324,13 +1344,13 @@ def recommended_rotation_pivot(camera_origin_world, view_dir_world, pupil_offset
 
 Now extend the lens_report_solver to emit pivot data.
 
-Add optional inputs:
+We add optional inputs:
 
 * sensor_to_lens_front_mm
 * lens_length_mm
 * entrance_pupil_offset_mm   (datasheet)
 
-Add block inside solver:
+Add the following block inside the solver:
 
 ```python
     # --- entrance pupil / pivot ---
@@ -1357,13 +1377,13 @@ Add block inside solver:
     )
 ```
 
-For DCCs and matchmove tools, you shift the camera transform forward by this offset and rotate about that pivot instead of the sensor origin.
+For DCCs and matchmove tools, we shift the camera transform forward by this offset and rotate about that pivot instead of the sensor origin.
 
 That closes the loop from optics to rigging behavior.
 
 ---
 
-## Appendix - Python Library
+## Appendix H: Python Library
 
 ```python
 #!/usr/bin/env python3
