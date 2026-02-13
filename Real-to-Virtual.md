@@ -39,7 +39,23 @@ These measurements are sufficient to build a thin-lens equivalent camera that is
 
 ---
 
-Here is a cleaned and typographically consistent version with MathJax for symbols and equations, and principal planes written as (H_1) and (H_2). I’ve kept the structure but tightened the language and normalized notation.
+## A Note on T-Stops
+
+In optics terminology:
+
+* f-number $N$ = purely geometric quantity
+* $N = \frac{f}{D}$
+where $f$ is focal length and $D$ is the entrance pupil diameter.
+
+f-stop = the marked aperture setting expressed as an f-number (f/2, f/4, f/5.6, etc.). In practical photography language, people say “f-stop” when they mean f-number.
+T-stop = transmission stop, corrected for light loss in the lens. This is photometric, not geometric.
+Depth-of-field and hyperfocal formulas depend on geometry, not transmission. They are derived from similar triangles and blur circle constraints, so they require:
+focal length
+entrance pupil diameter → expressed via f-number
+circle of confusion
+subject distance
+They do not depend on lens transmission efficiency. Therefore
+
 
 ---
 
