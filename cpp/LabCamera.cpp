@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
+#include <cstring>
 
 // an anonymous namespace to prevent symbol exposure
 namespace {
